@@ -12,12 +12,20 @@ distributed control plane, or web UI.
 Go 1.27.1 or newer is required. The scanner builds without cgo:
 
 ```sh
-go test ./...
-go build -o scanner ./cmd/scanner
+make check      # go test + go vet
+make build      # ./scanner for the host platform
+make package    # dist/: archives for all platforms + SHA256SUMS
+make help       # list all targets
 ```
 
-CI tests the code and builds `linux`, `windows`, and `darwin` binaries for
-`amd64` and `arm64`. A published GitHub release receives all six binaries.
+`VERSION` defaults to `git describe` and can be overridden, e.g.
+`make package VERSION=v0.1.0`.
+
+CI runs `make check` and `make package` on every push and pull request,
+covering `linux`, `windows`, and `darwin` on `amd64` and `arm64`. Pushing a
+`v*` tag runs the release workflow, which creates a GitHub release with the
+`.tar.gz`/`.zip` archives and `SHA256SUMS`. Tags containing `-` (such as
+`v0.2.0-rc1`) are marked as pre-releases.
 
 ## Scan
 
