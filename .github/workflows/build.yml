@@ -1,56 +1,24 @@
 name: build
 on:
   push:
+    branches: ['**']
   pull_request:
-  release:
-    types: [published]
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - run: go test ./...
-      - run: go vet ./...
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        goos: [linux, windows, darwin]
-        goarch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Build
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: '0'
-        run: |
-          mkdir -p dist
-          suffix=""
-          if [ "$GOOS" = windows ]; then suffix=.exe; fi
-          go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o "dist/scanner-${GOOS}-${GOARCH}${suffix}" ./cmd/scanner
+      - run: make check
+      - run: make package
       - uses: actions/upload-artifact@v4
         with:
-          name: scanner-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/*
-  release:
-    if: github.event_name == 'release'
-    needs: [test, build]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: scanner-*
-          merge-multiple: true
-          path: dist
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
+          name: scanner-packages
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS
