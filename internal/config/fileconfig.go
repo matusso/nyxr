@@ -12,6 +12,7 @@ import (
 // parsed FileConfig; a future API can accept the same document over the wire.
 type FileConfig struct {
 	Targets       []string `yaml:"targets"`
+	AllowTargets  []string `yaml:"allow_targets"`
 	Ports         string   `yaml:"ports"`
 	Protocols     string   `yaml:"protocols"`
 	Timeout       string   `yaml:"timeout"`

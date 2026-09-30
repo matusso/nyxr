@@ -30,6 +30,10 @@ func NewTextSink(w io.Writer) *TextSink { return &TextSink{w: w} }
 func (s *TextSink) Begin(observe.Scan) error { return nil }
 
 func (s *TextSink) Observation(o observe.Observation) error {
+	if o.Kind == observe.KindDevice {
+		_, err := fmt.Fprintf(s.w, "%s device %-20s %3d%% %d signals\n", o.Target, o.Attributes["device.class"], o.Confidence, len(o.Signals))
+		return err
+	}
 	port := ""
 	if o.Port != 0 {
 		port = fmt.Sprintf(":%d", o.Port)

@@ -51,16 +51,16 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
                 '^--?ports$' { & $emit @({{range $i, $s := .PortSets}}{{if $i}}, {{end}}{{ps $s}}{{end}}); return }
                 '^--?protocols$' { & $emit @('tcp', 'udp', 'icmp', 'tcp,udp', 'tcp,icmp', 'udp,icmp', 'tcp,udp,icmp'); return }
                 '^--?tcp-mode$' { & $emit @('connect', 'syn'); return }
-                '^--?service-probes$' { & $emit @('banner', 'ssh', 'tls', 'http', 'dns', 'banner,ssh,tls,http,dns'); return }
+                '^--?service-probes$' { & $emit @('banner', 'ssh', 'tls', 'http', 'dns', 'modbus', 'ethernetip', 'banner,ssh,tls,http,dns', 'modbus,ethernetip'); return }
                 '^--?service-fallback$' { & $emit @('http', 'tls,http', 'none'); return }
                 # Returning nothing lets PowerShell fall back to path completion.
-                '^--?(payload|payload-file|config|timeout|rate|workers|udp-retries|send-hex|send-base64|interface|source-ip|source-mac|next-hop-mac|service-timeout|service-workers|service-rate|pcapng|pcapng-max-mb|db)$' { return }
+                '^--?(payload|payload-file|config|timeout|rate|workers|udp-retries|send-hex|send-base64|interface|source-ip|source-mac|next-hop-mac|allow-targets|service-timeout|service-workers|service-rate|pcapng|pcapng-max-mb|db)$' { return }
             }
             if ($wordToComplete.StartsWith('-')) {
                 & $emit @('--profile', '--ports', '--protocols', '--timeout', '--rate', '--workers', '--udp-retries', '--tcp-mode', '--interface', '--source-ip', '--source-mac', '--next-hop-mac',
                     '--payload', '--send-hex', '--send-base64', '--payload-file', '--config',
-                    '--service', '--service-probes', '--service-fallback', '--service-timeout', '--service-workers', '--service-rate', '--pcapng', '--pcapng-max-mb', '--db',
-                    '--json', '--dry-run', '--help') 'ParameterName'
+                    '--service', '--service-probes', '--service-fallback', '--service-timeout', '--service-workers', '--service-rate', '--pcapng', '--pcapng-max-mb', '--db', '--allow-targets',
+                    '--fingerprint', '--json', '--dry-run', '--help') 'ParameterName'
             }
         }
         'profiles' { & $emit @('--json') 'ParameterName' }

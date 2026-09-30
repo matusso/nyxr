@@ -51,7 +51,7 @@ func TestBuildUnknownProfile(t *testing.T) {
 }
 
 func TestBuildPlannedProfileRejected(t *testing.T) {
-	for _, name := range []string{"iot", "database", "research"} {
+	for _, name := range []string{"database", "research"} {
 		_, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: name})
 		if err == nil || !strings.Contains(err.Error(), "planned") {
 			t.Fatalf("profile %q should be rejected as planned, got %v", name, err)
@@ -79,9 +79,18 @@ func TestBuildCustomProfileRequiresFields(t *testing.T) {
 }
 
 func TestBuildOTSafeEnforcement(t *testing.T) {
-	base := Options{Targets: []string{"192.0.2.1"}, Profile: "ot-safe"}
+	base := Options{Targets: []string{"192.0.2.1"}, AllowTargets: []string{"192.0.2.0/24"}, Profile: "ot-safe"}
 	if _, err := Build(base); err != nil {
 		t.Fatalf("default ot-safe should build: %v", err)
+	}
+	if _, err := Build(Options{Targets: base.Targets, Profile: "ot-safe"}); err == nil {
+		t.Fatal("ot-safe must require an allowlist")
+	}
+	if _, err := Build(Options{Targets: base.Targets, AllowTargets: []string{"192.0.3.0/24"}, Profile: "ot-safe"}); err == nil {
+		t.Fatal("ot-safe must reject targets outside the allowlist")
+	}
+	if _, err := Build(Options{Targets: base.Targets, AllowTargets: base.AllowTargets, Profile: "ot-safe", Ports: "22"}); err == nil {
+		t.Fatal("ot-safe must reject unapproved ports")
 	}
 	// UDP is refused.
 	if _, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: "ot-safe", Protocols: "udp", Ports: "53"}); err == nil {

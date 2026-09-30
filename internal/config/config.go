@@ -17,6 +17,7 @@ import (
 // validated object without inheriting command-line parsing behavior.
 type Config struct {
 	Targets       []netip.Addr
+	AllowTargets  []netip.Prefix // explicit CIDR/IP authorization for target policy
 	Ports         []uint16
 	TCP           bool
 	UDP           bool
@@ -44,6 +45,37 @@ const MaxTargets = 65536
 func (c Config) Validate() error {
 	if len(c.Targets) == 0 || (!c.TCP && !c.UDP && !c.ICMP && !c.ARP && !c.NDP) {
 		return errors.New("at least one target and protocol are required")
+	}
+	if c.Profile == "ot-safe" && len(c.AllowTargets) == 0 {
+		return errors.New("ot-safe requires --allow-targets")
+	}
+	for _, target := range c.Targets {
+		if len(c.AllowTargets) == 0 {
+			break
+		}
+		allowed := false
+		for _, prefix := range c.AllowTargets {
+			if prefix.Contains(target) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return fmt.Errorf("target %s is outside --allow-targets", target)
+		}
+	}
+	if c.Profile == "ot-safe" {
+		if !c.TCP || c.UDP || c.ICMP || c.ARP || c.NDP || c.TCPMode == "syn" || len(c.UDPProbes) > 0 || c.UDPRetries > 0 {
+			return errors.New("ot-safe permits TCP connect and approved identity probes only")
+		}
+		if c.Rate < 1 || c.Rate > 5 || c.Workers > 4 || c.Timeout < 3*time.Second {
+			return errors.New("ot-safe requires rate 1..5, workers <=4 and timeout >=3s")
+		}
+		for _, port := range c.Ports {
+			if port != 80 && port != 443 && port != 502 && port != 44818 {
+				return fmt.Errorf("ot-safe does not permit port %d", port)
+			}
+		}
 	}
 	if (c.TCP || c.UDP) && len(c.Ports) == 0 {
 		return errors.New("TCP or UDP requires at least one port")
@@ -120,6 +152,33 @@ func (c Config) Validate() error {
 		}
 	}
 	return nil
+}
+
+// ParseAllowTargets accepts only literal addresses and CIDRs. DNS names are
+// deliberately excluded so resolution cannot widen an approved target set.
+func ParseAllowTargets(inputs []string) ([]netip.Prefix, error) {
+	var out []netip.Prefix
+	for _, input := range inputs {
+		for _, token := range strings.Split(input, ",") {
+			token = strings.TrimSpace(token)
+			if token == "" {
+				return nil, errors.New("empty allow-targets entry")
+			}
+			p, err := netip.ParsePrefix(token)
+			if err != nil {
+				a, addrErr := netip.ParseAddr(token)
+				if addrErr != nil {
+					return nil, fmt.Errorf("allow-targets entry %q must be an IP or CIDR", token)
+				}
+				p = netip.PrefixFrom(a.Unmap(), a.Unmap().BitLen())
+			}
+			if !p.Addr().IsValid() || p.Addr().Is4In6() {
+				return nil, fmt.Errorf("invalid allow-targets entry %q", token)
+			}
+			out = append(out, p.Masked())
+		}
+	}
+	return out, nil
 }
 
 func isZeroMAC(mac net.HardwareAddr) bool {

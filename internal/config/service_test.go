@@ -26,6 +26,10 @@ func TestServiceProfilesEnableStage(t *testing.T) {
 			t.Fatalf("%s: unexpected stage %+v", name, s)
 		}
 	}
+	ot, err := BuildService(build(t, Options{Profile: "ot-safe", AllowTargets: []string{"192.0.2.1"}}), ServiceOptions{})
+	if err != nil || !ot.Enabled || strings.Join(ot.Probes, ",") != "modbus,ethernetip" {
+		t.Fatalf("ot-safe identity stage: %+v %v", ot, err)
+	}
 	s, err := BuildService(build(t, Options{Profile: "tcp"}), ServiceOptions{})
 	if err != nil || s.Enabled || s.Plan() != nil {
 		t.Fatalf("tcp profile must stay discovery-only: %+v %v", s, err)
@@ -57,7 +61,7 @@ func TestServiceRejections(t *testing.T) {
 		svc  ServiceOptions
 		want string
 	}{
-		"ot-safe":         {Options{Profile: "ot-safe"}, ServiceOptions{Enable: &on}, "does not allow deep service probes"},
+		"ot-safe":         {Options{Profile: "ot-safe", AllowTargets: []string{"192.0.2.1"}}, ServiceOptions{Probes: "http"}, "does not allow service probe"},
 		"udp only":        {Options{Profile: "udp"}, ServiceOptions{Enable: &on}, "require the TCP protocol"},
 		"unknown probe":   {Options{Profile: "service"}, ServiceOptions{Probes: "smb"}, "unknown service probe"},
 		"option w/o flag": {Options{Profile: "tcp"}, ServiceOptions{Probes: "http"}, "require --service"},
@@ -67,6 +71,19 @@ func TestServiceRejections(t *testing.T) {
 		_, err := BuildService(build(t, tc.opts), tc.svc)
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Fatalf("%s: want %q, got %v", name, tc.want, err)
+		}
+	}
+}
+
+func TestOTServicePolicyCannotBeBypassed(t *testing.T) {
+	cfg := build(t, Options{Profile: "ot-safe", AllowTargets: []string{"192.0.2.1"}})
+	for _, svc := range []Service{
+		{Enabled: true, Probes: []string{"http"}, Timeout: 3 * time.Second, Workers: 4, Rate: 5},
+		{Enabled: true, Probes: []string{"modbus"}, Timeout: 3 * time.Second, Workers: 4, Rate: 0},
+		{Enabled: true, Probes: []string{"modbus"}, Timeout: 3 * time.Second, Workers: 4, Rate: 5, Fallback: []string{"http"}},
+	} {
+		if err := svc.ValidateFor(cfg); err == nil {
+			t.Fatalf("accepted unsafe direct service config: %+v", svc)
 		}
 	}
 }

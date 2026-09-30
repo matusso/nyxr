@@ -101,7 +101,7 @@ func (d Definition) Compile(baseDir string) (Probe, error) {
 	}
 	matcher := d.Match[0].Type
 	if matcher != "dns" && matcher != "ntp" && matcher != "snmp" && matcher != "any" &&
-		matcher != "stun" && matcher != "tftp" && matcher != "ssdp" && matcher != "sip" && matcher != "coap" {
+		matcher != "stun" && matcher != "tftp" && matcher != "ssdp" && matcher != "sip" && matcher != "coap" && matcher != "bacnet" {
 		return Probe{}, fmt.Errorf("unsupported matcher %q", matcher)
 	}
 	var payload []byte
@@ -159,8 +159,12 @@ func (d Definition) Compile(baseDir string) (Probe, error) {
 	if matcher == "coap" && (len(payload) < 12 || payload[0] != 0x48 || payload[1] != 1) {
 		return Probe{}, errors.New("CoAP matcher requires a confirmable GET with eight-byte token")
 	}
+	if matcher == "bacnet" && !bytes.Equal(payload, []byte{0x81, 0x0a, 0x00, 0x08, 0x01, 0x00, 0x10, 0x08}) {
+		return Probe{}, errors.New("BACnet matcher requires an unicast Who-Is request")
+	}
 	allowed := map[string]string{"dns.rcode": "dns", "ntp.stratum": "ntp", "stun.message_type": "stun",
-		"tftp.error_code": "tftp", "ssdp.server": "ssdp", "sip.status": "sip", "coap.code": "coap"}
+		"tftp.error_code": "tftp", "ssdp.server": "ssdp", "sip.status": "sip", "coap.code": "coap",
+		"bacnet.device_id": "bacnet", "bacnet.vendor_id": "bacnet"}
 	if len(d.Extract) > 16 {
 		return Probe{}, errors.New("at most 16 extraction fields are allowed")
 	}
@@ -284,6 +288,9 @@ func Match(p Probe, request, response []byte) bool {
 	case "coap":
 		return len(request) >= 12 && len(response) >= 12 && response[0]>>6 == 1 && response[0]&15 == 8 &&
 			response[1]>>5 >= 2 && bytes.Equal(request[4:12], response[4:12])
+	case "bacnet":
+		_, _, ok := parseBACnetIAm(response)
+		return ok
 	case "any":
 		return true
 	default:
@@ -353,12 +360,56 @@ func Extract(p Probe, response []byte) map[string]string {
 			if len(response) >= 2 {
 				fields[field] = fmt.Sprintf("%d.%02d", response[1]>>5, response[1]&31)
 			}
+		case "bacnet.device_id", "bacnet.vendor_id":
+			deviceID, vendorID, ok := parseBACnetIAm(response)
+			if ok {
+				fields["bacnet.device_id"] = strconv.FormatUint(uint64(deviceID), 10)
+				fields["bacnet.vendor_id"] = strconv.FormatUint(uint64(vendorID), 10)
+			}
 		}
 	}
 	if len(fields) == 0 {
 		return nil
 	}
 	return fields
+}
+
+// parseBACnetIAm accepts the minimal BACnet/IP Original-Unicast-NPDU form.
+// A routed or broadcast I-Am is not attributed to the unicast target socket.
+func parseBACnetIAm(b []byte) (uint32, uint32, bool) {
+	if len(b) < 17 || b[0] != 0x81 || (b[1] != 0x0a && b[1] != 0x0b) || int(binary.BigEndian.Uint16(b[2:4])) != len(b) ||
+		b[4] != 1 || b[5] != 0 || b[6] != 0x10 || b[7] != 0 || b[8] != 0xc4 {
+		return 0, 0, false
+	}
+	object := binary.BigEndian.Uint32(b[9:13])
+	if object>>22 != 8 {
+		return 0, 0, false
+	} // Device object
+	pos := 13
+	read := func(tag byte) (uint32, bool) {
+		if pos >= len(b) || b[pos]>>4 != tag || b[pos]&8 != 0 {
+			return 0, false
+		}
+		n := int(b[pos] & 7)
+		pos++
+		if n < 1 || n > 4 || n > len(b)-pos {
+			return 0, false
+		}
+		var value uint32
+		for _, x := range b[pos : pos+n] {
+			value = value<<8 | uint32(x)
+		}
+		pos += n
+		return value, true
+	}
+	if _, ok := read(2); !ok {
+		return 0, 0, false
+	} // max APDU
+	if _, ok := read(9); !ok {
+		return 0, 0, false
+	} // segmentation
+	vendor, ok := read(2)
+	return object & 0x3fffff, vendor, ok && pos == len(b)
 }
 
 func matchSNMP(request, response []byte) bool {

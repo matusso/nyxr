@@ -22,6 +22,7 @@ const (
 	KindHost           = "host"            // ICMP/ARP/NDP reachability of one address
 	KindPort           = "port"            // discovery state of one transport port
 	KindService        = "service"         // deep-probe identity of an open port
+	KindDevice         = "device"          // multi-source device classification
 	KindPacketEvidence = "packet-evidence" // captured frames belonging to one flow
 	KindScan           = "scan"            // scan summary, emitted last
 )
@@ -63,7 +64,16 @@ type Observation struct {
 	Attributes map[string]string `json:"attributes,omitempty"`
 	TLS        *TLS              `json:"tls,omitempty"`
 	// Evidence lists every deep-probe exchange, matched or not.
-	Evidence []Evidence `json:"evidence,omitempty"`
+	Evidence []Evidence     `json:"evidence,omitempty"`
+	Signals  []DeviceSignal `json:"signals,omitempty"`
+}
+
+// DeviceSignal points to an observation that supports a device claim.
+type DeviceSignal struct {
+	Source    string `json:"source"`
+	Transport string `json:"transport"`
+	Port      uint16 `json:"port,omitempty"`
+	Detail    string `json:"detail"`
 }
 
 // Stamp fills the envelope fields. It leaves an explicit Kind alone.

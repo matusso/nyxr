@@ -52,12 +52,13 @@ type stageFlags struct {
 	pcapng          *string
 	pcapngMaxMB     *int
 	db              *string
+	fingerprint     *bool
 }
 
 func addStageFlags(fs *flag.FlagSet) *stageFlags {
 	s := &stageFlags{}
 	fs.Var(&s.service, "service", "run deep service probes on open TCP ports")
-	s.serviceProbes = fs.String("service-probes", "", "comma list of banner, ssh, tls, http, dns")
+	s.serviceProbes = fs.String("service-probes", "", "comma list of banner, ssh, tls, http, dns, modbus, ethernetip")
 	s.serviceFallback = fs.String("service-fallback", "", "probes for unhinted silent ports, or none")
 	s.serviceTimeout = fs.Duration("service-timeout", 0, "upper bound for each service probe")
 	s.serviceWorkers = fs.Int("service-workers", -1, "concurrent service probe workers")
@@ -65,6 +66,7 @@ func addStageFlags(fs *flag.FlagSet) *stageFlags {
 	s.pcapng = fs.String("pcapng", "", "write packet evidence to this pcapng file")
 	s.pcapngMaxMB = fs.Int("pcapng-max-mb", 1024, "pcapng size budget in MiB")
 	s.db = fs.String("db", "", "store results in this SQLite database")
+	s.fingerprint = fs.Bool("fingerprint", false, "classify devices from independent observations")
 	return s
 }
 
@@ -87,17 +89,18 @@ func (s *stageFlags) serviceOptions() (config.ServiceOptions, error) {
 
 // usesPipeline reports whether a Phase 3 stage is active.
 func (s *stageFlags) usesPipeline(svc config.Service) bool {
-	return svc.Enabled || *s.pcapng != "" || *s.db != ""
+	return svc.Enabled || *s.pcapng != "" || *s.db != "" || *s.fingerprint
 }
 
 func emitStagePlan(out io.Writer, plan config.Plan, svc config.Service, stages *stageFlags, asJSON bool) error {
 	if asJSON {
 		return json.NewEncoder(out).Encode(struct {
 			config.Plan
-			Service *config.ServicePlan `json:"service,omitempty"`
-			PCAPNG  string              `json:"pcapng,omitempty"`
-			DB      string              `json:"db,omitempty"`
-		}{plan, svc.Plan(), *stages.pcapng, *stages.db})
+			Service     *config.ServicePlan `json:"service,omitempty"`
+			PCAPNG      string              `json:"pcapng,omitempty"`
+			DB          string              `json:"db,omitempty"`
+			Fingerprint bool                `json:"fingerprint,omitempty"`
+		}{plan, svc.Plan(), *stages.pcapng, *stages.db, *stages.fingerprint || plan.Profile == "iot" || plan.Profile == "ot-safe"})
 	}
 	if err := emitPlan(out, plan, false); err != nil {
 		return err
@@ -116,12 +119,15 @@ func emitStagePlan(out io.Writer, plan config.Plan, svc config.Service, stages *
 	if *stages.db != "" {
 		fmt.Fprintf(out, "db          %s\n", *stages.db)
 	}
+	if *stages.fingerprint || plan.Profile == "iot" || plan.Profile == "ot-safe" {
+		fmt.Fprintln(out, "fingerprint enabled")
+	}
 	return nil
 }
 
 func runPipeline(out io.Writer, cfg config.Config, svc config.Service, stages *stageFlags, asJSON bool) error {
 	ctx := context.Background()
-	opts := pipeline.Options{Service: svc}
+	opts := pipeline.Options{Service: svc, Fingerprint: *stages.fingerprint || cfg.Profile == "iot" || cfg.Profile == "ot-safe"}
 	if asJSON {
 		opts.Sinks = append(opts.Sinks, pipeline.NewJSONSink(out))
 	} else {

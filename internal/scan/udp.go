@@ -20,6 +20,14 @@ type sentProbe struct {
 	checksum uint16
 }
 
+// BACnet I-Am may be broadcast to UDP/47808. One listener owns that port at a
+// time so replies cannot be consumed by a concurrent target campaign.
+var bacnetListenerSlot = func() chan struct{} {
+	slot := make(chan struct{}, 1)
+	slot <- struct{}{}
+	return slot
+}()
+
 func matchRecent(recent []sentProbe, response []byte) (sentProbe, bool) {
 	// Transaction-bearing matchers take precedence over the socket-scoped
 	// fallback. A late DNS response must not be attributed to a later generic
@@ -29,7 +37,7 @@ func matchRecent(recent []sentProbe, response []byte) (sentProbe, bool) {
 		if !sent.sent.IsZero() && time.Since(sent.sent) > 5*time.Second {
 			continue
 		}
-		if (sent.probe.Matcher == "tftp" || sent.probe.Matcher == "ssdp") && i != len(recent)-1 {
+		if (sent.probe.Matcher == "tftp" || sent.probe.Matcher == "ssdp" || sent.probe.Matcher == "bacnet") && i != len(recent)-1 {
 			continue
 		}
 		if sent.probe.Matcher != "any" && probe.Match(sent.probe, sent.request, response) {
@@ -56,12 +64,30 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 	var conn *net.UDPConn
 	var err error
 	tftp := len(selected) == 1 && selected[0].Matcher == "tftp"
-	if tftp {
+	bacnet := len(selected) == 1 && selected[0].Matcher == "bacnet"
+	if bacnet {
+		if !t.target.Is4() {
+			o.State, o.Reason = "error", "BACnet/IP Who-Is currently supports IPv4 only"
+			return o
+		}
+		select {
+		case <-bacnetListenerSlot:
+			defer func() { bacnetListenerSlot <- struct{}{} }()
+		case <-ctx.Done():
+			o.State, o.Reason = "error", ctx.Err().Error()
+			return o
+		}
+	}
+	if tftp || bacnet {
 		network := "udp4"
 		if t.target.Is6() {
 			network = "udp6"
 		}
-		conn, err = net.ListenUDP(network, nil)
+		listenAddr := &net.UDPAddr{}
+		if bacnet {
+			listenAddr.Port = int(t.port)
+		}
+		conn, err = net.ListenUDP(network, listenAddr)
 	} else {
 		conn, err = net.DialUDP("udp", nil, addr)
 	}
@@ -72,7 +98,7 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 	defer conn.Close()
 	local := conn.LocalAddr().(*net.UDPAddr)
 	localIP, _ := netip.AddrFromSlice(local.IP)
-	if tftp {
+	if tftp || bacnet {
 		// An unconnected socket accepts TFTP's reply from a new transfer ID.
 		// A temporary dial asks the OS which source IP it will use.
 		route, routeErr := net.DialUDP("udp", nil, addr)
@@ -139,7 +165,7 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 			}
 			start := time.Now()
 			var writeErr error
-			if tftp {
+			if tftp || bacnet {
 				_, writeErr = conn.WriteToUDP(request, addr)
 			} else {
 				_, writeErr = conn.Write(request)
@@ -181,7 +207,7 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 				}
 				var n int
 				var peer *net.UDPAddr
-				if tftp {
+				if tftp || bacnet {
 					n, peer, err = conn.ReadFromUDP(buf[:])
 				} else {
 					n, err = conn.Read(buf[:])
@@ -201,7 +227,7 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 					o.State, o.Reason = "error", err.Error()
 					return o
 				}
-				if tftp && (peer == nil || !peer.IP.Equal(addr.IP)) {
+				if (tftp || bacnet) && (peer == nil || !peer.IP.Equal(addr.IP) || (bacnet && peer.Port != addr.Port)) {
 					continue
 				}
 				o.PacketsRX++
@@ -215,7 +241,7 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 					confidence, reason := 100, "validated "+matched.probe.Matcher+" response"
 					if matched.probe.Matcher == "any" {
 						confidence, reason = 80, "socket-scoped UDP response; probe identity unconfirmed"
-					} else if matched.probe.Matcher == "tftp" || matched.probe.Matcher == "ssdp" {
+					} else if matched.probe.Matcher == "tftp" || matched.probe.Matcher == "ssdp" || matched.probe.Matcher == "bacnet" {
 						confidence, reason = 85, "protocol-shaped UDP response from target; no transaction token"
 					} else {
 						o.Service = matched.probe.Matcher
@@ -223,7 +249,7 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 					if len(matched.probe.Tags) > 0 {
 						o.Service = matched.probe.Tags[0]
 					}
-					if matched.probe.Matcher == "tftp" || matched.probe.Matcher == "ssdp" {
+					if matched.probe.Matcher == "tftp" || matched.probe.Matcher == "ssdp" || matched.probe.Matcher == "bacnet" {
 						o.Service = matched.probe.Matcher
 					}
 					o.Probe = matched.probe.Name

@@ -5,8 +5,8 @@ An early cross-platform network scanner built around the architecture in
 configuration contract, a full profile catalog, bounded concurrent TCP connect
 and UDP probe campaigns, IPv4/IPv6 ICMP echo, ARP/NDP discovery, address and port parsing, rate
 limiting, structured observations, a reusable gopacket receive decoder, and an
-explicit raw IPv4 TCP SYN mode. Service fingerprinting, distributed control
-plane, and web UI remain on the roadmap.
+explicit raw IPv4 TCP SYN mode. Service identification and device fingerprinting
+are available; the distributed control plane and web UI remain on the roadmap.
 
 ## Build
 
@@ -53,7 +53,10 @@ nyxr scan --profile udp-deep --udp-retries 1 --json 192.0.2.1
 nyxr scan --protocols udp --ports 9999 --send-hex "010203" 192.0.2.1
 nyxr scan --protocols udp --ports 9999 --payload my-probe.yaml 192.0.2.1
 nyxr scan --protocols tcp,udp,icmp --timeout 2s --rate 50 192.0.2.0/28
-nyxr scan --profile ot-safe 192.0.2.10
+nyxr scan --profile ot-safe --allow-targets 192.0.2.10 --dry-run 192.0.2.10
+nyxr scan --profile ot-safe --allow-targets 192.0.2.0/24 --json 192.0.2.10
+nyxr scan --profile iot --fingerprint --json 192.0.2.10
+nyxr scan --profile udp --ports 47808 --fingerprint --json 192.0.2.10
 nyxr scan --profile fast --ports top100 192.0.2.0/24
 nyxr scan --profile udp-deep --dry-run 192.0.2.0/28
 nyxr scan --profile service --db nyxr.db 192.0.2.0/28
@@ -74,8 +77,9 @@ count, ports, protocols, pacing and scheduled task count — without sending any
 packet; add `--json` for the machine-readable plan. UDP/53 attempts DNS A then
 DNS NS, UDP/123 sends an NTP client request, and UDP/161 sends a read-only
 SNMPv2c `sysDescr.0` GET. Ports without a native probe receive a single byte. The
-`udp-deep` profile also scans ports 69, 1900, 3478, 5060, 5353, 5355 and
-5683 using read-only TFTP, SSDP, STUN, SIP OPTIONS, mDNS, LLMNR and CoAP GET
+`udp-deep` profile also scans ports 69, 1900, 3478, 5060, 5353, 5355, 5683
+and 47808 using read-only TFTP, SSDP, STUN, SIP OPTIONS, mDNS, LLMNR, CoAP GET
+and BACnet Who-Is
 probes, and retries each probe once. `--rate` limits application-level probe
 sends, including UDP retries. A matching DNS transaction ID, NTP originate
 timestamp, SNMP request ID, STUN transaction ID, SIP Call-ID or CoAP token
@@ -107,21 +111,48 @@ the roadmap phase they need, rather than silently downgrading to a weaker scan.
 | `fast` | available | Top 100 TCP ports at higher concurrency |
 | `tcp` | available | TCP connect scan of common ports |
 | `udp` | available | Protocol-aware UDP probes (DNS, NTP) |
-| `udp-deep` | available | Safe protocol probes on ten common UDP ports, one extra retry each |
-| `ot-safe` | available | Low-rate, read-only, TCP-only OT identification |
+| `udp-deep` | available | Safe protocol probes on eleven common UDP ports, one extra retry each |
+| `ot-safe` | available | Allowlisted TCP connect scan plus Modbus/EtherNet/IP identity reads |
 | `custom` | available | Minimal profile; set protocols, ports and timeout explicitly |
 | `service` | available | Top 100 TCP ports, then banner/SSH/TLS/HTTP/DNS identification |
 | `deep` | available | As `service`, and tries TLS and HTTP on every silent open port |
 | `web` | available | Common web ports with TLS and HTTP identification |
 | `full` | available | All TCP ports plus deep service identification |
 | `database` | planned | Database protocol handshakes (a later Phase 3 slice) |
-| `iot` | planned | Device fingerprinting (roadmap Phase 4) |
+| `iot` | available | TCP service identity and multi-source device fingerprinting |
 | `research` | planned | Packet-forge experiments (roadmap Phase 5) |
 
-`ot-safe` is enforced, not merely a set of defaults: it refuses UDP or ICMP,
-custom payloads, an unlimited or higher-than-5 rate, more than four workers, or a
-timeout under three seconds, so an operator cannot accidentally turn it into a
-disruptive scan.
+`ot-safe` requires `--allow-targets` (literal IPs or CIDRs); every resolved
+target must be inside it. It permits TCP connect on ports 80, 443, 502 and
+44818 only, with a rate of 1–5 attempts per second, at most four workers and
+a discovery timeout of at least three seconds. It rejects UDP/ICMP, custom
+payloads, raw SYN, extra ports and unapproved service probes. The service stage
+runs after discovery so its separately paced identity reads cannot overlap the
+discovery sends. `--dry-run --json` includes the allowlist and service plan.
+For packet-level evidence, add `--pcapng` and `--interface` with capture
+privileges; the normal record stream reports each discovery attempt and retains
+the request/response bytes of each identity read.
+
+Modbus uses function 43/14 (basic Read Device Identification) on TCP/502;
+EtherNet/IP uses ListIdentity on TCP/44818. Both are read-only requests and
+return product/version fields with raw exchange evidence. BACnet uses a unicast
+Who-Is request on UDP/47808 in an explicit UDP scan or `udp-deep`, and parses
+unicast or broadcast I-Am device and vendor IDs. The scanner binds local
+UDP/47808 for this IPv4 probe, so that port must be free. A BACnet I-Am has no transaction token, so its
+confidence is lower than token-validated UDP replies. These probes have local
+simulator fixtures; behavior on real OT equipment remains to be validated.
+
+`--fingerprint` combines matched service/UDP identities, MAC OUI prefixes and
+open port patterns into a `device` record when at least two independent signals
+support a claim. `iot` enables this stage by default. Its class and confidence
+are accompanied by the contributing signals; a port alone never claims a device
+type. An OUI prefix is retained as evidence, not expanded to a vendor name
+without a vendor database. Run `--fingerprint` with UDP profiles to combine
+BACnet, SNMP, mDNS, SSDP or CoAP observations from the same scan.
+
+The identity requests follow the [Modbus application and TCP/IP guides](https://www.modbus.org/modbus-specifications),
+the [BACnet Who-Is/I-Am encoding examples](https://bacnet.org/wp-content/uploads/sites/4/2022/08/Encoding.pdf),
+and [ODVA's ListIdentity format](https://jp.odva.org/wp-content/uploads/2020/05/PUB00081R1_Performance_Methodology_v1.0.pdf).
 
 For a custom UDP payload, choose one of `--payload` (native YAML definition),
 `--send-hex`, `--send-base64`, or `--payload-file`. An explicit custom payload
@@ -208,8 +239,8 @@ when truncated), the matcher that recognized it, or the error. A service is
 claimed only from a matched response, never from the port number alone.
 Unrecognized or absent responses produce `fingerprint: "unknown"` with their
 raw bytes retained, so they can seed future signatures. All probes are
-unauthenticated, read-only handshakes; `ot-safe` refuses the stage until the
-Phase 4 OT safety review. `--service-probes`, `--service-timeout`,
+unauthenticated, read-only handshakes; `ot-safe` permits only Modbus and
+EtherNet/IP identity reads. `--service-probes`, `--service-timeout`,
 `--service-workers` and `--service-rate` override the profile. The stage
 consumes discovery results, not packets: when its queue is full it slows the
 discovery consumer, never the packet receive path.
@@ -336,5 +367,6 @@ real NIC drop measurements are still pending.
 UDP port-unreachable reporting varies by operating system and firewall. A
 silent or rate-limited ICMP path remains `open|filtered`. Raw ICMP correlation
 has fixture tests but still needs privileged live runtime gates on Linux,
-macOS and Windows. IKE, IPMI and BACnet need separate safety and protocol
-fixtures before joining the native probe catalog.
+macOS and Windows. IKE and IPMI need separate safety and protocol fixtures
+before joining the native probe catalog; BACnet has simulator fixtures but no
+live OT device gate yet.

@@ -13,6 +13,7 @@ type Plan struct {
 	Profile       string   `json:"profile"`
 	Targets       int      `json:"targets"`
 	SampleTargets []string `json:"sample_targets,omitempty"`
+	AllowTargets  []string `json:"allow_targets,omitempty"`
 	Ports         int      `json:"ports"`
 	PortSummary   string   `json:"port_summary,omitempty"`
 	Protocols     []string `json:"protocols"`
@@ -65,6 +66,9 @@ func (c Config) Plan() Plan {
 			break
 		}
 		p.SampleTargets = append(p.SampleTargets, t.String())
+	}
+	for _, prefix := range c.AllowTargets {
+		p.AllowTargets = append(p.AllowTargets, prefix.String())
 	}
 	for _, pr := range c.UDPProbes {
 		p.UDPProbes = append(p.UDPProbes, pr.Name)

@@ -104,10 +104,12 @@ Flags:
   --config file         YAML scan configuration (flags override its fields)
   --json                newline-delimited JSON output
   --dry-run             resolve and print the plan without sending packets
+  --allow-targets list  approved IP/CIDR targets (required for ot-safe)
+  --fingerprint         classify devices from independent observations
 
 Service identification, evidence and storage:
   --service             deep probes on open TCP ports (on for service, deep, web, full)
-  --service-probes list banner, ssh, tls, http, dns (default: all)
+  --service-probes list banner, ssh, tls, http, dns, modbus, ethernetip
   --service-fallback l  probes for silent ports without a port hint, or none
   --service-timeout d   upper bound for each service probe
   --service-workers int concurrent service probe workers
@@ -146,6 +148,7 @@ func runScan(args []string, out io.Writer) error {
 	fileFlag := fs.String("payload-file", "", "custom raw UDP payload file")
 	jsonFlag := fs.Bool("json", false, "newline-delimited JSON output")
 	dryRunFlag := fs.Bool("dry-run", false, "resolve and print the plan without scanning")
+	allowTargetsFlag := fs.String("allow-targets", "", "comma-separated approved IPs or CIDRs")
 	stages := addStageFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -163,16 +166,20 @@ func runScan(args []string, out io.Writer) error {
 	}
 
 	opts := config.Options{
-		Targets:    append(append([]string{}, fc.Targets...), fs.Args()...),
-		Profile:    first(*profileFlag, fc.Profile),
-		Ports:      first(*portsFlag, fc.Ports),
-		Protocols:  first(*protoFlag, fc.Protocols),
-		Timeout:    first(timeoutText(*timeoutFlag), fc.Timeout),
-		TCPMode:    first(*tcpModeFlag, fc.TCPMode),
-		Interface:  first(*interfaceFlag, fc.Interface),
-		SourceIP:   first(*sourceIPFlag, fc.SourceIP),
-		SourceMAC:  first(*sourceMACFlag, fc.SourceMAC),
-		NextHopMAC: first(*nextHopMACFlag, fc.NextHopMAC),
+		Targets:      append(append([]string{}, fc.Targets...), fs.Args()...),
+		AllowTargets: append([]string{}, fc.AllowTargets...),
+		Profile:      first(*profileFlag, fc.Profile),
+		Ports:        first(*portsFlag, fc.Ports),
+		Protocols:    first(*protoFlag, fc.Protocols),
+		Timeout:      first(timeoutText(*timeoutFlag), fc.Timeout),
+		TCPMode:      first(*tcpModeFlag, fc.TCPMode),
+		Interface:    first(*interfaceFlag, fc.Interface),
+		SourceIP:     first(*sourceIPFlag, fc.SourceIP),
+		SourceMAC:    first(*sourceMACFlag, fc.SourceMAC),
+		NextHopMAC:   first(*nextHopMACFlag, fc.NextHopMAC),
+	}
+	if *allowTargetsFlag != "" {
+		opts.AllowTargets = []string{*allowTargetsFlag}
 	}
 	opts.Rate = mergeInt(*rateFlag, fc.Rate)
 	opts.HostRate = mergeInt(*hostRateFlag, fc.HostRate)
@@ -224,7 +231,9 @@ func runScan(args []string, out io.Writer) error {
 			port = fmt.Sprintf(":%d", o.Port)
 		}
 		reason := o.Reason
-		if o.MAC != "" { reason += " (MAC " + o.MAC + ")" }
+		if o.MAC != "" {
+			reason += " (MAC " + o.MAC + ")"
+		}
 		_, err := fmt.Fprintf(out, "%s%s %-5s %-14s %3d%% %s\n", o.Target, port, o.Transport, o.State, o.Confidence, reason)
 		return err
 	})
@@ -244,6 +253,9 @@ func emitPlan(out io.Writer, plan config.Plan, asJSON bool) error {
 		fmt.Fprint(out, ")")
 	}
 	fmt.Fprintln(out)
+	if len(plan.AllowTargets) > 0 {
+		fmt.Fprintf(out, "allow       %s\n", strings.Join(plan.AllowTargets, ", "))
+	}
 	fmt.Fprintf(out, "protocols   %s\n", strings.Join(plan.Protocols, ", "))
 	if plan.Ports > 0 {
 		fmt.Fprintf(out, "ports       %s\n", plan.PortSummary)
