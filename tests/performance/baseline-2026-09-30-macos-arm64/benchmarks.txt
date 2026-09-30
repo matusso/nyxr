@@ -1,0 +1,21 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/matusso/nyxr/internal/packet
+cpu: Apple M5 Max
+BenchmarkDecodeTCP-18        	29944911	        42.24 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeTCP-18        	28299855	        41.75 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeTCP-18        	30146145	        42.04 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeFixture-18    	25584171	        46.57 ns/op	1159.57 MB/s	       8 B/op	       0 allocs/op
+BenchmarkDecodeFixture-18    	24983582	        47.41 ns/op	1139.11 MB/s	       8 B/op	       0 allocs/op
+BenchmarkDecodeFixture-18    	25604187	        50.67 ns/op	1065.72 MB/s	       8 B/op	       0 allocs/op
+PASS
+ok  	github.com/matusso/nyxr/internal/packet	8.900s
+goos: darwin
+goarch: arm64
+pkg: github.com/matusso/nyxr/internal/scan
+cpu: Apple M5 Max
+BenchmarkSYNFakeResponder-18    	      43	  26750710 ns/op	      3738 probes/s	        10.00 simulated-loss-%	 3225851 B/op	     931 allocs/op
+BenchmarkSYNFakeResponder-18    	      43	  27189059 ns/op	      3678 probes/s	        10.00 simulated-loss-%	 3224153 B/op	     925 allocs/op
+BenchmarkSYNFakeResponder-18    	      50	  26605327 ns/op	      3759 probes/s	        10.00 simulated-loss-%	 3223919 B/op	     924 allocs/op
+PASS
+ok  	github.com/matusso/nyxr/internal/scan	3.886s

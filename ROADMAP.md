@@ -39,11 +39,11 @@ Cross-compilation confirms that a binary builds; it does **not** prove that live
 - [x] Unit tests for target/port parsing, packet decoding, pcap reading and native probe validation.
 - [x] Loopback TCP/UDP tests, including UDP retry and late-response behavior; decoder allocation benchmark.
 - [x] CI test/vet and six-OS/architecture build packaging.
-- [ ] Add reusable PCAP fixtures for IPv4/IPv6, TCP/UDP/ICMP, VLANs, malformed/truncated frames and ICMP quotations.
-- [ ] Add fake responders with configurable latency, loss, duplicate replies, ICMP rate limits and protocol mismatch.
-- [ ] Add a privileged Linux network-namespace lab and repeatable macOS/Windows runtime smoke jobs or documented manual gates.
-- [ ] Record baseline throughput, allocations, CPU, packet loss and NIC drops at fixed workloads; publish the benchmark command and environment with results.
-- [ ] Fuzz packet decoders, probe definitions/matchers and pcap readers with hostile input.
+- [x] Add deterministic reusable PCAP fixtures for IPv4/IPv6, TCP/UDP/ICMP, VLANs, malformed/truncated frames and ICMP quotations.
+- [x] Add fake UDP and SYN responders with configurable latency, loss, duplicate replies, ICMP rate limits and protocol mismatch.
+- [x] Add a privileged Linux network-namespace lab and documented macOS/Windows live RX/TX gates. The Linux lab and Windows gate have not yet run on their target hosts.
+- [ ] Record baseline throughput, allocations, CPU, packet loss and NIC drops at fixed workloads; publish the benchmark command and environment with results. Decoder and synthetic scan results are recorded in `tests/performance/README.md`; real NIC drop counters await the privileged Linux lab.
+- [x] Fuzz packet decoders, probe definitions/matchers and pcap readers with hostile input; short campaigns run in CI.
 
 **Exit:** CI reproduces classification and regression cases, and performance claims cite measured workloads rather than estimates.
 
