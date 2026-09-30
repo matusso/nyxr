@@ -86,6 +86,61 @@ func TestDecoderReuse(t *testing.T) {
 	}
 }
 
+func TestParseQuotedUDP(t *testing.T) {
+	for _, v6 := range []bool{false, true} {
+		header := make([]byte, 48)
+		if v6 {
+			header[0], header[6] = 0x60, 17
+			copy(header[8:24], net.ParseIP("2001:db8::1").To16())
+			copy(header[24:40], net.ParseIP("2001:db8::2").To16())
+		} else {
+			header[0], header[9] = 0x45, 17
+			copy(header[12:16], net.ParseIP("192.0.2.1").To4())
+			copy(header[16:20], net.ParseIP("192.0.2.2").To4())
+			header = header[:28]
+		}
+		udp := header[len(header)-8:]
+		binary.BigEndian.PutUint16(udp[:2], 50000)
+		binary.BigEndian.PutUint16(udp[2:4], 53)
+		binary.BigEndian.PutUint16(udp[4:6], 20)
+		binary.BigEndian.PutUint16(udp[6:8], 0xabcd)
+		q := parseQuotedUDP(header)
+		if !q.Valid || q.SourcePort != 50000 || q.DestPort != 53 || q.Length != 20 || q.Checksum != 0xabcd {
+			t.Fatalf("v6=%v: %+v", v6, q)
+		}
+		if parseQuotedUDP(header[:len(header)-1]).Valid {
+			t.Fatal("accepted truncated UDP quote")
+		}
+	}
+}
+
+func TestDecoderICMPv6QuotedUDP(t *testing.T) {
+	quote := make([]byte, 48)
+	quote[0], quote[6] = 0x60, 17
+	copy(quote[8:24], net.ParseIP("2001:db8::1").To16())
+	copy(quote[24:40], net.ParseIP("2001:db8::2").To16())
+	binary.BigEndian.PutUint16(quote[40:42], 50000)
+	binary.BigEndian.PutUint16(quote[42:44], 5683)
+	binary.BigEndian.PutUint16(quote[44:46], 20)
+	binary.BigEndian.PutUint16(quote[46:48], 0xabcd)
+	eth := &layers.Ethernet{SrcMAC: net.HardwareAddr{2, 0, 0, 0, 0, 1}, DstMAC: net.HardwareAddr{2, 0, 0, 0, 0, 2}, EthernetType: layers.EthernetTypeIPv6}
+	ip := &layers.IPv6{Version: 6, HopLimit: 64, NextHeader: layers.IPProtocolICMPv6,
+		SrcIP: net.ParseIP("2001:db8::ff"), DstIP: net.ParseIP("2001:db8::1")}
+	icmp := &layers.ICMPv6{TypeCode: layers.CreateICMPv6TypeCode(1, 4)}
+	if err := icmp.SetNetworkLayerForChecksum(ip); err != nil {
+		t.Fatal(err)
+	}
+	payload := append(make([]byte, 4), quote...)
+	buf := gopacket.NewSerializeBuffer()
+	if err := gopacket.SerializeLayers(buf, gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}, eth, ip, icmp, gopacket.Payload(payload)); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := NewDecoder().Decode(buf.Bytes())
+	if !ok || got.Protocol != "icmp6" || !got.UDPQuote.Valid || got.UDPQuote.DestPort != 5683 {
+		t.Fatalf("got %+v, %v", got, ok)
+	}
+}
+
 func BenchmarkDecodeTCP(b *testing.B) {
 	packet := frame(b, false)
 	d := NewDecoder()

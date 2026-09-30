@@ -217,6 +217,6 @@ func fromScan(s scan.Observation) observe.Observation {
 	return observe.Observation{
 		Timestamp: s.Timestamp, Target: s.Target, Transport: s.Transport, Port: s.Port, State: s.State,
 		Confidence: s.Confidence, Reason: s.Reason, Probe: s.Probe, Service: s.Service, MAC: s.MAC, RTT: s.RTT,
-		PacketsTX: s.PacketsTX, PacketsRX: s.PacketsRX, ProbesAttempted: s.ProbesAttempted, ResponseHex: s.ResponseHex,
+		PacketsTX: s.PacketsTX, PacketsRX: s.PacketsRX, ProbesAttempted: s.ProbesAttempted, ResponseHex: s.ResponseHex, Fields: s.Fields,
 	}
 }

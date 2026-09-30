@@ -9,6 +9,7 @@ src="nyxr-src-$$"
 dst="nyxr-dst-$$"
 cleanup() {
   [[ -n ${server_pid:-} ]] && kill "$server_pid" 2>/dev/null || true
+  [[ -n ${udp_pid:-} ]] && kill "$udp_pid" 2>/dev/null || true
   ip netns del "$src" 2>/dev/null || true
   ip netns del "$dst" 2>/dev/null || true
   rm -rf "$tmp"
@@ -32,11 +33,16 @@ ip -n "$src" link set nxsrc up
 ip -n "$dst" link set nxdst up
 ip netns exec "$dst" python3 -m http.server 8080 --bind 10.77.0.2 >"$tmp/server.log" 2>&1 &
 server_pid=$!
+ip netns exec "$dst" python3 -u -c 'import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.bind(("10.77.0.2",53001));
+while True:
+ data,peer=s.recvfrom(4096); s.sendto(data,peer)' >"$tmp/udp.log" 2>&1 &
+udp_pid=$!
 for _ in {1..50}; do
   if ip netns exec "$dst" python3 -c 'import socket; s=socket.create_connection(("10.77.0.2",8080),.05); s.close()' 2>/dev/null; then break; fi
   sleep .02
 done
 if ! kill -0 "$server_pid" 2>/dev/null; then cat "$tmp/server.log" >&2; exit 1; fi
+if ! kill -0 "$udp_pid" 2>/dev/null; then cat "$tmp/udp.log" >&2; exit 1; fi
 ports=8080,8081
 if command -v iptables >/dev/null; then
   ip netns exec "$dst" iptables -A INPUT -p tcp --dport 8082 -j DROP
@@ -44,6 +50,22 @@ if command -v iptables >/dev/null; then
 else
   echo "iptables unavailable: filtered-port gate skipped" >&2
 fi
+udp_ports=53001,53002
+if command -v iptables >/dev/null; then
+  ip netns exec "$dst" iptables -A INPUT -p udp --dport 53003 -j DROP
+  udp_ports+=,53003
+fi
+ip netns exec "$src" "$tmp/nyxr" scan --profile custom --protocols udp --ports "$udp_ports" --send-hex 010203 --workers 1 --timeout 300ms --json 10.77.0.2 >"$tmp/udp-results.jsonl"
+python3 - "$tmp/udp-results.jsonl" "$udp_ports" <<'PY'
+import json, sys
+rows = [json.loads(line) for line in open(sys.argv[1])]
+got = {int(row['port']): row['state'] for row in rows}
+expected = {53001: 'open', 53002: 'closed'}
+if '53003' in sys.argv[2]: expected[53003] = 'open|filtered'
+assert got == expected, (got, expected, rows)
+assert all('raw ICMP unavailable' not in row['reason'] for row in rows), rows
+print('UDP classification:', got)
+PY
 ip -n "$src" -j -s link show nxsrc >"$tmp/nic-before.json"
 ip netns exec "$src" "$tmp/nyxr" scan --tcp-mode syn --interface nxsrc --protocols tcp --ports "$ports" --workers 1 --timeout 250ms --json 10.77.0.2 >"$tmp/results.jsonl"
 python3 - "$tmp/results.jsonl" "$ports" <<'PY'

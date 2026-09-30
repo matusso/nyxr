@@ -1,0 +1,13 @@
+schema: nyxr/udp/v1
+name: coap-core
+transport: udp
+ports: [5683]
+tags: [coap, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "480100000000000000000000bb2e77656c6c2d6b6e6f776e04636f7265"
+timeout: 1s
+match:
+  - type: coap
+extract: [coap.code]

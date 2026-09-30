@@ -69,3 +69,76 @@ func TestNativeProbeValidation(t *testing.T) {
 		t.Fatal("accepted unsafe probe")
 	}
 }
+
+func TestPhase2BuiltinsAndMatchers(t *testing.T) {
+	all, err := Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, port := range []uint16{69, 1900, 3478, 5060, 5353, 5355, 5683} {
+		selected := ForPort(all, port)
+		if len(selected) != 1 || selected[0].Name == "generic-byte" {
+			t.Fatalf("port %d: %+v", port, selected)
+		}
+	}
+	for _, tc := range []struct {
+		port         uint16
+		makeResponse func([]byte) []byte
+		field, want  string
+	}{
+		{3478, func(req []byte) []byte { r := bytes.Clone(req); r[0], r[1] = 1, 1; return r }, "stun.message_type", "0x0101"},
+		{5060, func(req []byte) []byte { return []byte("SIP/2.0 200 OK\r\nCall-ID: " + sipCallID(req) + "\r\n\r\n") }, "sip.status", "200"},
+		{5683, func(req []byte) []byte { r := bytes.Clone(req); r[1] = 0x45; return r }, "coap.code", "2.05"},
+		{69, func([]byte) []byte { return []byte{0, 5, 0, 1, 'x', 0} }, "tftp.error_code", "1"},
+		{1900, func([]byte) []byte { return []byte("HTTP/1.1 200 OK\r\nSERVER: fixture\r\n\r\n") }, "ssdp.server", "fixture"},
+	} {
+		p := ForPort(all, tc.port)[0]
+		request := Prepare(p, 0x1234567890abcdef)
+		response := tc.makeResponse(request)
+		if !Match(p, request, response) {
+			t.Fatalf("%s rejected matching response", p.Name)
+		}
+		if got := Extract(p, response)[tc.field]; got != tc.want {
+			t.Fatalf("%s extraction: %q", p.Name, got)
+		}
+		if p.Matcher == "stun" || p.Matcher == "sip" || p.Matcher == "coap" {
+			wrong := tc.makeResponse(Prepare(p, 0x9999999999999999))
+			if Match(p, request, wrong) {
+				t.Fatalf("%s accepted wrong transaction", p.Name)
+			}
+		}
+	}
+}
+
+func TestNativeProbeSchemaAndExtractionValidation(t *testing.T) {
+	const base = "schema: nyxr/udp/v1\nname: x\ntransport: udp\nports: [53]\nsafety: safe\npayload:\n  encoding: hex\n  data: 000001000001000000000000\nmatch:\n  - type: dns\nextract: [dns.rcode]\n"
+	if _, err := Parse(strings.NewReader(base), ""); err != nil {
+		t.Fatal(err)
+	}
+	for _, invalid := range []string{
+		strings.Replace(base, "nyxr/udp/v1", "nyxr/udp/v2", 1),
+		strings.Replace(base, "dns.rcode", "sip.status", 1),
+		strings.Replace(base, "[dns.rcode]", "[dns.rcode, dns.rcode]", 1),
+		strings.Replace(base, "000001000001000000000000", "000028000001000000000000", 1), // DNS UPDATE is not read-only.
+	} {
+		if _, err := Parse(strings.NewReader(invalid), ""); err == nil {
+			t.Fatalf("accepted invalid probe: %s", invalid)
+		}
+	}
+	all, err := Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sip := ForPort(all, 5060)[0]
+	var d Definition
+	d.Name, d.Transport, d.Safety = "unsafe-sip", "udp", "safe"
+	d.Payload.Encoding = "ascii"
+	d.Payload.Data = string(bytes.Replace(sip.Payload, []byte("OPTIONS "), []byte("INVITE "), 1))
+	d.Match = make([]struct {
+		Type string `yaml:"type"`
+	}, 1)
+	d.Match[0].Type = "sip"
+	if _, err := d.Compile(""); err == nil {
+		t.Fatal("accepted INVITE as a safe SIP probe")
+	}
+}

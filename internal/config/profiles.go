@@ -93,9 +93,9 @@ var profiles = []Profile{
 		Ports:        "53,123", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
 	},
 	{
-		Name: "udp-deep", Description: "UDP probes including SNMP, one extra retry each",
+		Name: "udp-deep", Description: "Safe DNS, NTP, SNMP, TFTP, SSDP, STUN, SIP, mDNS, LLMNR and CoAP probes with retries",
 		Availability: StatusAvailable,
-		Ports:        "53,123,161", Protocols: "udp", Timeout: "2s", Rate: 25, Workers: 16, UDPRetries: 1,
+		Ports:        "53,69,123,161,1900,3478,5060,5353,5355,5683", Protocols: "udp", Timeout: "2s", Rate: 25, Workers: 16, UDPRetries: 1,
 	},
 	{
 		Name: "ot-safe", Description: "Low-rate, read-only, TCP-only OT identification",

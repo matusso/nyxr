@@ -3,6 +3,7 @@ package capture
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"net"
 	"net/netip"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/gopacket/gopacket/layers"
 	"github.com/gopacket/gopacket/pcapgo"
 
+	"github.com/matusso/nyxr/internal/packet"
 	"github.com/matusso/nyxr/internal/packetio"
 )
 
@@ -35,6 +37,29 @@ func tcpFrame(t *testing.T, src, dst netip.Addr, sport, dport uint16, syn, ack b
 		t.Fatal(err)
 	}
 	return append([]byte(nil), buf.Bytes()...)
+}
+
+func TestRecorderIndexesQuotedUDP(t *testing.T) {
+	quote := make([]byte, 28)
+	quote[0], quote[9] = 0x45, 17
+	copy(quote[12:16], scanner.AsSlice())
+	copy(quote[16:20], target.AsSlice())
+	binary.BigEndian.PutUint16(quote[20:22], 50000)
+	binary.BigEndian.PutUint16(quote[22:24], 53)
+	binary.BigEndian.PutUint16(quote[24:26], 16)
+	binary.BigEndian.PutUint16(quote[26:28], 0xabcd)
+	eth := &layers.Ethernet{SrcMAC: net.HardwareAddr{2, 0, 0, 0, 0, 1}, DstMAC: net.HardwareAddr{2, 0, 0, 0, 0, 2}, EthernetType: layers.EthernetTypeIPv4}
+	ip := &layers.IPv4{Version: 4, TTL: 64, Protocol: layers.IPProtocolICMPv4, SrcIP: other.AsSlice(), DstIP: scanner.AsSlice()}
+	icmp := &layers.ICMPv4{TypeCode: layers.CreateICMPv4TypeCode(3, 3)}
+	buf := gopacket.NewSerializeBuffer()
+	if err := gopacket.SerializeLayers(buf, gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}, eth, ip, icmp, gopacket.Payload(quote)); err != nil {
+		t.Fatal(err)
+	}
+	r := &Recorder{decoder: packet.NewDecoder(), targets: map[netip.Addr]struct{}{target: {}}}
+	key, direction, _ := r.classify(buf.Bytes())
+	if key != (FlowKey{Target: target, Transport: "udp", Port: 53}) || direction != DirectionRX {
+		t.Fatalf("classified as %+v %v", key, direction)
+	}
 }
 
 // fakeIO delivers a fixed frame list, then idles until the context ends.

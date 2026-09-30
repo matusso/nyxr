@@ -11,7 +11,7 @@ This is the execution plan for the product described in [INSTRUCTIONS.md](INSTRU
 | CLI and configuration | Done | `scan`, `profiles`, `decode`, `sniff`, `history`; shared `internal/config` contract (flag/file/profile merge with one validation path); full profile catalog with honest `planned` gating; named port sets (`top100`, `all`); `--dry-run` plan (text/JSON); target/CIDR/range and port parsing; JSON observations; bounded workers | Rate-scheduling hierarchy and target/policy enforcement (tracked in the safety row and Phases 4/9); the API/web consuming the same contract (Phase 6) |
 | Portable scans | Partial | TCP connect and UDP socket scans on IPv4/IPv6; privileged IPv4/IPv6 ICMP echo, explicit ARP/NDP discovery and raw IPv4 TCP SYN mode | Other TCP flag modes, IPv6 raw SYN, SCTP and IP protocol scans; privileged live validation |
 | Packet path | Partial | Reused `gopacket.DecodingLayerParser` for Ethernet/VLAN IPv4/IPv6 TCP/UDP/ICMP and quoted IPv4 TCP; fixed-worker raw IPv4 TCP SYN scan with checksummed packet templates, token-validated SYN/ACK, RST/ACK and ICMP classification, bounded receive/decode/reply queues; AF_PACKET, BPF and Npcap live Ethernet backends | Privileged Linux and live macOS/Windows runtime gates, automatic neighbor/next-hop discovery, hardware multi-queue RX fanout and measured throughput/drops |
-| UDP intelligence | Partial | Embedded native DNS A/NS, NTP and SNMPv2c GET probes; custom YAML/binary payloads; token checks, bounded late-reply matching, retries, confidence and response samples | Raw ICMP correlation, adaptive retries, broader protocol coverage and calibrated confidence |
+| UDP intelligence | Partial | Raw ICMPv4/v6 quote correlation with socket fallback; DNS A/NS, NTP, SNMP, mDNS, LLMNR, TFTP, SSDP, STUN, SIP OPTIONS and CoAP GET probes; versioned YAML with extraction fields; bounded late-reply matching and feedback-based retries | Privileged live ICMP gates, IKE/IPMI/BACnet safety fixtures and wider calibration |
 | Safety and rate control | Partial | Global application-level probe rate, bounded concurrency, enforced read-only TCP-only `ot-safe` profile (rejects UDP/ICMP, custom payloads, unlimited or >5 rate, >4 workers, <3s timeout) | Per-host/subnet/interface limits, adaptive feedback, target allowlists/dry-run policy and research guardrails |
 | Evidence and storage | Partial | Versioned `nyxr/v1` record stream (host/port/service/packet-evidence/scan); asynchronous bounded pcapng capture with per-flow packet IDs; pcap and pcapng reading; SQLite store with migrations, assets, evidence bytes, packet index, queries and retention | Live capture runtime gates, plain discovery scans still on the legacy observation stream, PostgreSQL controller backend, object storage for large artifacts |
 | Build and release | Done | Tests/vet in CI, cgo-free builds and release archives/checksums for linux/windows/darwin on amd64/arm64, and a Linux amd64/arm64 GHCR image | Runtime smoke tests on all six binary targets and signed release provenance |
@@ -31,7 +31,7 @@ Cross-compilation confirms that a binary builds; it does **not** prove that live
 
 1. **Finish Phase 0 measurement and lab fixtures.** Establish reproducible packet and network behavior before tuning or adding more raw modes.
 2. **Finish the Phase 1 packet discovery path.** Run privileged AF_PACKET, BPF and Npcap smoke tests; add automatic neighbor/route resolution and multi-queue RX sharding, then fill IPv6 ICMP and neighbor discovery gaps. Keep connect as the default until live raw backends pass runtime tests.
-3. **Finish Phase 2 UDP classification.** Correlate raw ICMP errors with probes, expand safe native probes, and tune retry/confidence rules against controlled loss and firewall cases.
+3. **Finish Phase 2 UDP validation.** Run privileged ICMPv4/v6 gates on each platform, then expand the remaining safe protocol slices and tune retry/confidence rules against controlled loss and firewall cases.
 4. **Build on the Phase 3 observation/evidence contract.** Route every scan through the record pipeline, run the capture runtime gates, then add service probes in fixture-backed slices.
 
 ## Phase 0 — measurable test foundation · Partial
@@ -69,11 +69,14 @@ Cross-compilation confirms that a binary builds; it does **not** prove that live
 - [x] Native YAML probe format with embedded DNS A/NS, NTP and read-only SNMPv2c probes, plus custom ASCII/hex/base64/file payloads.
 - [x] Multi-probe campaigns, per-probe timeout/retries, global send pacing, HMAC-derived DNS/NTP/SNMP tokens, late-reply matching and bounded response samples.
 - [x] Basic `open`, `closed` (when the OS reports port unreachable) and `open|filtered` observations with reason and confidence.
-- [ ] Correlate raw ICMPv4/v6 quoted packets to the original UDP probe independent of socket-error behavior.
-- [ ] Add bounded fallback correlation for protocols without a usable transaction field; test delayed, duplicate and cross-probe responses.
-- [ ] Add safe probes and matchers in small tested groups: mDNS/LLMNR, TFTP, SSDP/STUN, SIP/IKE/IPMI, CoAP/BACnet and other entries prioritized by demand.
-- [ ] Use packet-loss/ICMP-limit feedback for adaptive retries and calibrate confidence against known open/closed/filtered fixtures.
-- [ ] Add extraction fields and a versioned native probe schema; make imported Nmap probes a separate optional database after license review.
+- [x] Correlate raw ICMPv4/v6 quoted packets to the original UDP probe independent of socket-error behavior, with socket fallback when raw sockets are unavailable. Synthetic quote tests exist; live privileged gates remain.
+- [x] Add bounded socket-scoped fallback correlation for protocols without a transaction field; retain unmatched response evidence and test delayed, duplicate and mismatched replies.
+- [x] Add a safe fixture-backed group: mDNS/LLMNR, TFTP, SSDP/STUN, SIP OPTIONS and CoAP GET.
+- [ ] Add IKE/IPMI/BACnet only after read-only safety review and protocol fixtures; prioritize further probes by demand.
+- [x] Use packet-loss/ICMP-limit feedback for one adaptive retry and distinguish token-validated, protocol-shaped, unknown, ICMP and silent results by reason and confidence.
+- [ ] Calibrate confidence and retry behavior with privileged live loss, firewall and ICMP-limit cases on Linux, macOS and Windows.
+- [x] Add matcher-specific extraction fields and a versioned native probe schema (`nyxr/udp/v1`), accepting schema-less legacy definitions.
+- [ ] Consider an imported Nmap probe database only after license review; keep it optional and separate.
 
 **Exit:** UDP results remain explainable under silence, ICMP filtering, delayed replies and protocol mismatch; each new probe has a fixture and safety classification.
 

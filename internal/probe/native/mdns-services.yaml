@@ -1,0 +1,13 @@
+schema: nyxr/udp/v1
+name: mdns-services
+transport: udp
+ports: [5353]
+tags: [mdns, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "000000000001000000000000095f7365727669636573075f646e732d7364045f756470056c6f63616c00000c0001"
+timeout: 1s
+match:
+  - type: dns
+extract: [dns.rcode]

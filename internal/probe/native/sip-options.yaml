@@ -1,0 +1,13 @@
+schema: nyxr/udp/v1
+name: sip-options
+transport: udp
+ports: [5060]
+tags: [sip, discovery]
+safety: safe
+payload:
+  encoding: ascii
+  data: "OPTIONS sip:nyxr.invalid SIP/2.0\r\nVia: SIP/2.0/UDP nyxr.invalid;rport;branch=z9hG4bKnyxr\r\nFrom: <sip:nyxr@invalid>;tag=nyxr\r\nTo: <sip:nyxr@invalid>\r\nCall-ID: nyxr-0000000000000000\r\nCSeq: 1 OPTIONS\r\nMax-Forwards: 0\r\nContent-Length: 0\r\n\r\n"
+timeout: 1500ms
+match:
+  - type: sip
+extract: [sip.status]

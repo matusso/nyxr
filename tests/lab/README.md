@@ -6,7 +6,10 @@ Run `sudo bash tests/lab/linux-netns.sh` on Linux with `iproute2`, Python 3,
 Go, and optionally `iptables`. The script builds nyxr, creates two disposable
 network namespaces and a veth pair, and verifies automatic ARP resolution,
 raw SYN open/closed/filtered classification, and IPv4 ARP/IPv6 NDP discovery,
-then runs a fixed 100-port closed scan. It prints the 100-probe
+plus UDP open/closed/filtered classification with an echo responder and a
+closed port. The UDP gate checks that a raw ICMP listener opened in the source
+namespace; packet fixtures separately check exact ICMP quote correlation.
+It then runs a fixed 100-port closed scan. It prints the 100-probe
 throughput and source-interface TX/RX packet and drop deltas across both scans.
 The filtered case needs `iptables`.
 No external target or permanent network setting is used. A container needs
@@ -49,3 +52,14 @@ Generate traffic while `sniff` runs. Require one decoded frame and `open` /
 display name>` before and after, plus the adapter ID, Npcap version, Windows
 build, and scan output. These gates must run on real hosts; cross-builds do
 not establish live RX/TX behavior.
+
+## UDP ICMP manual gate (macOS and Windows)
+
+On an isolated network, provide a UDP echo responder on one port, leave a
+second port closed, and firewall-drop a third. Run `nyxr scan --profile custom
+--protocols udp --ports OPEN,CLOSED,FILTERED --send-hex 010203 --workers 1
+--timeout 500ms --json TARGET` with raw-socket privileges. Require `open`,
+`closed`, and `open|filtered` respectively, and confirm the silent result does
+not say `raw ICMP unavailable`. Repeat with IPv6. Save the JSON results and
+the firewall rule used; synthetic tests cover exact quote checksums and
+cross-probe rejection independently of socket-error delivery.

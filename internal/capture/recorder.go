@@ -300,7 +300,7 @@ func (r *Recorder) writeFrame(f frame) {
 }
 
 // classify maps a frame to the observation it supports. ICMP errors quoting a
-// TCP probe belong to that TCP port; other ICMP belongs to the host.
+// TCP or UDP probe belong to that port; other ICMP belongs to the host.
 func (r *Recorder) classify(data []byte) (FlowKey, Direction, string) {
 	p, ok := r.decoder.Decode(data)
 	if !ok {
@@ -332,6 +332,12 @@ func (r *Recorder) classify(data []byte) (FlowKey, Direction, string) {
 			quoted := p.Quote.Destination.Unmap()
 			if _, ok := r.targets[quoted]; ok {
 				return FlowKey{Target: quoted, Transport: "tcp", Port: p.Quote.DestPort}, DirectionRX, summary + fmt.Sprintf(" quoting tcp %s:%d", quoted, p.Quote.DestPort)
+			}
+		}
+		if p.UDPQuote.Valid {
+			quoted := p.UDPQuote.Destination.Unmap()
+			if _, ok := r.targets[quoted]; ok {
+				return FlowKey{Target: quoted, Transport: "udp", Port: p.UDPQuote.DestPort}, DirectionRX, summary + fmt.Sprintf(" quoting udp %s:%d", quoted, p.UDPQuote.DestPort)
 			}
 		}
 		return FlowKey{Target: target, Transport: "icmp"}, dir, summary

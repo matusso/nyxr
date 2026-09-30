@@ -22,6 +22,7 @@ type Decoded struct {
 	ICMPType    uint8      `json:"icmp_type,omitempty"`
 	ICMPCode    uint8      `json:"icmp_code,omitempty"`
 	Quote       QuotedTCP  `json:"-"`
+	UDPQuote    QuotedUDP  `json:"-"`
 }
 
 // QuotedTCP holds the original packet header included in an ICMP error.
@@ -29,6 +30,14 @@ type QuotedTCP struct {
 	Source, Destination  netip.Addr
 	SourcePort, DestPort uint16
 	Sequence             uint32
+	Valid                bool
+}
+
+// QuotedUDP is the original UDP header included in an ICMP error.
+type QuotedUDP struct {
+	Source, Destination  netip.Addr
+	SourcePort, DestPort uint16
+	Length, Checksum     uint16
 	Valid                bool
 }
 
@@ -108,13 +117,45 @@ func (d *Decoder) Decode(frame []byte) (Decoded, bool) {
 			result.ICMPType = uint8(d.icmp4.TypeCode.Type())
 			result.ICMPCode = uint8(d.icmp4.TypeCode.Code())
 			result.Quote = parseQuotedTCP(d.icmp4.Payload)
+			if result.ICMPType == 3 {
+				result.UDPQuote = parseQuotedUDP(d.icmp4.Payload)
+			}
 		case layers.LayerTypeICMPv6:
 			result.Protocol = "icmp6"
 			result.ICMPType = uint8(d.icmp6.TypeCode.Type())
 			result.ICMPCode = uint8(d.icmp6.TypeCode.Code())
+			if result.ICMPType == 1 && len(d.icmp6.Payload) >= 4 {
+				result.UDPQuote = parseQuotedUDP(d.icmp6.Payload[4:])
+			}
 		}
 	}
 	return result, hasIP && !fragmented && result.Protocol != ""
+}
+
+func parseQuotedUDP(raw []byte) QuotedUDP {
+	var q QuotedUDP
+	var udp []byte
+	if len(raw) >= 20 && raw[0]>>4 == 4 {
+		hlen := int(raw[0]&15) * 4
+		if hlen < 20 || len(raw) < hlen+8 || raw[9] != 17 || binary.BigEndian.Uint16(raw[6:8])&0x3fff != 0 {
+			return q
+		}
+		q.Source = netip.AddrFrom4([4]byte(raw[12:16]))
+		q.Destination = netip.AddrFrom4([4]byte(raw[16:20]))
+		udp = raw[hlen:]
+	} else if len(raw) >= 48 && raw[0]>>4 == 6 && raw[6] == 17 {
+		q.Source = netip.AddrFrom16([16]byte(raw[8:24]))
+		q.Destination = netip.AddrFrom16([16]byte(raw[24:40]))
+		udp = raw[40:]
+	} else {
+		return q
+	}
+	q.SourcePort = binary.BigEndian.Uint16(udp[:2])
+	q.DestPort = binary.BigEndian.Uint16(udp[2:4])
+	q.Length = binary.BigEndian.Uint16(udp[4:6])
+	q.Checksum = binary.BigEndian.Uint16(udp[6:8])
+	q.Valid = q.SourcePort != 0 && q.DestPort != 0 && q.Length >= 8
+	return q
 }
 
 // Discovery does not reassemble IPv6 fragments. Refuse the entire packet,

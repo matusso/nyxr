@@ -73,14 +73,22 @@ ports, or `all` for `1-65535`. Use `--json` for newline-delimited observations.
 count, ports, protocols, pacing and scheduled task count — without sending any
 packet; add `--json` for the machine-readable plan. UDP/53 attempts DNS A then
 DNS NS, UDP/123 sends an NTP client request, and UDP/161 sends a read-only
-SNMPv2c `sysDescr.0` GET. Other UDP ports receive a single byte. The
-`udp-deep` profile includes port 161 and retries each probe once. `--rate`
-limits application-level probe sends, including UDP retries. A matching DNS
-transaction ID, NTP originate timestamp, or SNMP request ID raises confidence;
+SNMPv2c `sysDescr.0` GET. Ports without a native probe receive a single byte. The
+`udp-deep` profile also scans ports 69, 1900, 3478, 5060, 5353, 5355 and
+5683 using read-only TFTP, SSDP, STUN, SIP OPTIONS, mDNS, LLMNR and CoAP GET
+probes, and retries each probe once. `--rate` limits application-level probe
+sends, including UDP retries. A matching DNS transaction ID, NTP originate
+timestamp, SNMP request ID, STUN transaction ID, SIP Call-ID or CoAP token
+raises confidence;
 the token is derived from a per-scan secret. An unmatched UDP response is retained as an unknown
 fingerprint with a hex evidence sample. No response is `open|filtered` with
-low confidence; it is never reported as definitely open. Connected UDP sockets
-also classify ICMP port-unreachable errors when the OS delivers them. TCP uses
+low confidence; it is never reported as definitely open. With raw-socket
+permission, a shared ICMPv4/v6 listener matches quoted UDP addresses, ports,
+length and checksum to sent probes. Without that permission, the result notes
+that raw ICMP is unavailable and connected UDP sockets still classify
+port-unreachable errors when the OS delivers them. TFTP accepts a reply from
+the server's new transfer port. Later ports on a host gain one adaptive retry
+when feedback suggests loss or ICMP rate limiting. TCP uses
 ordinary connect calls by default, so it works without raw packet privileges. The
 `ot-safe` profile limits rate and concurrency
 and uses TCP connect only.
@@ -99,7 +107,7 @@ the roadmap phase they need, rather than silently downgrading to a weaker scan.
 | `fast` | available | Top 100 TCP ports at higher concurrency |
 | `tcp` | available | TCP connect scan of common ports |
 | `udp` | available | Protocol-aware UDP probes (DNS, NTP) |
-| `udp-deep` | available | UDP probes including SNMP, one extra retry each |
+| `udp-deep` | available | Safe protocol probes on ten common UDP ports, one extra retry each |
 | `ot-safe` | available | Low-rate, read-only, TCP-only OT identification |
 | `custom` | available | Minimal profile; set protocols, ports and timeout explicitly |
 | `service` | available | Top 100 TCP ports, then banner/SSH/TLS/HTTP/DNS identification |
@@ -121,6 +129,7 @@ replaces built-in probes for the scan. A native definition can target particular
 ports and set its own timeout and retry count:
 
 ```yaml
+schema: nyxr/udp/v1
 name: sample-discovery
 transport: udp
 ports: [9999]
@@ -136,9 +145,14 @@ match:
 ```
 
 Supported payload encodings are `ascii`, `hex`, `base64`, and `raw_file`
-(relative to the YAML file). Matchers are `any`, `dns`, `ntp`, and `snmp`. This first
-version accepts only `safety: safe`; additional matcher and extraction types
-are planned. A probe with no applicable port falls back to the generic byte.
+(relative to the YAML file). Matchers are `any`, `dns`, `ntp`, `snmp`, `stun`,
+`tftp`, `ssdp`, `sip`, and `coap`. The optional `schema` defaults to
+`nyxr/udp/v1` for older definitions; unknown versions are rejected. The
+`extract` list can request `dns.rcode`, `ntp.stratum`, `stun.message_type`,
+`tftp.error_code`, `ssdp.server`, `sip.status`, or `coap.code`; values appear
+in the observation's `fields` map. Only `safety: safe` is accepted. A probe
+with no applicable port falls back to the generic byte. TFTP and SSDP replies
+have lower confidence because they lack a transaction token.
 
 The CLI and a future API share one configuration contract: flags and file
 fields are merged into a single set of options, resolved against the selected
@@ -214,8 +228,8 @@ summary as a pcapng comment. At the end of the scan, `packet-evidence` records
 link each target/transport/port to its packet IDs. Queue overflow, the size
 budget (`--pcapng-max-mb`, default 1024) and backend drops are counted in the
 scan summary rather than silently lost. Timestamps are taken when user space
-receives a frame. UDP port-unreachable errors are indexed under the host's
-`icmp` flow because only TCP quotes are decoded today. `nyxr decode` reads
+receives a frame. ICMP errors with complete quoted UDP headers are indexed
+under the UDP target and port flow. `nyxr decode` reads
 these pcapng files as well as classic pcap.
 
 `--db file` stores the scan in SQLite through a cgo-free driver, so every
@@ -320,6 +334,7 @@ but live RX/TX on BPF/Npcap and privileged Linux scanning remain unverified;
 real NIC drop measurements are still pending.
 
 UDP port-unreachable reporting varies by operating system and firewall. A
-silent or rate-limited ICMP path remains `open|filtered`. The current UDP
-engine uses safe single-protocol probes; broad protocol coverage and raw ICMP
-correlation remain future roadmap work.
+silent or rate-limited ICMP path remains `open|filtered`. Raw ICMP correlation
+has fixture tests but still needs privileged live runtime gates on Linux,
+macOS and Windows. IKE, IPMI and BACnet need separate safety and protocol
+fixtures before joining the native probe catalog.

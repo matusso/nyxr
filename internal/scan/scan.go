@@ -20,21 +20,22 @@ import (
 )
 
 type Observation struct {
-	Timestamp       time.Time     `json:"timestamp"`
-	Target          netip.Addr    `json:"target"`
-	Transport       string        `json:"transport"`
-	Port            uint16        `json:"port,omitempty"`
-	State           string        `json:"state"`
-	Confidence      int           `json:"confidence"`
-	Reason          string        `json:"reason"`
-	Probe           string        `json:"probe"`
-	Service         string        `json:"service,omitempty"`
-	MAC             string        `json:"mac,omitempty"`
-	RTT             time.Duration `json:"rtt_ns"`
-	PacketsTX       int           `json:"packets_tx"`
-	PacketsRX       int           `json:"packets_rx"`
-	ProbesAttempted []string      `json:"probes_attempted,omitempty"`
-	ResponseHex     string        `json:"response_hex,omitempty"`
+	Timestamp       time.Time         `json:"timestamp"`
+	Target          netip.Addr        `json:"target"`
+	Transport       string            `json:"transport"`
+	Port            uint16            `json:"port,omitempty"`
+	State           string            `json:"state"`
+	Confidence      int               `json:"confidence"`
+	Reason          string            `json:"reason"`
+	Probe           string            `json:"probe"`
+	Service         string            `json:"service,omitempty"`
+	MAC             string            `json:"mac,omitempty"`
+	RTT             time.Duration     `json:"rtt_ns"`
+	PacketsTX       int               `json:"packets_tx"`
+	PacketsRX       int               `json:"packets_rx"`
+	ProbesAttempted []string          `json:"probes_attempted,omitempty"`
+	ResponseHex     string            `json:"response_hex,omitempty"`
+	Fields          map[string]string `json:"fields,omitempty"`
 }
 
 type task struct {
@@ -56,6 +57,8 @@ func Run(parent context.Context, cfg config.Config, emit func(Observation) error
 		return runSYN(parent, cfg, emit, packetio.OpenLive)
 	}
 	var udpProbes []probe.Probe
+	var icmpObserver *udpICMPObserver
+	var udpSignals *udpFeedback
 	var secret [32]byte
 	if cfg.UDP {
 		udpProbes = cfg.UDPProbes
@@ -69,6 +72,9 @@ func Run(parent context.Context, cfg config.Config, emit func(Observation) error
 		if _, err := rand.Read(secret[:]); err != nil {
 			return err
 		}
+		icmpObserver = openUDPICMP(cfg.Targets)
+		defer icmpObserver.Close()
+		udpSignals = newUDPFeedback()
 	}
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
@@ -90,7 +96,8 @@ func Run(parent context.Context, cfg config.Config, emit func(Observation) error
 					}
 					result = probeTCP(ctx, t, cfg.Timeout)
 				case "udp":
-					result = probeUDPCampaign(ctx, t, cfg.Timeout, udpProbes, cfg.UDPRetries, secret[:], limiter)
+					result = probeUDPCampaignWithICMP(ctx, t, cfg.Timeout, udpProbes, cfg.UDPRetries+udpSignals.retryBonus(t.target), secret[:], limiter, icmpObserver)
+					udpSignals.record(result)
 				case "icmp":
 					if limiter.WaitFor(ctx, t.target) != nil {
 						return

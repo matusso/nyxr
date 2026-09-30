@@ -1,0 +1,13 @@
+schema: nyxr/udp/v1
+name: ssdp-search
+transport: udp
+ports: [1900]
+tags: [ssdp, discovery]
+safety: safe
+payload:
+  encoding: ascii
+  data: "M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 1\r\nST: ssdp:all\r\n\r\n"
+timeout: 1500ms
+match:
+  - type: ssdp
+extract: [ssdp.server]
