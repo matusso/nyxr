@@ -147,14 +147,40 @@ func TestBuildRawSYNRequirements(t *testing.T) {
 	if err != nil || cfg.TCPMode != "syn" || cfg.Plan().NextHopMAC != base.NextHopMAC {
 		t.Fatalf("SYN configuration: %+v, %v", cfg, err)
 	}
+	automatic := base
+	automatic.NextHopMAC = ""
+	if _, err := Build(automatic); err != nil {
+		t.Fatalf("automatic next-hop configuration: %v", err)
+	}
 	for _, tc := range []Options{
-		{Targets: base.Targets, TCPMode: "syn", Interface: "eth0"},
+		{Targets: base.Targets, TCPMode: "syn"},
 		{Targets: base.Targets, TCPMode: "syn", Interface: "eth0", NextHopMAC: "ff:ff:ff:ff:ff:ff"},
 		{Targets: []string{"2001:db8::1"}, TCPMode: "syn", Interface: "eth0", NextHopMAC: base.NextHopMAC},
 		{Targets: base.Targets, Profile: "ot-safe", TCPMode: "syn", Interface: "eth0", NextHopMAC: base.NextHopMAC},
 	} {
 		if _, err := Build(tc); err == nil {
 			t.Fatalf("accepted unsafe SYN configuration: %+v", tc)
+		}
+	}
+}
+
+func TestBuildNeighborDiscovery(t *testing.T) {
+	for _, tc := range []struct{ protocol, target string }{
+		{"arp", "192.0.2.10"}, {"ndp", "2001:db8:1::10"},
+	} {
+		cfg, err := Build(Options{Targets: []string{tc.target}, Profile: "custom", Protocols: tc.protocol,
+			Interface: "eth0", Timeout: "1s"})
+		if err != nil || cfg.Plan().Tasks != 1 || len(cfg.Ports) != 0 {
+			t.Fatalf("%s plan: %+v, %v", tc.protocol, cfg, err)
+		}
+	}
+	for _, tc := range []Options{
+		{Targets: []string{"192.0.2.10"}, Profile: "custom", Protocols: "arp", Timeout: "1s"},
+		{Targets: []string{"2001:db8::10"}, Profile: "custom", Protocols: "arp", Interface: "eth0", Timeout: "1s"},
+		{Targets: []string{"192.0.2.10"}, Profile: "ot-safe", Protocols: "arp", Interface: "eth0"},
+	} {
+		if _, err := Build(tc); err == nil {
+			t.Fatalf("accepted invalid neighbor discovery: %+v", tc)
 		}
 	}
 }

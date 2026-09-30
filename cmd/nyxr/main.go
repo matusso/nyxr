@@ -80,9 +80,12 @@ func scanUsage(out io.Writer) {
 Flags:
   --profile string      scan profile (default "discovery"; see: nyxr profiles)
   --ports string        ports, ranges (80,443,8000-8100), or a set (all, top100)
-  --protocols string    comma list of tcp, udp, icmp
+  --protocols string    comma list of tcp, udp, icmp, arp, ndp
   --timeout duration    per-probe timeout (e.g. 1s, 750ms)
   --rate int            max probes/second (0 = unlimited)
+  --host-rate int       max probes/second per address
+  --subnet-rate int     max probes/second per IPv4 /24 or IPv6 /64
+  --interface-rate int  max probes/second on selected raw interface
   --workers int         concurrent probe workers
   --udp-retries int     extra retries per UDP probe
   --tcp-mode string     connect (default) or raw Ethernet syn
@@ -107,10 +110,13 @@ func runScan(args []string, out io.Writer) error {
 	fs.SetOutput(io.Discard)
 	fs.Usage = func() { scanUsage(out) }
 	portsFlag := fs.String("ports", "", "comma-separated ports, ranges, or a named set")
-	protoFlag := fs.String("protocols", "", "tcp,udp,icmp")
+	protoFlag := fs.String("protocols", "", "tcp,udp,icmp,arp,ndp")
 	profileFlag := fs.String("profile", "", "scan profile")
 	timeoutFlag := fs.Duration("timeout", 0, "probe timeout")
 	rateFlag := fs.Int("rate", -1, "maximum probes per second (0 unlimited)")
+	hostRateFlag := fs.Int("host-rate", -1, "maximum probes per second per address (0 unlimited)")
+	subnetRateFlag := fs.Int("subnet-rate", -1, "maximum probes per second per IPv4 /24 or IPv6 /64 (0 unlimited)")
+	interfaceRateFlag := fs.Int("interface-rate", -1, "maximum probes per second on the raw interface (0 unlimited)")
 	workersFlag := fs.Int("workers", -1, "concurrent probe workers")
 	configFlag := fs.String("config", "", "YAML configuration file")
 	udpRetriesFlag := fs.Int("udp-retries", -1, "extra retries for each UDP probe")
@@ -136,8 +142,8 @@ func runScan(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if *rateFlag < -1 || *workersFlag < -1 || *udpRetriesFlag < -1 {
-		return errors.New("rate, workers and UDP retries must be nonnegative")
+	if *rateFlag < -1 || *hostRateFlag < -1 || *subnetRateFlag < -1 || *interfaceRateFlag < -1 || *workersFlag < -1 || *udpRetriesFlag < -1 {
+		return errors.New("rates, workers and UDP retries must be nonnegative")
 	}
 
 	opts := config.Options{
@@ -153,6 +159,9 @@ func runScan(args []string, out io.Writer) error {
 		NextHopMAC: first(*nextHopMACFlag, fc.NextHopMAC),
 	}
 	opts.Rate = mergeInt(*rateFlag, fc.Rate)
+	opts.HostRate = mergeInt(*hostRateFlag, fc.HostRate)
+	opts.SubnetRate = mergeInt(*subnetRateFlag, fc.SubnetRate)
+	opts.InterfaceRate = mergeInt(*interfaceRateFlag, fc.InterfaceRate)
 	opts.Workers = mergeInt(*workersFlag, fc.Workers)
 	opts.UDPRetries = mergeInt(*udpRetriesFlag, fc.UDPRetries)
 
@@ -187,7 +196,9 @@ func runScan(args []string, out io.Writer) error {
 		if o.Port != 0 {
 			port = fmt.Sprintf(":%d", o.Port)
 		}
-		_, err := fmt.Fprintf(out, "%s%s %-5s %-14s %3d%% %s\n", o.Target, port, o.Transport, o.State, o.Confidence, o.Reason)
+		reason := o.Reason
+		if o.MAC != "" { reason += " (MAC " + o.MAC + ")" }
+		_, err := fmt.Fprintf(out, "%s%s %-5s %-14s %3d%% %s\n", o.Target, port, o.Transport, o.State, o.Confidence, reason)
 		return err
 	})
 }
@@ -212,6 +223,15 @@ func emitPlan(out io.Writer, plan config.Plan, asJSON bool) error {
 	}
 	fmt.Fprintf(out, "timeout     %s\n", plan.Timeout)
 	fmt.Fprintf(out, "rate        %s\n", rateText(plan.Rate))
+	if plan.HostRate > 0 {
+		fmt.Fprintf(out, "host-rate   %s\n", rateText(plan.HostRate))
+	}
+	if plan.SubnetRate > 0 {
+		fmt.Fprintf(out, "subnet-rate %s\n", rateText(plan.SubnetRate))
+	}
+	if plan.InterfaceRate > 0 {
+		fmt.Fprintf(out, "interface-rate %s\n", rateText(plan.InterfaceRate))
+	}
 	fmt.Fprintf(out, "workers     %d\n", plan.Workers)
 	fmt.Fprintf(out, "tcp-mode    %s\n", plan.TCPMode)
 	if plan.Interface != "" {

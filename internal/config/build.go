@@ -21,20 +21,23 @@ import (
 // Build turns Options into a validated Config, so every interface shares one
 // resolution and validation path.
 type Options struct {
-	Targets    []string
-	Profile    string
-	Ports      string
-	Protocols  string
-	Timeout    string
-	Rate       *int
-	Workers    *int
-	UDPRetries *int
-	Payload    PayloadSource
-	TCPMode    string
-	Interface  string
-	SourceIP   string
-	SourceMAC  string
-	NextHopMAC string
+	Targets       []string
+	Profile       string
+	Ports         string
+	Protocols     string
+	Timeout       string
+	Rate          *int
+	HostRate      *int
+	SubnetRate    *int
+	InterfaceRate *int
+	Workers       *int
+	UDPRetries    *int
+	Payload       PayloadSource
+	TCPMode       string
+	Interface     string
+	SourceIP      string
+	SourceMAC     string
+	NextHopMAC    string
 }
 
 // PayloadSource selects at most one custom UDP payload. When any field is set
@@ -136,7 +139,7 @@ func Build(o Options) (Config, error) {
 	if protocolsInput == "" {
 		return Config{}, fmt.Errorf("profile %q requires --protocols", name)
 	}
-	tcp, udp, icmp, err := ParseProtocols(protocolsInput)
+	tcp, udp, icmp, arp, ndp, err := ParseProtocols(protocolsInput)
 	if err != nil {
 		return Config{}, err
 	}
@@ -193,7 +196,7 @@ func Build(o Options) (Config, error) {
 		}
 	}
 
-	if err := profile.Enforce.check(name, tcp, udp, icmp, rate, workers, timeout, len(udpProbes) > 0); err != nil {
+	if err := profile.Enforce.check(name, tcp, udp, icmp, arp, ndp, rate, workers, timeout, len(udpProbes) > 0); err != nil {
 		return Config{}, err
 	}
 
@@ -203,8 +206,9 @@ func Build(o Options) (Config, error) {
 	}
 
 	cfg := Config{
-		Targets: targets, Ports: ports, TCP: tcp, UDP: udp, ICMP: icmp,
-		Timeout: timeout, Rate: rate, Workers: workers, Profile: name,
+		Targets: targets, Ports: ports, TCP: tcp, UDP: udp, ICMP: icmp, ARP: arp, NDP: ndp,
+		Timeout: timeout, Rate: rate, HostRate: valueOr(o.HostRate, 0), SubnetRate: valueOr(o.SubnetRate, 0),
+		InterfaceRate: valueOr(o.InterfaceRate, 0), Workers: workers, Profile: name,
 		UDPProbes: udpProbes, UDPRetries: retries,
 		TCPMode: mode, Interface: o.Interface, SourceIP: sourceIP, SourceMAC: sourceMAC, NextHopMAC: nextHopMAC,
 	}

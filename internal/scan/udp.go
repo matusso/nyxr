@@ -36,6 +36,8 @@ func probeUDPCampaign(ctx context.Context, t task, timeout time.Duration, all []
 		return o
 	}
 	defer conn.Close()
+	stop := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Now()) })
+	defer stop()
 	var buf [4096]byte
 	var unknownResponse bool
 	var attempt uint32
@@ -46,7 +48,7 @@ func probeUDPCampaign(ctx context.Context, t task, timeout time.Duration, all []
 			probeTimeout = p.Timeout
 		}
 		for retry := 0; retry <= p.Retries+extraRetries; retry++ {
-			if err := limiter.Wait(ctx); err != nil {
+			if err := limiter.WaitFor(ctx, t.target); err != nil {
 				o.State, o.Reason = "error", err.Error()
 				return o
 			}

@@ -3,7 +3,7 @@
 An early cross-platform network scanner built around the architecture in
 [ROADMAP.md](ROADMAP.md). This first implementation provides a CLI with a shared
 configuration contract, a full profile catalog, bounded concurrent TCP connect
-and UDP probe campaigns, IPv4 ICMP echo, address and port parsing, rate
+and UDP probe campaigns, IPv4/IPv6 ICMP echo, ARP/NDP discovery, address and port parsing, rate
 limiting, structured observations, a reusable gopacket receive decoder, and an
 explicit raw IPv4 TCP SYN mode. Service fingerprinting, distributed control
 plane, and web UI remain on the roadmap.
@@ -178,26 +178,44 @@ this path on pcap files without `PacketSource`. The packet I/O interface accepts
 batches of raw Ethernet frames and keeps acquisition separate from decoding.
 
 TCP scanning uses portable connect mode by default. To send raw IPv4 SYNs,
-select an Ethernet interface and the MAC address of the target or its next-hop
-gateway:
+select an Ethernet interface. The scanner looks up the route on that interface
+and resolves the target or gateway MAC with ARP before sending a SYN:
 
 ```sh
-sudo nyxr scan --tcp-mode syn --interface eth0 --next-hop-mac 02:11:22:33:44:55 \
+sudo nyxr scan --tcp-mode syn --interface eth0 \
   --protocols tcp --ports 80,443 192.0.2.10
 ```
 
 Use `--source-ip` if the interface has several IPv4 addresses. The source IP
 must belong to that interface. On Windows, Npcap adapter IDs may differ from
 OS interface names; supply the Npcap adapter ID with `--interface` and specify
-both `--source-ip` and `--source-mac`. Raw mode requires TCP-only IPv4 targets;
+both `--source-ip` and `--source-mac`. If the adapter cannot be mapped to an OS
+route, also supply `--next-hop-mac`. This flag remains available to override
+automatic route and neighbor resolution on any platform. Raw SYN mode requires
+TCP-only IPv4 targets;
 the `ot-safe` profile always uses connect mode. `--dry-run` includes the chosen
-mode and link details. No ARP, NDP or route lookup is performed: the operator
-must supply the actual next-hop MAC for the chosen interface. An incorrect MAC
-can cause every probe to time out. A SYN/ACK is `open`, a matching RST/ACK is
+mode and link details; route and neighbor discovery occurs only when the scan
+runs. Unanswered ARP produces a `no-response` observation without sending a
+SYN. An incorrect manual MAC can cause every probe to time out. A SYN/ACK is
+`open`, a matching RST/ACK is
 `closed`, and a matching ICMP destination-unreachable or timeout is `filtered`.
 Replies must match the target, ports and a per-probe sequence token. A single
 packet reader feeds bounded queues and reusable decoder workers; received
 buffers are pooled so receive work does not allocate a buffer per packet.
+
+Use `--protocols arp` for on-link IPv4 neighbors or `--protocols ndp` for
+on-link IPv6 neighbors. Both require `--interface` and raw packet privileges;
+results include a verified MAC address in JSON and text output. For example:
+
+```sh
+sudo nyxr scan --profile custom --protocols arp --interface eth0 --timeout 1s 192.0.2.10
+sudo nyxr scan --profile custom --protocols ndp --interface eth0 --timeout 1s 2001:db8:1::10
+```
+
+`--rate` limits all probe types globally. `--host-rate` and `--subnet-rate`
+limit one address and one IPv4 /24 or IPv6 /64 respectively. `--interface-rate`
+applies to raw SYN and neighbor discovery sends on the selected interface.
+All limits default to unlimited unless a profile specifies `--rate`.
 
 - **Linux:** `sniff` and SYN mode use AF_PACKET. Opening it requires root or
   `CAP_NET_RAW` and an Ethernet interface.
@@ -205,9 +223,9 @@ buffers are pooled so receive work does not allocate a buffer per packet.
   a free BPF device and an Ethernet interface.
 - **Windows:** `sniff` and SYN mode load Npcap's `wpcap.dll` at runtime. Npcap
   must be installed and the named adapter must expose Ethernet frames.
-- **ICMP:** IPv4 echo uses a raw socket and generally needs elevated privileges
-  on all platforms. IPv6 echo is not implemented. Permission and unsupported
-  conditions appear as observations instead of silently changing scan methods.
+- **ICMP:** IPv4 and IPv6 echo use raw sockets and generally need elevated
+  privileges on all platforms. Permission and unsupported conditions appear as
+  observations instead of silently changing scan methods.
 
 The current packet decoder expects Ethernet frames (including a VLAN tag).
 Other link types and pcapng files are not yet supported. The raw path has

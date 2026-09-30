@@ -1,6 +1,7 @@
 package packet
 
 import (
+	"encoding/binary"
 	"net/netip"
 
 	"github.com/gopacket/gopacket"
@@ -56,18 +57,23 @@ func NewDecoder() *Decoder {
 }
 
 func (d *Decoder) Decode(frame []byte) (Decoded, bool) {
+	if fragmentedIPv6Frame(frame) {
+		return Decoded{}, false
+	}
 	d.decoded = d.decoded[:0]
 	if err := d.parser.DecodeLayers(frame, &d.decoded); err != nil {
 		return Decoded{}, false
 	}
 	var result Decoded
 	var hasIP bool
+	var fragmented bool
 	for _, typ := range d.decoded {
 		switch typ {
 		case layers.LayerTypeIPv4:
 			result.Source, _ = netip.AddrFromSlice(d.ip4.SrcIP)
 			result.Destination, _ = netip.AddrFromSlice(d.ip4.DstIP)
 			hasIP = true
+			fragmented = d.ip4.FragOffset != 0 || d.ip4.Flags&layers.IPv4MoreFragments != 0
 		case layers.LayerTypeIPv6:
 			result.Source, _ = netip.AddrFromSlice(d.ip6.SrcIP)
 			result.Destination, _ = netip.AddrFromSlice(d.ip6.DstIP)
@@ -108,7 +114,52 @@ func (d *Decoder) Decode(frame []byte) (Decoded, bool) {
 			result.ICMPCode = uint8(d.icmp6.TypeCode.Code())
 		}
 	}
-	return result, hasIP && result.Protocol != ""
+	return result, hasIP && !fragmented && result.Protocol != ""
+}
+
+// Discovery does not reassemble IPv6 fragments. Refuse the entire packet,
+// including its first fragment, before the parser can expose a TCP/UDP header.
+func fragmentedIPv6Frame(frame []byte) bool {
+	if len(frame) < 14 {
+		return false
+	}
+	offset := 12
+	ethType := binary.BigEndian.Uint16(frame[offset : offset+2])
+	if ethType == 0x8100 || ethType == 0x88a8 {
+		if len(frame) < 18 {
+			return false
+		}
+		offset += 4
+		ethType = binary.BigEndian.Uint16(frame[offset : offset+2])
+	}
+	if ethType != 0x86dd {
+		return false
+	}
+	ip := frame[offset+2:]
+	if len(ip) < 40 {
+		return false
+	}
+	next, at := ip[6], 40
+	for i := 0; i < 8; i++ {
+		if next == 44 {
+			return true
+		}
+		if next != 0 && next != 43 && next != 60 && next != 51 {
+			return false
+		}
+		if len(ip) < at+2 {
+			return true
+		}
+		length := (int(ip[at+1]) + 1) * 8
+		if next == 51 {
+			length = (int(ip[at+1]) + 2) * 4
+		}
+		if len(ip) < at+length {
+			return true
+		}
+		next, at = ip[at], at+length
+	}
+	return true // excessive extension chain
 }
 
 // ICMPv4 quotes at least an IPv4 header and eight transport bytes. Require

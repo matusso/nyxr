@@ -53,6 +53,16 @@ func (t *SYNTemplate) Frame(target netip.Addr, port uint16, seq uint32) []byte {
 	return b
 }
 
+// SetDestination changes the destination Ethernet address for the next frame.
+// Each TX worker owns its template, so no synchronization is required.
+func (t *SYNTemplate) SetDestination(mac net.HardwareAddr) error {
+	if len(mac) != 6 || mac[0]&1 != 0 {
+		return errors.New("SYN destination requires a unicast Ethernet MAC")
+	}
+	copy(t.frame[:6], mac)
+	return nil
+}
+
 func checksumWords(b []byte, sum uint32) uint32 {
 	for len(b) >= 2 {
 		sum += uint32(binary.BigEndian.Uint16(b[:2]))

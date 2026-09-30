@@ -16,28 +16,33 @@ import (
 // Config is shared by the CLI and scan engine. A future API can use the same
 // validated object without inheriting command-line parsing behavior.
 type Config struct {
-	Targets    []netip.Addr
-	Ports      []uint16
-	TCP        bool
-	UDP        bool
-	ICMP       bool
-	Timeout    time.Duration
-	Rate       int
-	Workers    int
-	Profile    string
-	UDPProbes  []probe.Probe
-	UDPRetries int
-	TCPMode    string // connect (default) or syn
-	Interface  string // required for raw Ethernet SYN scans
-	SourceIP   netip.Addr
-	SourceMAC  net.HardwareAddr
-	NextHopMAC net.HardwareAddr
+	Targets       []netip.Addr
+	Ports         []uint16
+	TCP           bool
+	UDP           bool
+	ICMP          bool
+	ARP           bool
+	NDP           bool
+	Timeout       time.Duration
+	Rate          int
+	HostRate      int // probes/s to one address
+	SubnetRate    int // probes/s to one IPv4 /24 or IPv6 /64
+	InterfaceRate int // probes/s on the selected raw interface
+	Workers       int
+	Profile       string
+	UDPProbes     []probe.Probe
+	UDPRetries    int
+	TCPMode       string // connect (default) or syn
+	Interface     string // required for raw Ethernet SYN scans
+	SourceIP      netip.Addr
+	SourceMAC     net.HardwareAddr
+	NextHopMAC    net.HardwareAddr
 }
 
 const MaxTargets = 65536
 
 func (c Config) Validate() error {
-	if len(c.Targets) == 0 || (!c.TCP && !c.UDP && !c.ICMP) {
+	if len(c.Targets) == 0 || (!c.TCP && !c.UDP && !c.ICMP && !c.ARP && !c.NDP) {
 		return errors.New("at least one target and protocol are required")
 	}
 	if (c.TCP || c.UDP) && len(c.Ports) == 0 {
@@ -46,6 +51,34 @@ func (c Config) Validate() error {
 	if c.Timeout <= 0 || c.Workers < 1 || c.Workers > 4096 || c.Rate < 0 {
 		return errors.New("timeout must be positive, workers 1..4096, and rate nonnegative")
 	}
+	if c.HostRate < 0 || c.SubnetRate < 0 || c.InterfaceRate < 0 {
+		return errors.New("host, subnet and interface rates must be nonnegative")
+	}
+	if c.InterfaceRate > 0 && c.TCPMode != "syn" && !c.ARP && !c.NDP {
+		return errors.New("interface rate requires raw SYN, ARP or NDP mode")
+	}
+	if c.ARP || c.NDP {
+		if c.TCP || c.UDP || c.ICMP || c.Interface == "" {
+			return errors.New("ARP/NDP discovery requires an interface and cannot be mixed with TCP, UDP or ICMP")
+		}
+		if len(c.SourceMAC) != 0 && (len(c.SourceMAC) != 6 || c.SourceMAC[0]&1 != 0 || isZeroMAC(c.SourceMAC)) {
+			return errors.New("neighbor discovery source MAC must be a unicast Ethernet address")
+		}
+		if c.SourceIP.IsValid() && (c.SourceIP.IsUnspecified() || c.SourceIP.IsMulticast() || (c.ARP && c.NDP)) {
+			return errors.New("neighbor discovery source IP must be unicast and cannot override both ARP and NDP")
+		}
+		if c.SourceIP.IsValid() && ((c.ARP && !c.SourceIP.Is4()) || (c.NDP && !c.SourceIP.Is6())) {
+			return errors.New("neighbor discovery source IP must match the selected address family")
+		}
+		if len(c.NextHopMAC) != 0 {
+			return errors.New("ARP/NDP discovery does not use a next-hop MAC override")
+		}
+		for _, target := range c.Targets {
+			if (target.Is4() && !c.ARP) || (target.Is6() && !c.NDP) {
+				return fmt.Errorf("no ARP/NDP discovery protocol selected for %s", target)
+			}
+		}
+	}
 	if c.UDPRetries < 0 || c.UDPRetries > 5 || len(c.UDPProbes) > 256 {
 		return errors.New("UDP retries must be 0..5 and custom probes at most 256")
 	}
@@ -53,14 +86,14 @@ func (c Config) Validate() error {
 		return fmt.Errorf("unknown TCP mode %q", c.TCPMode)
 	}
 	if c.TCPMode == "syn" {
-		if !c.TCP || c.UDP || c.ICMP {
+		if !c.TCP || c.UDP || c.ICMP || c.ARP || c.NDP {
 			return errors.New("TCP SYN mode requires TCP-only scanning")
 		}
 		if c.Profile == "ot-safe" {
 			return errors.New("ot-safe requires TCP connect mode")
 		}
-		if c.Interface == "" || len(c.NextHopMAC) != 6 {
-			return errors.New("TCP SYN mode requires an interface and next-hop Ethernet MAC")
+		if c.Interface == "" {
+			return errors.New("TCP SYN mode requires an Ethernet interface")
 		}
 		if len(c.SourceMAC) != 0 && len(c.SourceMAC) != 6 {
 			return errors.New("source MAC must be an Ethernet address")
@@ -74,7 +107,10 @@ func (c Config) Validate() error {
 		if c.SourceIP.IsValid() && (c.SourceIP.IsUnspecified() || c.SourceIP.IsMulticast()) {
 			return errors.New("TCP SYN source must be a unicast IPv4 address")
 		}
-		if c.NextHopMAC[0]&1 != 0 || isZeroMAC(c.NextHopMAC) {
+		if len(c.NextHopMAC) != 0 && len(c.NextHopMAC) != 6 {
+			return errors.New("TCP SYN next-hop MAC must be an Ethernet address")
+		}
+		if len(c.NextHopMAC) == 6 && (c.NextHopMAC[0]&1 != 0 || isZeroMAC(c.NextHopMAC)) {
 			return errors.New("TCP SYN next-hop MAC must be a unicast Ethernet address")
 		}
 		for _, target := range c.Targets {
@@ -95,7 +131,7 @@ func isZeroMAC(mac net.HardwareAddr) bool {
 	return true
 }
 
-func ParseProtocols(s string) (tcp, udp, icmp bool, err error) {
+func ParseProtocols(s string) (tcp, udp, icmp, arp, ndp bool, err error) {
 	for _, part := range strings.Split(s, ",") {
 		switch strings.ToLower(strings.TrimSpace(part)) {
 		case "tcp":
@@ -104,8 +140,12 @@ func ParseProtocols(s string) (tcp, udp, icmp bool, err error) {
 			udp = true
 		case "icmp":
 			icmp = true
+		case "arp":
+			arp = true
+		case "ndp":
+			ndp = true
 		default:
-			return false, false, false, fmt.Errorf("unknown protocol %q", part)
+			return false, false, false, false, false, fmt.Errorf("unknown protocol %q", part)
 		}
 	}
 	return

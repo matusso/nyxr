@@ -18,6 +18,9 @@ type Plan struct {
 	Protocols     []string `json:"protocols"`
 	Timeout       string   `json:"timeout"`
 	Rate          int      `json:"rate"`
+	HostRate      int      `json:"host_rate,omitempty"`
+	SubnetRate    int      `json:"subnet_rate,omitempty"`
+	InterfaceRate int      `json:"interface_rate,omitempty"`
 	Workers       int      `json:"workers"`
 	UDPRetries    int      `json:"udp_retries,omitempty"`
 	UDPProbes     []string `json:"udp_probes,omitempty"`
@@ -42,10 +45,11 @@ func (c Config) Plan() Plan {
 		Protocols:   c.protocolList(),
 		Timeout:     c.Timeout.String(),
 		Rate:        c.Rate,
-		Workers:     c.Workers,
-		UDPRetries:  c.UDPRetries,
-		TCPMode:     c.TCPMode,
-		Interface:   c.Interface,
+		HostRate:    c.HostRate, SubnetRate: c.SubnetRate, InterfaceRate: c.InterfaceRate,
+		Workers:    c.Workers,
+		UDPRetries: c.UDPRetries,
+		TCPMode:    c.TCPMode,
+		Interface:  c.Interface,
 	}
 	if c.SourceIP.IsValid() {
 		p.SourceIP = c.SourceIP.String()
@@ -76,6 +80,9 @@ func (c Config) Plan() Plan {
 		perTarget++
 	}
 	p.Tasks = perTarget * len(c.Targets)
+	if c.ARP || c.NDP {
+		p.Tasks = len(c.Targets)
+	}
 	return p
 }
 
@@ -89,6 +96,12 @@ func (c Config) protocolList() []string {
 	}
 	if c.ICMP {
 		protos = append(protos, "icmp")
+	}
+	if c.ARP {
+		protos = append(protos, "arp")
+	}
+	if c.NDP {
+		protos = append(protos, "ndp")
 	}
 	return protos
 }

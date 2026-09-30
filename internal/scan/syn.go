@@ -55,6 +55,13 @@ func runSYN(parent context.Context, cfg config.Config, emit func(Observation) er
 		return fmt.Errorf("raw packet I/O on %s: %w", cfg.Interface, err)
 	}
 	defer io.Close()
+	if len(cfg.NextHopMAC) == 0 {
+		neighbors, err := resolveNextHops(parent, cfg, io, srcMAC, source)
+		if err != nil {
+			return fmt.Errorf("resolve SYN next hops: %w", err)
+		}
+		return runSYNWithIOResolved(parent, cfg, emit, io, srcMAC, source, neighbors)
+	}
 	return runSYNWithIO(parent, cfg, emit, io, srcMAC, source)
 }
 
@@ -91,6 +98,10 @@ func selectIPv4Source(iface *net.Interface, requested netip.Addr) (netip.Addr, e
 }
 
 func runSYNWithIO(parent context.Context, cfg config.Config, emit func(Observation) error, io packetio.PacketIO, srcMAC net.HardwareAddr, source netip.Addr) error {
+	return runSYNWithIOResolved(parent, cfg, emit, io, srcMAC, source, nil)
+}
+
+func runSYNWithIOResolved(parent context.Context, cfg config.Config, emit func(Observation) error, io packetio.PacketIO, srcMAC net.HardwareAddr, source netip.Addr, neighbors map[netip.Addr]net.HardwareAddr) error {
 	var secret [32]byte
 	if _, err := rand.Read(secret[:]); err != nil {
 		return err
@@ -102,7 +113,7 @@ func runSYNWithIO(parent context.Context, cfg config.Config, emit func(Observati
 	basePort := uint16(49152 + int(binary.BigEndian.Uint16(portSeed[:]))%(16384-cfg.Workers))
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
-	limiter := newProbeLimiter(cfg.Rate)
+	limiter := newScopedProbeLimiter(cfg)
 	defer limiter.Close()
 	results := make(chan Observation, cfg.Workers*2)
 	queues := make([]chan task, cfg.Workers)
@@ -112,7 +123,11 @@ func runSYNWithIO(parent context.Context, cfg config.Config, emit func(Observati
 	for i := range queues {
 		queues[i] = make(chan task, 2)
 		responses[i] = make(chan packet.Decoded, 16)
-		template, err := packet.NewSYNTemplate(srcMAC, cfg.NextHopMAC, source, basePort+uint16(i))
+		destination := cfg.NextHopMAC
+		if len(destination) == 0 {
+			destination = srcMAC
+		}
+		template, err := packet.NewSYNTemplate(srcMAC, destination, source, basePort+uint16(i))
 		if err != nil {
 			return err
 		}
@@ -123,7 +138,30 @@ func runSYNWithIO(parent context.Context, cfg config.Config, emit func(Observati
 			var ordinal uint64
 			var frameBatch [1][]byte
 			for t := range queues[i] {
-				if err := limiter.Wait(ctx); err != nil {
+				if neighbors != nil {
+					mac := neighbors[t.target]
+					if len(mac) == 0 {
+						o := base(t, "tcp-syn")
+						o.State, o.Confidence, o.Reason = "no-response", 80, "next-hop ARP unanswered; SYN not sent"
+						select {
+						case results <- o:
+						case <-ctx.Done():
+							return
+						}
+						continue
+					}
+					if err := tmpl.SetDestination(mac); err != nil {
+						o := base(t, "tcp-syn")
+						o.State, o.Reason = "error", err.Error()
+						select {
+						case results <- o:
+						case <-ctx.Done():
+							return
+						}
+						continue
+					}
+				}
+				if err := limiter.WaitFor(ctx, t.target); err != nil {
 					return
 				}
 				ordinal++
