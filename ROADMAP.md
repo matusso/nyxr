@@ -8,14 +8,14 @@ This is the execution plan for the product described in [INSTRUCTIONS.md](INSTRU
 
 | Area | Status | Implemented now | Main gap |
 | --- | --- | --- | --- |
-| CLI and configuration | Done | `scan`, `profiles`, `decode`, `sniff`, `history`; shared `internal/config` contract (flag/file/profile merge with one validation path); full profile catalog with honest `planned` gating; named port sets (`top100`, `all`); `--dry-run` plan (text/JSON); target/CIDR/range and port parsing; JSON observations; bounded workers | Rate-scheduling hierarchy and target/policy enforcement (tracked in the safety row and Phases 4/9); the API/web consuming the same contract (Phase 6) |
-| Portable scans | Partial | TCP connect and UDP socket scans on IPv4/IPv6; privileged IPv4/IPv6 ICMP echo, explicit ARP/NDP discovery and raw IPv4 TCP SYN mode | Other TCP flag modes, IPv6 raw SYN, SCTP and IP protocol scans; privileged live validation |
+| CLI and configuration | Done | `scan`, `profiles`, `decode`, `sniff`, `history`, `serve`; one `config.Request` document (YAML file plus flags, or API JSON) resolved and validated by one `Resolve` path; full profile catalog with honest `planned` gating; named port sets (`top100`, `all`); `--dry-run` plan (text/JSON); target/CIDR/range and port parsing; JSON observations; bounded workers | Rate-scheduling hierarchy and target/policy enforcement (tracked in the safety row and Phases 4/9) |
+| Portable scans | Partial | TCP connect and UDP socket scans on IPv4/IPv6; privileged IPv4/IPv6 ICMP echo, explicit ARP/NDP discovery and raw IPv4 TCP SYN mode; guarded raw research TCP/UDP/ICMP/SCTP/IP protocol probes | IPv6 production raw SYN, wider protocol-specific interpretation and privileged live validation |
 | Packet path | Partial | Reused `gopacket.DecodingLayerParser` for Ethernet/VLAN IPv4/IPv6 TCP/UDP/ICMP and quoted IPv4 TCP; fixed-worker raw IPv4 TCP SYN scan with checksummed packet templates, token-validated SYN/ACK, RST/ACK and ICMP classification, bounded receive/decode/reply queues; AF_PACKET, BPF and Npcap live Ethernet backends | Privileged Linux and live macOS/Windows runtime gates, automatic neighbor/next-hop discovery, hardware multi-queue RX fanout and measured throughput/drops |
 | UDP intelligence | Partial | Raw ICMPv4/v6 quote correlation with socket fallback; DNS A/NS, NTP, SNMP, mDNS, LLMNR, TFTP, SSDP, STUN, SIP OPTIONS, CoAP GET and BACnet Who-Is probes; versioned YAML with extraction fields; bounded late-reply matching and feedback-based retries | Privileged live ICMP gates, IKE/IPMI fixtures, BACnet device gate and wider calibration |
-| Safety and rate control | Partial | Global and scoped application-level probe rates, bounded concurrency, allowlisted `ot-safe` TCP policy with approved ports and read-only identity probes | Live OT device validation, packet-level audit capture privileges and research guardrails |
+| Safety and rate control | Partial | Global and scoped application-level probe rates, bounded concurrency, allowlisted `ot-safe` TCP policy with approved ports and read-only identity probes; allowlisted research profile capped at five frames/s | Live OT device validation and packet-level audit capture privileges |
 | Evidence and storage | Partial | Versioned `nyxr/v1` record stream (host/port/service/packet-evidence/scan); asynchronous bounded pcapng capture with per-flow packet IDs; pcap and pcapng reading; SQLite store with migrations, assets, evidence bytes, packet index, queries and retention | Live capture runtime gates, plain discovery scans still on the legacy observation stream, PostgreSQL controller backend, object storage for large artifacts |
 | Build and release | Done | Tests/vet in CI, cgo-free builds and release archives/checksums for linux/windows/darwin on amd64/arm64, and a Linux amd64/arm64 GHCR image | Runtime smoke tests on all six binary targets and signed release provenance |
-| Deep services, UI and agents | Partial | Bounded deep-probe queue fed by discovery: passive banner, SSH, TLS (chain, version, cipher, ALPN, service inside TLS), HTTP, DNS `version.bind`, Modbus and EtherNet/IP identity; every exchange kept as evidence; `service`, `deep`, `web`, `full`, `iot` and `ot-safe` profiles | SMTP/FTP/SNMP/database probes, API, web UI, scripting and distributed execution |
+| Deep services, UI and agents | Partial | Bounded deep-probe queue fed by discovery: passive banner, SSH, TLS (chain, version, cipher, ALPN, service inside TLS), HTTP, DNS `version.bind`, Modbus and EtherNet/IP identity; every exchange kept as evidence; `service`, `deep`, `web`, `full`, `iot` and `ot-safe` profiles; REST API with bounded SSE events and an embedded web UI served unprivileged, with raw I/O in `nyxr-packetd` | SMTP/FTP/SNMP/database probes, scripting and distributed execution |
 
 Cross-compilation confirms that a binary builds; it does **not** prove that live packet capture, raw sockets or every scan mode works on that operating system. A macOS BPF open/bind/timeout smoke test passed on `en0`; no received or transmitted frames were verified. Full BPF and Npcap live runtime gates remain open. Raw SYN currently requires an operator-supplied next-hop MAC and supports IPv4 TCP only. No packet-rate claim is established yet.
 
@@ -51,7 +51,7 @@ Cross-compilation confirms that a binary builds; it does **not** prove that live
 
 - [x] IPv4/IPv6 target parsing, CIDRs/ranges, TCP connect scanning, IPv4 ICMP echo, global rate limiting, JSON output and bounded workers.
 - [x] Reusable Ethernet/IP/TCP/UDP/ICMP decoder and a Linux AF_PACKET packet I/O boundary.
-- [x] Shared `internal/config` request contract (`Options` merged from flags/file/profile, resolved and validated once into `Config`) driving the CLI, a full profile catalog with `planned` profiles gated by clear errors, named port sets, and a `--dry-run` plan; the same contract is ready for the Phase 6 API/UI.
+- [x] Shared `internal/config` request contract (`Options` merged from flags/file/profile, resolved and validated once into `Config`) driving the CLI, a full profile catalog with `planned` profiles gated by clear errors, named port sets, and a `--dry-run` plan; the Phase 6 API consumes the same contract as `config.Request`.
 - [x] Connect raw RX/TX to the scan engine with fixed TX workers, sharded reusable decoder workers, pooled RX buffers and bounded task/decode/result/reply queues; classify SYN/ACK, RST/ACK, ICMP errors and timeouts with fixture-backed correlation tests.
 - [x] Implement IPv4 TCP SYN over the shared packet I/O contract using checksummed packet templates, explicit next-hop MAC, source/interface selection and per-probe HMAC sequence tokens. Reject unrelated and late replies. Linux uses AF_PACKET; the same mode can use BPF/Npcap when available.
 - [x] Implement IPv6 ICMP echo, ARP and NDP discovery; add controlled fixtures for fragmented and extension-header traffic. The protocol paths have unit and synthetic frame tests; privileged live gates remain open.
@@ -104,19 +104,27 @@ Live tests on representative OT equipment, a vendor OUI database, and a fuller s
 
 **Exit:** OT scans can be audited for every transmitted probe, and device claims point to multiple independent observations.
 
-## Phase 5 — packet forge and protocol breadth · Planned
+## Phase 5 — packet forge and protocol breadth · Done (fixture-gated)
 
-- [ ] Add validated builders/templates for Ethernet, IP, TCP, UDP and ICMP with explicit checksum and fragmentation controls.
-- [ ] Put malformed packets, arbitrary flags and fragmentation experiments behind a `research` profile and target policy.
-- [ ] Add SCTP, IP-protocol scans and IPv6 extension handling only with parser, correlation and safety fixtures.
+- [x] Add validated builders/templates for Ethernet/VLAN, IPv4/IPv6, TCP, UDP, ICMP and SCTP with explicit checksum and fragmentation controls.
+- [x] Put malformed packets, arbitrary TCP flags and fragmentation experiments behind a `research` profile and explicit target allowlist, with one outstanding probe and a five-frame/s cap.
+- [x] Add SCTP INIT and raw IP-protocol scans, bounded IPv6 extension parsing, and fixture-backed correlation for direct replies and ICMP quotes.
+
+The raw research path is fixture-tested and cross-buildable; privileged live
+transmit/receive behavior remains unverified on Linux, macOS and Windows.
+IPv6 research requires an operator-supplied next-hop MAC until automatic NDP
+routing is implemented. The CLI exposes a conservative subset of the builder's
+header controls; advanced VLAN, options and extension layouts remain internal.
 
 **Exit:** Generated packets round-trip through fixtures and the receive decoder; unsafe overrides cannot be sent by ordinary profiles.
 
-## Phase 6 — API and web UI · Planned
+## Phase 6 — API and web UI · Partial
 
-- [ ] Expose the same validated scan configuration and observation schema through REST/gRPC; add live progress/events with bounded streams.
-- [ ] Build scan creation/history, assets/services, packet evidence and profiles in the web UI from those APIs.
-- [ ] Split privileged packet I/O into a narrow `packetd` process before running API/UI/storage alongside raw scanning.
+- [x] Expose the same validated scan configuration and observation schema through REST; add live progress/events with bounded streams. `config.Request` is the one document for YAML, flags and API JSON; `pipeline.FromResolved` maps it to stages for both. Events are Server-Sent Events with a 4096-event replay ring, 256-event subscriber queues and `Last-Event-ID` resume; slow clients are disconnected, never waited on. gRPC is deferred to the Phase 8 controller/agent protocol, which needs it; SSE covers one-way browser streaming without a WebSocket dependency.
+- [x] Build scan creation/history, assets/services, packet evidence and profiles in the web UI from those APIs. It is an embedded, build-free UI (`nyxr serve`) with dry-run plans, live results, cancel and pcapng download.
+- [x] Split privileged packet I/O into a narrow `nyxr-packetd` process before running API/UI/storage alongside raw scanning. It is a separate binary that relays Ethernet frames over a Unix socket for allowlisted interfaces, with a source-MAC check, frame, client and rate limits. `nyxr serve` refuses root or `CAP_NET_RAW`/`CAP_NET_ADMIN` by default, and `nyxr scan --packetd` uses the same relay.
+
+A test runs one loopback TCP and service scan through the CLI and the API and requires identical observations apart from IDs and timings. The UI was checked in headless Chromium against a live server. Open items: ICMP echo still needs a raw IP socket in the scanning process, so the API refuses ICMP. The `research` profile stays CLI-only until Phase 9 approvals. packetd has been exercised on macOS, matching the local BPF backend whose live RX/TX gate is open, but not yet on privileged Linux or Windows. Authentication is a single shared bearer token; RBAC and audit are Phase 9.
 
 **Exit:** A CLI and web scan with equivalent configuration produce equivalent observations; the web/API process has no raw-socket privilege.
 

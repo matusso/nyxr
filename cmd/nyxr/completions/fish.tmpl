@@ -9,7 +9,7 @@ function __nyxr_profiles
 {{- end}}
 end
 
-set -l __nyxr_commands scan profiles decode sniff history completion version help
+set -l __nyxr_commands scan profiles decode sniff history serve completion version help
 complete -c nyxr -f
 
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a scan -d 'Run a scan'
@@ -17,6 +17,7 @@ complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a profil
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a decode -d 'Decode an Ethernet pcap or pcapng to JSON'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a sniff -d 'Capture and decode live frames'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a history -d 'List or query stored scans, assets and evidence'
+complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a serve -d 'Serve the REST API and web UI'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a completion -d 'Print a shell completion script'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a version -d 'Print the version'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a help -d 'Show help'
@@ -52,6 +53,7 @@ complete -c nyxr -n '__fish_seen_subcommand_from scan' -l db -r -F -d 'Store res
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l json -d 'Newline-delimited JSON output'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l dry-run -d 'Print the plan without sending packets'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l fingerprint -d 'Classify devices from independent observations'
+complete -c nyxr -n '__fish_seen_subcommand_from scan' -l packetd -r -F -d 'Raw packet I/O through nyxr-packetd'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l help -d 'Show scan help'
 
 # profiles
@@ -64,6 +66,16 @@ complete -c nyxr -n '__fish_seen_subcommand_from decode' -F
 complete -c nyxr -n '__fish_seen_subcommand_from sniff' -l interface -x -a '(__fish_print_interfaces)' -d 'Network interface'
 complete -c nyxr -n '__fish_seen_subcommand_from sniff' -l count -x -d 'Number of decoded packets'
 complete -c nyxr -n '__fish_seen_subcommand_from sniff' -l timeout -x -d 'Capture duration'
+
+# serve
+complete -c nyxr -n '__fish_seen_subcommand_from serve' -l listen -x -d 'Listen address'
+complete -c nyxr -n '__fish_seen_subcommand_from serve' -l db -r -F -d 'SQLite database for scans and results'
+complete -c nyxr -n '__fish_seen_subcommand_from serve' -l packetd -r -F -d 'nyxr-packetd Unix socket'
+complete -c nyxr -n '__fish_seen_subcommand_from serve' -l evidence-dir -r -a '(__fish_complete_directories)' -d 'Directory for API pcapng captures'
+complete -c nyxr -n '__fish_seen_subcommand_from serve' -l token-file -r -F -d 'Require this bearer token'
+complete -c nyxr -n '__fish_seen_subcommand_from serve' -l max-scans -x -d 'Concurrent scans'
+complete -c nyxr -n '__fish_seen_subcommand_from serve' -l allow-privileged -d 'Run even with root or raw-socket capabilities'
+complete -c nyxr -n '__fish_seen_subcommand_from serve' -l help -d 'Show serve help'
 
 # history
 complete -c nyxr -n '__fish_seen_subcommand_from history' -l db -r -F -d 'SQLite database written by nyxr scan --db'

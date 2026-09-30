@@ -38,11 +38,30 @@ type Config struct {
 	SourceIP      netip.Addr
 	SourceMAC     net.HardwareAddr
 	NextHopMAC    net.HardwareAddr
+	Research      *ResearchConfig
+}
+
+// ResearchConfig is deliberately separate from ordinary scan modes. Only a
+// validated research profile can carry raw header or malformed controls.
+type ResearchConfig struct {
+	Kind         string // tcp, udp, icmp, sctp, ip
+	IPProtocol   uint8
+	TCPFlags     uint8
+	FragmentSize int
+	BadChecksum  bool
+	IPLength     uint16 // zero means computed length
+	Payload      []byte
 }
 
 const MaxTargets = 65536
 
 func (c Config) Validate() error {
+	if c.Profile == "research" && c.Research == nil {
+		return errors.New("research profile requires a validated research packet configuration")
+	}
+	if c.Research != nil {
+		return c.validateResearch()
+	}
 	if len(c.Targets) == 0 || (!c.TCP && !c.UDP && !c.ICMP && !c.ARP && !c.NDP) {
 		return errors.New("at least one target and protocol are required")
 	}
@@ -150,6 +169,89 @@ func (c Config) Validate() error {
 				return errors.New("TCP SYN mode currently supports IPv4 targets only")
 			}
 		}
+	}
+	return nil
+}
+
+func (c Config) validateResearch() error {
+	if c.Profile != "research" || c.Research == nil {
+		return errors.New("raw research controls require the research profile")
+	}
+	if len(c.Targets) == 0 || len(c.Targets) > 256 || len(c.AllowTargets) == 0 {
+		return errors.New("research requires 1..256 targets and --allow-targets")
+	}
+	for _, target := range c.Targets {
+		if target.Is4() != c.Targets[0].Is4() {
+			return errors.New("research targets must share one IP family")
+		}
+		allowed := false
+		for _, prefix := range c.AllowTargets {
+			if prefix.Contains(target) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return fmt.Errorf("target %s is outside --allow-targets", target)
+		}
+	}
+	if c.Interface == "" || c.Timeout <= 0 || c.Timeout > 5*time.Second || c.Rate < 1 || c.Rate > 5 || c.Workers != 1 {
+		return errors.New("research requires an interface, timeout 1ns..5s, rate 1..5 and one worker")
+	}
+	if c.HostRate < 0 || c.SubnetRate < 0 || c.InterfaceRate < 0 || c.InterfaceRate > 5 {
+		return errors.New("research scoped rates must be nonnegative and interface rate <=5")
+	}
+	if c.UDP || c.ICMP || c.ARP || c.NDP || c.UDPRetries != 0 || len(c.UDPProbes) != 0 {
+		return errors.New("research cannot mix ordinary discovery protocols or UDP probes")
+	}
+	if c.TCP != (c.Research.Kind == "tcp") || c.TCPMode != "forge" {
+		return errors.New("research protocol flags do not match forge mode")
+	}
+	if c.Research.TCPFlags > 63 {
+		return errors.New("research TCP flags exceed six supported bits")
+	}
+	if c.Research.Kind != "tcp" && c.Research.TCPFlags != 2 {
+		return errors.New("TCP flags require TCP research")
+	}
+	if len(c.SourceMAC) != 0 && (len(c.SourceMAC) != 6 || c.SourceMAC[0]&1 != 0 || isZeroMAC(c.SourceMAC)) {
+		return errors.New("research source MAC must be unicast Ethernet")
+	}
+	if len(c.NextHopMAC) != 0 && (len(c.NextHopMAC) != 6 || c.NextHopMAC[0]&1 != 0 || isZeroMAC(c.NextHopMAC)) {
+		return errors.New("research next-hop MAC must be unicast Ethernet")
+	}
+	if c.SourceIP.IsValid() && (c.SourceIP.IsUnspecified() || c.SourceIP.IsMulticast()) {
+		return errors.New("research source IP must be unicast")
+	}
+	for _, target := range c.Targets {
+		if c.SourceIP.IsValid() && target.Is4() != c.SourceIP.Is4() {
+			return errors.New("research source and targets must use one IP family")
+		}
+	}
+	if len(c.Research.Payload) > 1400 || c.Research.FragmentSize < 0 || c.Research.FragmentSize > 1400 || (c.Research.FragmentSize != 0 && (c.Research.FragmentSize < 8 || c.Research.FragmentSize%8 != 0)) {
+		return errors.New("research payload and fragmentation must fit a 1400-byte frame")
+	}
+	switch c.Research.Kind {
+	case "tcp", "udp", "sctp":
+		if len(c.Ports) == 0 || len(c.Ports) > 1024 {
+			return errors.New("research transport scan requires 1..1024 ports")
+		}
+		for _, port := range c.Ports {
+			if port == 0 {
+				return errors.New("research transport ports must be nonzero")
+			}
+		}
+	case "icmp", "ip":
+		if len(c.Ports) != 0 {
+			return errors.New("research ICMP/IP scans do not use ports")
+		}
+	default:
+		return fmt.Errorf("unsupported research kind %q", c.Research.Kind)
+	}
+	if c.Research.BadChecksum && (c.Research.Kind == "ip" || c.Research.Kind == "sctp") {
+		return errors.New("bad checksum override currently supports TCP, UDP and ICMP research")
+	}
+	if c.Research.Kind == "sctp" && len(c.Research.Payload) != 0 {
+		return errors.New("SCTP INIT does not accept a custom payload")
 	}
 	return nil
 }

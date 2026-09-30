@@ -34,4 +34,5 @@ go.work.sum
 # Build output
 /dist/
 /nyxr
+/nyxr-packetd
 /tests/performance/latest/

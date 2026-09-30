@@ -39,6 +39,17 @@ type Options struct {
 	SourceIP      string
 	SourceMAC     string
 	NextHopMAC    string
+	Research      ResearchOptions
+}
+
+type ResearchOptions struct {
+	Kind         string
+	IPProtocol   string
+	TCPFlags     string
+	FragmentSize int
+	BadChecksum  bool
+	IPLength     int
+	PayloadHex   string
 }
 
 // PayloadSource selects at most one custom UDP payload. When any field is set
@@ -133,6 +144,12 @@ func Build(o Options) (Config, error) {
 	}
 	if profile.Availability == StatusPlanned {
 		return Config{}, fmt.Errorf("profile %q is planned but not implemented yet: it needs %s", name, profile.Requires)
+	}
+	if name == "research" {
+		return buildResearch(o, profile)
+	}
+	if o.Research != (ResearchOptions{}) {
+		return Config{}, errors.New("research packet controls require --profile research")
 	}
 	custom := name == "custom"
 

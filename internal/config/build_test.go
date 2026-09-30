@@ -51,7 +51,7 @@ func TestBuildUnknownProfile(t *testing.T) {
 }
 
 func TestBuildPlannedProfileRejected(t *testing.T) {
-	for _, name := range []string{"database", "research"} {
+	for _, name := range []string{"database"} {
 		_, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: name})
 		if err == nil || !strings.Contains(err.Error(), "planned") {
 			t.Fatalf("profile %q should be rejected as planned, got %v", name, err)

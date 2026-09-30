@@ -15,6 +15,7 @@ import (
 
 	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/observe"
+	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/pipeline"
 	"github.com/matusso/nyxr/internal/storage"
 )
@@ -64,48 +65,41 @@ func addStageFlags(fs *flag.FlagSet) *stageFlags {
 	s.serviceWorkers = fs.Int("service-workers", -1, "concurrent service probe workers")
 	s.serviceRate = fs.Int("service-rate", -1, "new service connections per second (0 unlimited)")
 	s.pcapng = fs.String("pcapng", "", "write packet evidence to this pcapng file")
-	s.pcapngMaxMB = fs.Int("pcapng-max-mb", 1024, "pcapng size budget in MiB")
+	s.pcapngMaxMB = fs.Int("pcapng-max-mb", -1, "pcapng size budget in MiB (default 1024)")
 	s.db = fs.String("db", "", "store results in this SQLite database")
 	s.fingerprint = fs.Bool("fingerprint", false, "classify devices from independent observations")
 	return s
 }
 
-func (s *stageFlags) serviceOptions() (config.ServiceOptions, error) {
-	if *s.serviceWorkers < -1 || *s.serviceRate < -1 || *s.serviceTimeout < 0 {
-		return config.ServiceOptions{}, errors.New("service workers, rate and timeout must be nonnegative")
+// overlay applies explicitly set stage flags to the request.
+func (s *stageFlags) overlay(r *config.Request) error {
+	if *s.serviceWorkers < -1 || *s.serviceRate < -1 || *s.serviceTimeout < 0 || *s.pcapngMaxMB < -1 {
+		return errors.New("service workers, rate, timeout and pcapng size must be nonnegative")
 	}
-	o := config.ServiceOptions{
-		Enable: s.service.value, Probes: *s.serviceProbes, Fallback: *s.serviceFallback,
-		Timeout: timeoutText(*s.serviceTimeout),
+	if s.service.value != nil {
+		r.Service = s.service.value
 	}
-	if *s.serviceWorkers >= 0 {
-		o.Workers = s.serviceWorkers
-	}
-	if *s.serviceRate >= 0 {
-		o.Rate = s.serviceRate
-	}
-	return o, nil
+	r.ServiceProbes = first(*s.serviceProbes, r.ServiceProbes)
+	r.ServiceFallback = first(*s.serviceFallback, r.ServiceFallback)
+	r.ServiceTimeout = first(timeoutText(*s.serviceTimeout), r.ServiceTimeout)
+	r.ServiceWorkers = mergeInt(*s.serviceWorkers, r.ServiceWorkers)
+	r.ServiceRate = mergeInt(*s.serviceRate, r.ServiceRate)
+	r.PCAPNG = first(*s.pcapng, r.PCAPNG)
+	r.PCAPNGMaxMB = mergeInt(*s.pcapngMaxMB, r.PCAPNGMaxMB)
+	r.Fingerprint = r.Fingerprint || *s.fingerprint
+	return nil
 }
 
-// usesPipeline reports whether a Phase 3 stage is active.
-func (s *stageFlags) usesPipeline(svc config.Service) bool {
-	return svc.Enabled || *s.pcapng != "" || *s.db != "" || *s.fingerprint
-}
-
-func emitStagePlan(out io.Writer, plan config.Plan, svc config.Service, stages *stageFlags, asJSON bool) error {
+func emitStagePlan(out io.Writer, r config.Resolved, db string, asJSON bool) error {
+	plan := r.Plan()
+	plan.DB = db
 	if asJSON {
-		return json.NewEncoder(out).Encode(struct {
-			config.Plan
-			Service     *config.ServicePlan `json:"service,omitempty"`
-			PCAPNG      string              `json:"pcapng,omitempty"`
-			DB          string              `json:"db,omitempty"`
-			Fingerprint bool                `json:"fingerprint,omitempty"`
-		}{plan, svc.Plan(), *stages.pcapng, *stages.db, *stages.fingerprint || plan.Profile == "iot" || plan.Profile == "ot-safe"})
+		return json.NewEncoder(out).Encode(plan)
 	}
-	if err := emitPlan(out, plan, false); err != nil {
+	if err := emitPlan(out, plan.Plan, false); err != nil {
 		return err
 	}
-	if p := svc.Plan(); p != nil {
+	if p := plan.Service; p != nil {
 		fallback := "none"
 		if len(p.Fallback) > 0 {
 			fallback = strings.Join(p.Fallback, ", ")
@@ -113,41 +107,37 @@ func emitStagePlan(out io.Writer, plan config.Plan, svc config.Service, stages *
 		fmt.Fprintf(out, "service     %s (fallback %s)\n", strings.Join(p.Probes, ", "), fallback)
 		fmt.Fprintf(out, "svc-timeout %s, %d workers, %s\n", p.Timeout, p.Workers, rateText(p.Rate))
 	}
-	if *stages.pcapng != "" {
-		fmt.Fprintf(out, "pcapng      %s (max %d MiB)\n", *stages.pcapng, *stages.pcapngMaxMB)
+	if plan.PCAPNG != "" {
+		fmt.Fprintf(out, "pcapng      %s (max %d MiB)\n", plan.PCAPNG, plan.PCAPNGMaxMB)
 	}
-	if *stages.db != "" {
-		fmt.Fprintf(out, "db          %s\n", *stages.db)
+	if db != "" {
+		fmt.Fprintf(out, "db          %s\n", db)
 	}
-	if *stages.fingerprint || plan.Profile == "iot" || plan.Profile == "ot-safe" {
+	if plan.Fingerprint {
 		fmt.Fprintln(out, "fingerprint enabled")
 	}
 	return nil
 }
 
-func runPipeline(out io.Writer, cfg config.Config, svc config.Service, stages *stageFlags, asJSON bool) error {
+// runPipeline uses pipeline.FromResolved, the mapping the API also uses.
+func runPipeline(out io.Writer, r config.Resolved, db string, open packetio.Opener, asJSON bool) error {
 	ctx := context.Background()
-	opts := pipeline.Options{Service: svc, Fingerprint: *stages.fingerprint || cfg.Profile == "iot" || cfg.Profile == "ot-safe"}
+	opts := pipeline.FromResolved(r)
+	opts.OpenLive = open
 	if asJSON {
 		opts.Sinks = append(opts.Sinks, pipeline.NewJSONSink(out))
 	} else {
 		opts.Sinks = append(opts.Sinks, pipeline.NewTextSink(out))
 	}
-	if *stages.pcapng != "" {
-		if *stages.pcapngMaxMB < 1 {
-			return errors.New("pcapng size budget must be at least 1 MiB")
-		}
-		opts.Capture = &pipeline.CaptureOptions{Path: *stages.pcapng, Interface: cfg.Interface, MaxBytes: int64(*stages.pcapngMaxMB) << 20}
-	}
-	if *stages.db != "" {
-		store, err := storage.Open(ctx, *stages.db)
+	if db != "" {
+		store, err := storage.Open(ctx, db)
 		if err != nil {
 			return err
 		}
 		defer store.Close()
 		opts.Sinks = append(opts.Sinks, pipeline.NewStoreSink(ctx, store))
 	}
-	_, err := pipeline.Run(ctx, cfg, opts)
+	_, err := pipeline.Run(ctx, r.Config, opts)
 	return err
 }
 

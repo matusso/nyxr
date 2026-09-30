@@ -10,30 +10,41 @@ import (
 // prints it for --dry-run so an operator can confirm the scope, protocols and
 // pacing before any packet is sent.
 type Plan struct {
-	Profile       string   `json:"profile"`
-	Targets       int      `json:"targets"`
-	SampleTargets []string `json:"sample_targets,omitempty"`
-	AllowTargets  []string `json:"allow_targets,omitempty"`
-	Ports         int      `json:"ports"`
-	PortSummary   string   `json:"port_summary,omitempty"`
-	Protocols     []string `json:"protocols"`
-	Timeout       string   `json:"timeout"`
-	Rate          int      `json:"rate"`
-	HostRate      int      `json:"host_rate,omitempty"`
-	SubnetRate    int      `json:"subnet_rate,omitempty"`
-	InterfaceRate int      `json:"interface_rate,omitempty"`
-	Workers       int      `json:"workers"`
-	UDPRetries    int      `json:"udp_retries,omitempty"`
-	UDPProbes     []string `json:"udp_probes,omitempty"`
-	TCPMode       string   `json:"tcp_mode"`
-	Interface     string   `json:"interface,omitempty"`
-	SourceIP      string   `json:"source_ip,omitempty"`
-	SourceMAC     string   `json:"source_mac,omitempty"`
-	NextHopMAC    string   `json:"next_hop_mac,omitempty"`
+	Profile       string        `json:"profile"`
+	Targets       int           `json:"targets"`
+	SampleTargets []string      `json:"sample_targets,omitempty"`
+	AllowTargets  []string      `json:"allow_targets,omitempty"`
+	Ports         int           `json:"ports"`
+	PortSummary   string        `json:"port_summary,omitempty"`
+	Protocols     []string      `json:"protocols"`
+	Timeout       string        `json:"timeout"`
+	Rate          int           `json:"rate"`
+	HostRate      int           `json:"host_rate,omitempty"`
+	SubnetRate    int           `json:"subnet_rate,omitempty"`
+	InterfaceRate int           `json:"interface_rate,omitempty"`
+	Workers       int           `json:"workers"`
+	UDPRetries    int           `json:"udp_retries,omitempty"`
+	UDPProbes     []string      `json:"udp_probes,omitempty"`
+	TCPMode       string        `json:"tcp_mode"`
+	Interface     string        `json:"interface,omitempty"`
+	SourceIP      string        `json:"source_ip,omitempty"`
+	SourceMAC     string        `json:"source_mac,omitempty"`
+	NextHopMAC    string        `json:"next_hop_mac,omitempty"`
+	Research      *ResearchPlan `json:"research,omitempty"`
 	// Tasks is the number of scheduled probe tasks (targets x protocols x
 	// ports, plus one ICMP task per target). It is a task count, not a packet
 	// count: a UDP campaign can send several packets per task.
 	Tasks int `json:"tasks"`
+}
+
+type ResearchPlan struct {
+	Kind         string `json:"kind"`
+	IPProtocol   uint8  `json:"ip_protocol,omitempty"`
+	TCPFlags     uint8  `json:"tcp_flags,omitempty"`
+	FragmentSize int    `json:"fragment_size,omitempty"`
+	BadChecksum  bool   `json:"bad_checksum,omitempty"`
+	IPLength     uint16 `json:"ip_length,omitempty"`
+	PayloadBytes int    `json:"payload_bytes,omitempty"`
 }
 
 // Plan builds the summary from a resolved Config.
@@ -61,6 +72,11 @@ func (c Config) Plan() Plan {
 	if len(c.NextHopMAC) != 0 {
 		p.NextHopMAC = c.NextHopMAC.String()
 	}
+	if c.Research != nil {
+		r := c.Research
+		p.Research = &ResearchPlan{Kind: r.Kind, IPProtocol: r.IPProtocol, TCPFlags: r.TCPFlags, FragmentSize: r.FragmentSize, BadChecksum: r.BadChecksum, IPLength: r.IPLength, PayloadBytes: len(r.Payload)}
+		p.Protocols = []string{r.Kind}
+	}
 	for i, t := range c.Targets {
 		if i == 5 {
 			break
@@ -86,6 +102,12 @@ func (c Config) Plan() Plan {
 	p.Tasks = perTarget * len(c.Targets)
 	if c.ARP || c.NDP {
 		p.Tasks = len(c.Targets)
+	}
+	if c.Research != nil {
+		p.Tasks = len(c.Targets)
+		if c.Research.Kind == "tcp" || c.Research.Kind == "udp" || c.Research.Kind == "sctp" {
+			p.Tasks *= len(c.Ports)
+		}
 	}
 	return p
 }

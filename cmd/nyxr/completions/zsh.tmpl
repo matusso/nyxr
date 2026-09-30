@@ -35,6 +35,7 @@ _nyxr() {
                 'decode:decode an Ethernet pcap or pcapng to JSON'
                 'sniff:capture and decode live frames'
                 'history:list or query stored scans, assets and evidence'
+                'serve:serve the REST API and web UI'
                 'completion:print a shell completion script'
                 'version:print the version'
                 'help:show help'
@@ -75,6 +76,7 @@ _nyxr() {
                         '--json[newline-delimited JSON output]' \
                         '--dry-run[resolve and print the plan without sending packets]' \
                         '--fingerprint[classify devices from independent observations]' \
+                        '--packetd=[raw packet I/O through nyxr-packetd]:socket:_files' \
                         '(- *)--help[show scan help]' \
                         '*:target (IP, hostname, CIDR, or A-B range):_hosts' && ret=0
                     ;;
@@ -102,6 +104,17 @@ _nyxr() {
                         '--keep=[delete all but the newest N scans]:count:' \
                         '--json[JSON output]' \
                         '(- *)--help[show history help]' && ret=0
+                    ;;
+                serve)
+                    _arguments \
+                        '--listen=[listen address]:address (host\:port):' \
+                        '--db=[SQLite database for scans and results]:database file:_files' \
+                        '--packetd=[nyxr-packetd Unix socket]:socket:_files' \
+                        '--evidence-dir=[directory for API pcapng captures]:directory:_directories' \
+                        '--token-file=[require this bearer token]:token file:_files' \
+                        '--max-scans=[concurrent scans]:count:' \
+                        '--allow-privileged[run even with root or raw-socket capabilities]' \
+                        '(- *)--help[show serve help]' && ret=0
                     ;;
                 completion)
                     _arguments '1:shell:(bash zsh fish powershell)' && ret=0

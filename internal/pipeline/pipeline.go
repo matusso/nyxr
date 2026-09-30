@@ -44,6 +44,10 @@ type Options struct {
 	Fingerprint bool
 	Capture     *CaptureOptions
 	Sinks       []Sink
+	// OpenLive opens raw Ethernet I/O for SYN, ARP/NDP and capture; nil uses
+	// the local privileged backend. A packetd client keeps the caller
+	// unprivileged.
+	OpenLive packetio.Opener
 
 	// Test hooks; nil selects the real implementation.
 	Discover    func(context.Context, config.Config, func(scan.Observation) error) error
@@ -52,6 +56,17 @@ type Options struct {
 	// CaptureGrace is how long capture continues after the last probe so
 	// late replies are recorded (default 300ms).
 	CaptureGrace time.Duration
+}
+
+// FromResolved maps a resolved request onto pipeline stages. Every interface
+// uses it, so equivalent requests run equivalent pipelines. Callers add sinks
+// and the packet opener.
+func FromResolved(r config.Resolved) Options {
+	o := Options{Service: r.Service, Fingerprint: r.Fingerprint}
+	if r.PCAPNG != "" {
+		o.Capture = &CaptureOptions{Path: r.PCAPNG, Interface: r.Config.Interface, MaxBytes: r.PCAPNGMaxBytes}
+	}
+	return o
 }
 
 // Run executes the scan and returns its summary. The summary is also passed
@@ -65,7 +80,13 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 	}
 	discover := opts.Discover
 	if discover == nil {
-		discover = scan.Run
+		discover = func(ctx context.Context, cfg config.Config, emit func(scan.Observation) error) error {
+			return scan.RunWithIO(ctx, cfg, emit, opts.OpenLive)
+		}
+	}
+	openCapture := opts.OpenCapture
+	if openCapture == nil {
+		openCapture = opts.OpenLive
 	}
 	now := time.Now()
 	summary := observe.Scan{
@@ -113,7 +134,7 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 	var runErr error
 	if opts.Capture != nil {
 		var err error
-		rec, err = startCapture(parent, cfg, *opts.Capture, opts.OpenCapture)
+		rec, err = startCapture(parent, cfg, *opts.Capture, openCapture)
 		if err != nil {
 			runErr = err
 		}
@@ -220,7 +241,7 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 	return summary, runErr
 }
 
-func startCapture(ctx context.Context, cfg config.Config, o CaptureOptions, open func(string) (packetio.PacketIO, error)) (*capture.Recorder, error) {
+func startCapture(ctx context.Context, cfg config.Config, o CaptureOptions, open packetio.Opener) (*capture.Recorder, error) {
 	iface := o.Interface
 	if iface == "" {
 		iface = cfg.Interface
