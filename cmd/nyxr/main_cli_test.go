@@ -44,7 +44,7 @@ func TestScanDryRunJSON(t *testing.T) {
 
 func TestScanPlannedProfileError(t *testing.T) {
 	var out bytes.Buffer
-	err := run([]string{"scan", "--profile", "deep", "192.0.2.1"}, &out)
+	err := run([]string{"scan", "--profile", "database", "192.0.2.1"}, &out)
 	if err == nil || !strings.Contains(err.Error(), "planned") {
 		t.Fatalf("expected planned-profile error, got %v", err)
 	}

@@ -28,11 +28,12 @@ vet:
 ## check: run tests and vet
 check: test vet
 
-## fuzz: run short hostile-input campaigns for decoder, pcap, and probe parsing
+## fuzz: run short hostile-input campaigns for decoder, pcap, probe and service parsing
 fuzz:
 	$(GO) test -run '^$$' -fuzz '^FuzzDecoder$$' -fuzztime=5s -parallel=2 ./internal/packet
 	$(GO) test -run '^$$' -fuzz '^FuzzPCAPReader$$' -fuzztime=5s -parallel=2 ./internal/packet
 	$(GO) test -run '^$$' -fuzz '^FuzzDefinitionAndMatcher$$' -fuzztime=5s -parallel=2 ./internal/probe
+	$(GO) test -run '^$$' -fuzz '^FuzzResponseParsers$$' -fuzztime=5s -parallel=2 ./internal/service
 
 ## benchmark: save fixed-workload measurements and CPU profile
 benchmark:

@@ -13,6 +13,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/matusso/nyxr/internal/capture"
 	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/packet"
 	"github.com/matusso/nyxr/internal/packetio"
@@ -46,6 +47,8 @@ func run(args []string, out io.Writer) error {
 		return runSniff(args[1:], out)
 	case "completion":
 		return runCompletion(args[1:], out)
+	case "history":
+		return runHistory(args[1:], out)
 	case "version":
 		_, err := fmt.Fprintln(out, version)
 		return err
@@ -62,8 +65,9 @@ func usage(out io.Writer) error {
 Usage:
   nyxr scan [flags] target [target...]   run a scan
   nyxr profiles [--json]                 list scan profiles
-  nyxr decode capture.pcap               decode an Ethernet pcap to JSON
+  nyxr decode capture.pcap[ng]           decode an Ethernet pcap or pcapng to JSON
   nyxr sniff --interface eth0 [flags]    capture and decode live frames
+  nyxr history --db file [flags]         list or query stored scans, assets and evidence
   nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
   nyxr version                           print the version
   nyxr help                              show this help
@@ -101,6 +105,17 @@ Flags:
   --json                newline-delimited JSON output
   --dry-run             resolve and print the plan without sending packets
 
+Service identification, evidence and storage:
+  --service             deep probes on open TCP ports (on for service, deep, web, full)
+  --service-probes list banner, ssh, tls, http, dns (default: all)
+  --service-fallback l  probes for silent ports without a port hint, or none
+  --service-timeout d   upper bound for each service probe
+  --service-workers int concurrent service probe workers
+  --service-rate int    new service connections/second (0 = unlimited)
+  --pcapng file         capture scan traffic on --interface as pcapng evidence
+  --pcapng-max-mb int   pcapng size budget (default 1024)
+  --db file             store the scan, observations and evidence in SQLite
+
 Explicit flags override profile defaults and configuration-file fields.
 `)
 }
@@ -131,6 +146,7 @@ func runScan(args []string, out io.Writer) error {
 	fileFlag := fs.String("payload-file", "", "custom raw UDP payload file")
 	jsonFlag := fs.Bool("json", false, "newline-delimited JSON output")
 	dryRunFlag := fs.Bool("dry-run", false, "resolve and print the plan without scanning")
+	stages := addStageFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			scanUsage(out)
@@ -183,8 +199,19 @@ func runScan(args []string, out io.Writer) error {
 		return err
 	}
 
+	serviceOpts, err := stages.serviceOptions()
+	if err != nil {
+		return err
+	}
+	svc, err := config.BuildService(cfg, serviceOpts)
+	if err != nil {
+		return err
+	}
 	if *dryRunFlag {
-		return emitPlan(out, cfg.Plan(), *jsonFlag)
+		return emitStagePlan(out, cfg.Plan(), svc, stages, *jsonFlag)
+	}
+	if stages.usesPipeline(svc) {
+		return runPipeline(out, cfg, svc, stages, *jsonFlag)
 	}
 
 	encoder := json.NewEncoder(out)
@@ -318,14 +345,14 @@ func timeoutText(d time.Duration) string {
 
 func runDecode(args []string, out io.Writer) error {
 	if len(args) != 1 {
-		return errors.New("decode requires one pcap file")
+		return errors.New("decode requires one pcap or pcapng file")
 	}
 	f, err := os.Open(args[0])
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	r, err := packet.NewPCAPReader(f)
+	r, err := capture.NewReader(f)
 	if err != nil {
 		return err
 	}
