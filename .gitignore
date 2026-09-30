@@ -33,4 +33,4 @@ go.work.sum
 
 # Build output
 /dist/
-/scanner
+/nyxr

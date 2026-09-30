@@ -1,19 +1,20 @@
-# nyxr scanner
+# nyxr
 
 An early cross-platform network scanner built around the architecture in
-[ROADMAP.md](ROADMAP.md). This first implementation provides a CLI, bounded
-concurrent TCP connect and UDP probe campaigns, IPv4 ICMP echo, address and port parsing,
-rate limiting, structured observations, and a reusable gopacket receive decoder.
+[ROADMAP.md](ROADMAP.md). This first implementation provides a CLI with a shared
+configuration contract, a full profile catalog, bounded concurrent TCP connect
+and UDP probe campaigns, IPv4 ICMP echo, address and port parsing, rate
+limiting, structured observations, and a reusable gopacket receive decoder.
 It does not yet implement the roadmap's SYN engine, service fingerprinting,
 distributed control plane, or web UI.
 
 ## Build
 
-Go 1.27.1 or newer is required. The scanner builds without cgo:
+Go 1.27.1 or newer is required. nyxr builds without cgo:
 
 ```sh
 make check      # go test + go vet
-make build      # ./scanner for the host platform
+make build      # ./nyxr for the host platform
 make package    # dist/: archives for all platforms + SHA256SUMS
 make help       # list all targets
 ```
@@ -21,29 +22,52 @@ make help       # list all targets
 `VERSION` defaults to `git describe` and can be overridden, e.g.
 `make package VERSION=v0.1.0`.
 
-CI runs `make check` and `make package` on every push and pull request,
-covering `linux`, `windows`, and `darwin` on `amd64` and `arm64`. Pushing a
-`v*` tag runs the release workflow, which creates a GitHub release with the
-`.tar.gz`/`.zip` archives and `SHA256SUMS`. Tags containing `-` (such as
-`v0.2.0-rc1`) are marked as pre-releases.
+CI runs `make check`, `make package`, and a Docker image smoke test on every
+push and pull request. The archives cover `linux`, `windows`, and `darwin` on
+`amd64` and `arm64`. Pushing a semantic version tag such as `v0.2.0` runs the
+release workflow, which creates a GitHub release with the `.tar.gz`/`.zip`
+archives and `SHA256SUMS`. It also pushes a Linux `amd64`/`arm64` image to
+`ghcr.io/matusso/nyxr:v0.2.0`. Stable releases update `:latest`; tags
+containing `-` (such as `v0.2.0-rc1`) are marked as pre-releases and do not
+update `:latest`. The release workflow can also be started manually for an
+existing tag.
+
+Build or run the container locally:
+
+```sh
+docker build -t nyxr:local .
+docker run --rm nyxr:local version
+docker run --rm nyxr:local scan --ports 80,443 example.com
+```
+
+Network behavior depends on Docker networking. On Linux, use `--network host`
+when scans need direct access to the host network, and add `--cap-add NET_RAW`
+for raw socket features such as ICMP and packet capture.
 
 ## Scan
 
 ```sh
-scanner scan --ports 22,80,443 --protocols tcp --json 192.0.2.1
-scanner scan --profile udp --ports 53,123 192.0.2.1
-scanner scan --profile udp-deep --udp-retries 1 --json 192.0.2.1
-scanner scan --protocols udp --ports 9999 --send-hex "010203" 192.0.2.1
-scanner scan --protocols udp --ports 9999 --payload my-probe.yaml 192.0.2.1
-scanner scan --protocols tcp,udp,icmp --timeout 2s --rate 50 192.0.2.0/28
-scanner scan --profile ot-safe 192.0.2.10
-scanner decode capture.pcap
-sudo scanner sniff --interface eth0 --count 100
+nyxr scan --ports 22,80,443 --protocols tcp --json 192.0.2.1
+nyxr scan --profile udp --ports 53,123 192.0.2.1
+nyxr scan --profile udp-deep --udp-retries 1 --json 192.0.2.1
+nyxr scan --protocols udp --ports 9999 --send-hex "010203" 192.0.2.1
+nyxr scan --protocols udp --ports 9999 --payload my-probe.yaml 192.0.2.1
+nyxr scan --protocols tcp,udp,icmp --timeout 2s --rate 50 192.0.2.0/28
+nyxr scan --profile ot-safe 192.0.2.10
+nyxr scan --profile fast --ports top100 192.0.2.0/24
+nyxr scan --profile udp-deep --dry-run 192.0.2.0/28
+nyxr profiles
+nyxr decode capture.pcap
+sudo nyxr sniff --interface eth0 --count 100
 ```
 
 Targets may be IP addresses, hostnames, CIDRs, or inclusive IP ranges. A scan
-is limited to 65,536 unique addresses. Ports accept commas and inclusive ranges.
-Use `--json` for newline-delimited observations. UDP/53 attempts DNS A then
+is limited to 65,536 unique addresses. Ports accept commas and inclusive ranges
+(`80,443,8000-8100`) or a named set: `top100` for a curated list of common TCP
+ports, or `all` for `1-65535`. Use `--json` for newline-delimited observations.
+`--dry-run` resolves the configuration and prints the plan — profile, target
+count, ports, protocols, pacing and scheduled task count — without sending any
+packet; add `--json` for the machine-readable plan. UDP/53 attempts DNS A then
 DNS NS, UDP/123 sends an NTP client request, and UDP/161 sends a read-only
 SNMPv2c `sysDescr.0` GET. Other UDP ports receive a single byte. The
 `udp-deep` profile includes port 161 and retries each probe once. `--rate`
@@ -56,6 +80,32 @@ also classify ICMP port-unreachable errors when the OS delivers them. TCP uses
 ordinary connect calls, so it works without raw packet privileges. The
 `ot-safe` profile limits rate and concurrency
 and uses TCP connect only.
+
+### Profiles
+
+A profile supplies default ports, protocols, timeout and pacing; explicit flags
+and configuration-file fields override those defaults. `nyxr profiles` lists the
+catalog (add `--json` for machine-readable output). Profiles whose engine is not
+implemented yet are listed as `planned` and refuse to run with a message naming
+the roadmap phase they need, rather than silently downgrading to a weaker scan.
+
+| Profile | Status | Summary |
+| --- | --- | --- |
+| `discovery` | available | Common TCP ports, unprivileged connect scan (default) |
+| `fast` | available | Top 100 TCP ports at higher concurrency |
+| `tcp` | available | TCP connect scan of common ports |
+| `udp` | available | Protocol-aware UDP probes (DNS, NTP) |
+| `udp-deep` | available | UDP probes including SNMP, one extra retry each |
+| `ot-safe` | available | Low-rate, read-only, TCP-only OT identification |
+| `custom` | available | Minimal profile; set protocols, ports and timeout explicitly |
+| `service`, `deep`, `web`, `database`, `full` | planned | Service/version detection (roadmap Phase 3+) |
+| `iot` | planned | Device fingerprinting (roadmap Phase 4) |
+| `research` | planned | Packet-forge experiments (roadmap Phase 5) |
+
+`ot-safe` is enforced, not merely a set of defaults: it refuses UDP or ICMP,
+custom payloads, an unlimited or higher-than-5 rate, more than four workers, or a
+timeout under three seconds, so an operator cannot accidentally turn it into a
+disruptive scan.
 
 For a custom UDP payload, choose one of `--payload` (native YAML definition),
 `--send-hex`, `--send-base64`, or `--payload-file`. An explicit custom payload
@@ -82,6 +132,12 @@ Supported payload encodings are `ascii`, `hex`, `base64`, and `raw_file`
 version accepts only `safety: safe`; additional matcher and extraction types
 are planned. A probe with no applicable port falls back to the generic byte.
 
+The CLI and a future API share one configuration contract: flags and file
+fields are merged into a single set of options, resolved against the selected
+profile, then validated once before any scan runs (`internal/config`). This
+keeps command-line parsing out of the engine and lets every interface produce
+the same validated request.
+
 Configuration can be supplied as YAML:
 
 ```yaml
@@ -96,14 +152,14 @@ udp_retries: 0
 udp_probe_file: my-probe.yaml
 ```
 
-Pass it with `scanner scan --config scan.yaml`; command-line options override
+Pass it with `nyxr scan --config scan.yaml`; command-line options override
 matching file fields. Positional targets are added to file targets. A relative
 `udp_probe_file` path is resolved beside the scan configuration file.
 
 ## Packet I/O and platform limits
 
 The Ethernet decoder uses `gopacket.DecodingLayerParser` and preallocated
-Ethernet, IPv4/IPv6, TCP, UDP, and ICMP layers. `scanner decode` demonstrates
+Ethernet, IPv4/IPv6, TCP, UDP, and ICMP layers. `nyxr decode` demonstrates
 this path on pcap files without `PacketSource`. The packet I/O interface accepts
 batches of raw Ethernet frames and keeps acquisition separate from decoding.
 
