@@ -36,3 +36,4 @@ go.work.sum
 /nyxr
 /nyxr-packetd
 /tests/performance/latest/
+/tests/performance/latest-linux/

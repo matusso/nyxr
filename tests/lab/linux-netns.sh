@@ -4,6 +4,18 @@ set -euo pipefail
 for tool in ip python3 go; do command -v "$tool" >/dev/null || { echo "missing $tool" >&2; exit 2; }; done
 if [[ $(id -u) -ne 0 ]]; then echo "run as root (CAP_NET_ADMIN and CAP_NET_RAW are required)" >&2; exit 2; fi
 cd "$(dirname "$0")/../.."
+out=${1:-tests/performance/latest-linux}
+mkdir -p "$out"
+out=$(cd "$out" && pwd)
+{
+  date -u '+UTC %Y-%m-%dT%H:%M:%SZ'
+  go version
+  go env GOOS GOARCH GOMAXPROCS CGO_ENABLED
+  uname -a
+  sed -n '/model name/{p;q;}' /proc/cpuinfo
+  ip -Version
+} >"$out/environment.txt"
+printf 'sudo bash tests/lab/linux-netns.sh %q\n' "$out" >"$out/command.txt"
 tmp=$(mktemp -d)
 src="nyxr-src-$$"
 dst="nyxr-dst-$$"
@@ -66,7 +78,6 @@ assert got == expected, (got, expected, rows)
 assert all('raw ICMP unavailable' not in row['reason'] for row in rows), rows
 print('UDP classification:', got)
 PY
-ip -n "$src" -j -s link show nxsrc >"$tmp/nic-before.json"
 ip netns exec "$src" "$tmp/nyxr" scan --tcp-mode syn --interface nxsrc --protocols tcp --ports "$ports" --workers 1 --timeout 250ms --json 10.77.0.2 >"$tmp/results.jsonl"
 python3 - "$tmp/results.jsonl" "$ports" <<'PY'
 import json, sys
@@ -87,14 +98,16 @@ for path, proto in zip(sys.argv[1:], ('arp', 'ndp')):
     assert len(rows) == 1 and rows[0]['transport'] == proto and rows[0]['state'] == 'responsive' and rows[0]['mac'] == '02:00:00:00:00:02', rows
     print(proto.upper(), 'discovery:', rows[0]['mac'])
 PY
+ip -n "$src" -j -s link show nxsrc >"$out/nic-before.json"
 start_ns=$(date +%s%N)
 ip netns exec "$src" "$tmp/nyxr" scan --tcp-mode syn --interface nxsrc --next-hop-mac 02:00:00:00:00:02 --protocols tcp --ports 21000-21099 --workers 4 --timeout 100ms --json 10.77.0.2 >"$tmp/load.jsonl"
 end_ns=$(date +%s%N)
-ip -n "$src" -j -s link show nxsrc >"$tmp/nic-after.json"
-python3 - "$tmp/load.jsonl" "$tmp/nic-before.json" "$tmp/nic-after.json" "$start_ns" "$end_ns" <<'PY'
+ip -n "$src" -j -s link show nxsrc >"$out/nic-after.json"
+cp "$tmp/load.jsonl" "$out/load.jsonl"
+python3 - "$out/load.jsonl" "$out/nic-before.json" "$out/nic-after.json" "$start_ns" "$end_ns" <<'PY' | tee "$out/summary.txt"
 import json, sys
 rows = [json.loads(line) for line in open(sys.argv[1])]
-assert len(rows) == 100 and all(row['state'] == 'closed' for row in rows), rows
+assert len(rows) == 100 and all(row['state'] == 'closed' and row['packets_tx'] == 1 for row in rows), rows
 before, after = [json.load(open(path))[0] for path in sys.argv[2:4]]
 def counts(x, direction):
     stats = x.get('stats64', x.get('stats'))
@@ -102,6 +115,8 @@ def counts(x, direction):
 rx0, rxd0 = counts(before, 'rx'); tx0, txd0 = counts(before, 'tx')
 rx1, rxd1 = counts(after, 'rx'); tx1, txd1 = counts(after, 'tx')
 seconds = (int(sys.argv[5]) - int(sys.argv[4])) / 1e9
-print(f'Fixed workload: 3 classification probes plus 100 closed-port probes; 100-probe scan in {seconds:.3f}s ({100/seconds:.0f} probes/s)')
-print(f'NIC counters delta: TX {tx1-tx0}, RX {rx1-rx0}, TX drops {txd1-txd0}, RX drops {rxd1-rxd0}')
+print(f'Fixed workload: 100 closed-port SYN probes, 4 workers, 100 ms timeout, one packet per probe')
+print(f'Elapsed: {seconds:.3f}s; throughput: {100/seconds:.0f} probes/s; observed reply loss: 0/100 (0%)')
+print(f'veth nxsrc counters: TX {tx1-tx0}, RX {rx1-rx0}, TX drops {txd1-txd0}, RX drops {rxd1-rxd0}')
 PY
+echo "Saved Linux lab environment, workload, results, and veth counters in $out"

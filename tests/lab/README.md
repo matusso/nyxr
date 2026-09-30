@@ -9,8 +9,11 @@ raw SYN open/closed/filtered classification, and IPv4 ARP/IPv6 NDP discovery,
 plus UDP open/closed/filtered classification with an echo responder and a
 closed port. The UDP gate checks that a raw ICMP listener opened in the source
 namespace; packet fixtures separately check exact ICMP quote correlation.
-It then runs a fixed 100-port closed scan. It prints the 100-probe
-throughput and source-interface TX/RX packet and drop deltas across both scans.
+It then runs a fixed 100-port closed scan. It records throughput, observed
+reply loss, and source-veth TX/RX packet and drop deltas across that scan in
+`tests/performance/latest-linux/`, alongside the command, environment and
+per-probe results. Pass another directory as the script argument to save a
+named run.
 The filtered case needs `iptables`.
 No external target or permanent network setting is used. A container needs
 `CAP_NET_ADMIN` and `CAP_NET_RAW` in addition to root.

@@ -8,6 +8,12 @@ uses 100 IPv4 SYN probes, four workers, a 3 ms timeout, and drops every tenth
 reply. `BenchmarkDecodeTCP` and `BenchmarkDecodeFixture` reuse one decoder.
 Run `go tool pprof -top <directory>/cpu.pprof` for sampled CPU work.
 
+The recorded run used `bash tests/performance/baseline.sh
+tests/performance/baseline-2026-09-30-macos-arm64`. The script runs three
+one-second samples of each decoder benchmark and the fixed synthetic scan
+with `-benchmem`; it profiles the scan. The linked environment and raw Go
+output are the source for the figures below.
+
 Recorded baseline: [macOS arm64, 2026-09-30](baseline-2026-09-30-macos-arm64/benchmarks.txt)
 with [environment](baseline-2026-09-30-macos-arm64/environment.txt) and
 [CPU profile](baseline-2026-09-30-macos-arm64/cpu.pprof). Go 1.27.1 on an
@@ -19,8 +25,14 @@ sampled 480 ms of CPU over 3.81 s wall time; runtime waits dominated because
 lost probes consume their full 3 ms timeout.
 
 These are decoder and fake-responder numbers; they do not measure NIC TX/RX
-rate or kernel drops. On Linux, `sudo bash tests/lab/linux-netns.sh` provides
-the fixed 103-probe live AF_PACKET workload and prints veth packet/drop
-counters before and after. The live NIC baseline remains unrecorded until that
-gate runs on a privileged Linux host. The macOS and Windows live gates are in
+rate or kernel drops. On a privileged Linux host, run
+`sudo bash tests/lab/linux-netns.sh tests/performance/latest-linux`. After
+classification and discovery checks, the script runs a fixed 100 closed-port
+AF_PACKET SYN workload with four workers and a 100 ms timeout. It saves the
+command, environment, per-probe results, throughput, observed reply loss, and
+source-veth TX/RX packet and drop counter deltas for that workload. These are
+virtual Ethernet interface counters, not physical adapter measurements. The
+Linux result remains unrecorded until this gate runs; do not treat synthetic
+loss or a missing counter result as a measured NIC drop rate. The macOS and
+Windows live gates are in
 [the lab instructions](../lab/README.md).
