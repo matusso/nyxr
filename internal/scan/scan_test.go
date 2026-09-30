@@ -2,6 +2,7 @@ package scan
 
 import (
 	"context"
+	"encoding/binary"
 	"net"
 	"net/netip"
 	"testing"
@@ -135,5 +136,41 @@ func TestChecksum(t *testing.T) {
 	msg[2], msg[3] = byte(c>>8), byte(c)
 	if checksum(msg) != 0 {
 		t.Fatalf("invalid checksum: %x", msg)
+	}
+}
+
+func TestICMPv6Checksum(t *testing.T) {
+	source := net.ParseIP("2001:db8::1")
+	destination := net.ParseIP("2001:db8::2")
+	message := []byte{128, 0, 0, 0, 0x12, 0x34, 0, 1, 1, 2, 3, 4, 5, 6, 7, 8}
+	binary.BigEndian.PutUint16(message[2:4], icmp6Checksum(source, destination, message))
+	if got := icmp6Checksum(source, destination, message); got != 0 {
+		t.Fatalf("ICMPv6 pseudoheader checksum failed: %04x", got)
+	}
+	message[15] ^= 1
+	if got := icmp6Checksum(source, destination, message); got == 0 {
+		t.Fatal("payload change was not detected")
+	}
+}
+
+func TestEchoReplyRequiresMatchingToken(t *testing.T) {
+	request := []byte{128, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
+	reply := append([]byte(nil), request...)
+	reply[0] = 129
+	if !matchesEchoReply(reply, 129, request) {
+		t.Fatal("valid echo reply rejected")
+	}
+	withHeader := make([]byte, 40+len(reply))
+	withHeader[0], withHeader[6] = 0x60, 58
+	copy(withHeader[40:], reply)
+	if !matchesEchoReply(withHeader, 129, request) {
+		t.Fatal("IPv6 header reply rejected")
+	}
+	reply[15] ^= 1
+	if matchesEchoReply(reply, 129, request) {
+		t.Fatal("wrong token accepted")
+	}
+	if matchesEchoReply(reply[:15], 129, request) {
+		t.Fatal("truncated reply accepted")
 	}
 }

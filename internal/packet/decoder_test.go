@@ -1,6 +1,7 @@
 package packet
 
 import (
+	"encoding/binary"
 	"net"
 	"testing"
 
@@ -36,6 +37,33 @@ func frame(t testing.TB, ipv6 bool) []byte {
 		t.Fatal(err)
 	}
 	return buf.Bytes()
+}
+
+func TestDiscoveryRejectsFragmentedAndExtensionFrames(t *testing.T) {
+	base4 := append([]byte(nil), frame(t, false)...)
+	binary.BigEndian.PutUint16(base4[20:22], 0x2000) // IPv4 more-fragments flag
+	if got, ok := NewDecoder().Decode(base4); ok {
+		t.Fatalf("fragmented IPv4 packet classified as %+v", got)
+	}
+	base6 := append([]byte(nil), frame(t, true)...)
+	for _, tc := range []struct{ next, flags byte }{{0, 0}, {44, 1}} {
+		packet := make([]byte, len(base6)+8)
+		copy(packet[:54], base6[:54])
+		copy(packet[62:], base6[54:])
+		packet[20] = tc.next // IPv6 next header
+		binary.BigEndian.PutUint16(packet[18:20], binary.BigEndian.Uint16(base6[18:20])+8)
+		packet[54] = 17 // UDP follows extension header
+		if tc.next == 44 {
+			packet[56] = tc.flags
+		}
+		got, ok := NewDecoder().Decode(packet)
+		if tc.next == 0 && (!ok || got.Protocol != "udp") {
+			t.Fatalf("safe IPv6 extension packet lost: %+v, %v", got, ok)
+		}
+		if tc.next == 44 && ok {
+			t.Fatalf("IPv6 fragment classified as %+v", got)
+		}
+	}
 }
 
 func TestDecoderReuse(t *testing.T) {

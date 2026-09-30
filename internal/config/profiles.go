@@ -27,8 +27,8 @@ type Enforcement struct {
 	MinTimeout time.Duration
 }
 
-func (e Enforcement) check(name string, tcp, udp, icmp bool, rate, workers int, timeout time.Duration, hasCustomPayload bool) error {
-	if e.TCPOnly && (udp || icmp) {
+func (e Enforcement) check(name string, tcp, udp, icmp, arp, ndp bool, rate, workers int, timeout time.Duration, hasCustomPayload bool) error {
+	if e.TCPOnly && (udp || icmp || arp || ndp) {
 		return fmt.Errorf("%s profile is TCP connect only", name)
 	}
 	if e.ReadOnly && hasCustomPayload {

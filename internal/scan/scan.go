@@ -29,6 +29,7 @@ type Observation struct {
 	Reason          string        `json:"reason"`
 	Probe           string        `json:"probe"`
 	Service         string        `json:"service,omitempty"`
+	MAC             string        `json:"mac,omitempty"`
 	RTT             time.Duration `json:"rtt_ns"`
 	PacketsTX       int           `json:"packets_tx"`
 	PacketsRX       int           `json:"packets_rx"`
@@ -47,6 +48,9 @@ type task struct {
 func Run(parent context.Context, cfg config.Config, emit func(Observation) error) error {
 	if err := cfg.Validate(); err != nil {
 		return err
+	}
+	if cfg.ARP || cfg.NDP {
+		return runNeighbor(parent, cfg, emit)
 	}
 	if cfg.TCPMode == "syn" {
 		return runSYN(parent, cfg, emit, packetio.OpenLive)
@@ -68,7 +72,7 @@ func Run(parent context.Context, cfg config.Config, emit func(Observation) error
 	}
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
-	limiter := newProbeLimiter(cfg.Rate)
+	limiter := newScopedProbeLimiter(cfg)
 	defer limiter.Close()
 	tasks := make(chan task, cfg.Workers*2)
 	results := make(chan Observation, cfg.Workers*2)
@@ -81,14 +85,14 @@ func Run(parent context.Context, cfg config.Config, emit func(Observation) error
 				var result Observation
 				switch t.transport {
 				case "tcp":
-					if limiter.Wait(ctx) != nil {
+					if limiter.WaitFor(ctx, t.target) != nil {
 						return
 					}
 					result = probeTCP(ctx, t, cfg.Timeout)
 				case "udp":
 					result = probeUDPCampaign(ctx, t, cfg.Timeout, udpProbes, cfg.UDPRetries, secret[:], limiter)
 				case "icmp":
-					if limiter.Wait(ctx) != nil {
+					if limiter.WaitFor(ctx, t.target) != nil {
 						return
 					}
 					result = probeICMP(ctx, t, cfg.Timeout)
@@ -170,12 +174,17 @@ var echoSeq atomic.Uint32
 
 func probeICMP(ctx context.Context, t task, timeout time.Duration) Observation {
 	o := base(t, "icmp-echo")
-	if !t.target.Is4() {
-		o.State, o.Reason = "unsupported", "IPv6 ICMP echo is not implemented"
+	if err := ctx.Err(); err != nil {
+		o.State, o.Reason = "error", err.Error()
 		return o
 	}
-	remote := &net.IPAddr{IP: net.IP(t.target.AsSlice())}
-	conn, err := net.DialIP("ip4:icmp", nil, remote)
+	network := "ip4:icmp"
+	requestType, replyType := byte(8), byte(0)
+	if t.target.Is6() {
+		network, requestType, replyType = "ip6:ipv6-icmp", 128, 129
+	}
+	remote := &net.IPAddr{IP: net.IP(t.target.AsSlice()), Zone: t.target.Zone()}
+	conn, err := net.DialIP(network, nil, remote)
 	if err != nil {
 		o.State, o.Reason = "error", "raw ICMP socket: "+err.Error()
 		return o
@@ -186,14 +195,28 @@ func probeICMP(ctx context.Context, t task, timeout time.Duration) Observation {
 		deadline = d
 	}
 	_ = conn.SetDeadline(deadline)
+	stop := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Now()) })
+	defer stop()
 	seq := uint16(echoSeq.Add(1))
 	id := uint16(os.Getpid())
 	var msg [16]byte
-	msg[0] = 8 // echo request
+	msg[0] = requestType
 	binary.BigEndian.PutUint16(msg[4:6], id)
 	binary.BigEndian.PutUint16(msg[6:8], seq)
-	binary.BigEndian.PutUint64(msg[8:], uint64(time.Now().UnixNano()))
-	binary.BigEndian.PutUint16(msg[2:4], checksum(msg[:]))
+	if _, err := rand.Read(msg[8:]); err != nil {
+		o.State, o.Reason = "error", err.Error()
+		return o
+	}
+	if t.target.Is4() {
+		binary.BigEndian.PutUint16(msg[2:4], checksum(msg[:]))
+	} else {
+		local := conn.LocalAddr().(*net.IPAddr).IP.To16()
+		if local == nil {
+			o.State, o.Reason = "error", "no IPv6 source address selected"
+			return o
+		}
+		binary.BigEndian.PutUint16(msg[2:4], icmp6Checksum(local, remote.IP.To16(), msg[:]))
+	}
 	start := time.Now()
 	_, err = conn.Write(msg[:])
 	if err != nil {
@@ -203,25 +226,22 @@ func probeICMP(ctx context.Context, t task, timeout time.Duration) Observation {
 	o.PacketsTX = 1
 	var buf [1500]byte
 	for {
-		n, err := conn.Read(buf[:])
+		n, from, err := conn.ReadFromIP(buf[:])
 		o.RTT = time.Since(start)
 		if err != nil {
-			if isTimeout(err) {
+			if ctx.Err() != nil {
+				o.State, o.Reason = "error", ctx.Err().Error()
+			} else if isTimeout(err) {
 				o.State, o.Confidence, o.Reason = "no-response", 40, "ICMP echo timed out"
 			} else {
 				o.State, o.Reason = "error", err.Error()
 			}
 			return o
 		}
-		packet := buf[:n]
-		if len(packet) >= 20 && packet[0]>>4 == 4 {
-			headerLen := int(packet[0]&0xf) * 4
-			if headerLen > len(packet) {
-				continue
-			}
-			packet = packet[headerLen:]
+		if from == nil || !from.IP.Equal(remote.IP) {
+			continue
 		}
-		if len(packet) >= 8 && packet[0] == 0 && binary.BigEndian.Uint16(packet[4:6]) == id && binary.BigEndian.Uint16(packet[6:8]) == seq {
+		if matchesEchoReply(buf[:n], replyType, msg[:]) {
 			o.State, o.Confidence, o.Reason, o.PacketsRX = "responsive", 100, "matching ICMP echo reply", 1
 			return o
 		}
@@ -232,6 +252,47 @@ func probeICMP(ctx context.Context, t task, timeout time.Duration) Observation {
 		default:
 		}
 	}
+}
+
+func matchesEchoReply(packet []byte, replyType byte, request []byte) bool {
+	if len(packet) >= 20 && packet[0]>>4 == 4 {
+		headerLen := int(packet[0]&0xf) * 4
+		if headerLen < 20 || headerLen > len(packet) {
+			return false
+		}
+		packet = packet[headerLen:]
+	} else if len(packet) >= 40 && packet[0]>>4 == 6 {
+		if packet[6] != 58 {
+			return false
+		}
+		packet = packet[40:]
+	}
+	return len(packet) >= 16 && len(request) >= 16 && packet[0] == replyType && packet[1] == 0 &&
+		binary.BigEndian.Uint16(packet[4:6]) == binary.BigEndian.Uint16(request[4:6]) &&
+		binary.BigEndian.Uint16(packet[6:8]) == binary.BigEndian.Uint16(request[6:8]) &&
+		string(packet[8:16]) == string(request[8:16])
+}
+
+func icmp6Checksum(source, destination net.IP, message []byte) uint16 {
+	var pseudo [40]byte
+	copy(pseudo[:16], source)
+	copy(pseudo[16:32], destination)
+	binary.BigEndian.PutUint32(pseudo[32:36], uint32(len(message)))
+	pseudo[39] = 58 // ICMPv6 next header
+	var sum uint32
+	for _, data := range [][]byte{pseudo[:], message} {
+		for len(data) >= 2 {
+			sum += uint32(binary.BigEndian.Uint16(data[:2]))
+			data = data[2:]
+		}
+		if len(data) == 1 {
+			sum += uint32(data[0]) << 8
+		}
+	}
+	for sum>>16 != 0 {
+		sum = (sum & 0xffff) + (sum >> 16)
+	}
+	return ^uint16(sum)
 }
 
 func checksum(data []byte) uint16 {

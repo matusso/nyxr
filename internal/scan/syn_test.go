@@ -15,11 +15,12 @@ import (
 )
 
 type fakePacketIO struct {
-	frames chan []byte
-	flags  byte
-	stale  bool
-	mu     sync.Mutex
-	sent   int
+	frames       chan []byte
+	flags        byte
+	stale        bool
+	mu           sync.Mutex
+	sent         int
+	destinations []net.HardwareAddr
 }
 
 func (f *fakePacketIO) ReceiveBatch(ctx context.Context, buffers [][]byte) (int, error) {
@@ -35,6 +36,7 @@ func (f *fakePacketIO) ReceiveBatch(ctx context.Context, buffers [][]byte) (int,
 func (f *fakePacketIO) SendBatch(ctx context.Context, frames [][]byte) (int, error) {
 	f.mu.Lock()
 	f.sent++
+	f.destinations = append(f.destinations, append(net.HardwareAddr(nil), frames[0][:6]...))
 	f.mu.Unlock()
 	if f.flags != 0 {
 		request := frames[0]
@@ -93,6 +95,26 @@ func TestRawSYNShardedWorkers(t *testing.T) {
 		if o.State != "open" || o.PacketsRX != 1 {
 			t.Fatalf("sharded reply = %+v", o)
 		}
+	}
+}
+
+func TestRawSYNUsesResolvedMACPerTarget(t *testing.T) {
+	first := netip.MustParseAddr("198.51.100.20")
+	second := netip.MustParseAddr("198.51.100.21")
+	mac1 := net.HardwareAddr{2, 0, 0, 0, 0, 1}
+	mac2 := net.HardwareAddr{2, 0, 0, 0, 0, 2}
+	fake := &fakePacketIO{frames: make(chan []byte, 16), flags: 0x12}
+	cfg := config.Config{Targets: []netip.Addr{first, second}, Ports: []uint16{80}, TCP: true,
+		TCPMode: "syn", Timeout: time.Second, Workers: 1}
+	var got []Observation
+	err := runSYNWithIOResolved(context.Background(), cfg, func(o Observation) error {
+		got = append(got, o)
+		return nil
+	}, fake, net.HardwareAddr{2, 1, 2, 3, 4, 5}, netip.MustParseAddr("192.0.2.10"),
+		map[netip.Addr]net.HardwareAddr{first: mac1, second: mac2})
+	if err != nil || len(got) != 2 || len(fake.destinations) != 2 ||
+		string(fake.destinations[0]) != string(mac1) || string(fake.destinations[1]) != string(mac2) {
+		t.Fatalf("resolved destinations: %+v, %+v, %v", got, fake.destinations, err)
 	}
 }
 

@@ -4,8 +4,9 @@
 
 Run `sudo bash tests/lab/linux-netns.sh` on Linux with `iproute2`, Python 3,
 Go, and optionally `iptables`. The script builds nyxr, creates two disposable
-network namespaces and a veth pair, and verifies raw SYN open/closed/filtered
-classification, then runs a fixed 100-port closed scan. It prints the 100-probe
+network namespaces and a veth pair, and verifies automatic ARP resolution,
+raw SYN open/closed/filtered classification, and IPv4 ARP/IPv6 NDP discovery,
+then runs a fixed 100-port closed scan. It prints the 100-probe
 throughput and source-interface TX/RX packet and drop deltas across both scans.
 The filtered case needs `iptables`.
 No external target or permanent network setting is used. A container needs

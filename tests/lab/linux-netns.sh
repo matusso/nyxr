@@ -26,6 +26,8 @@ ip -n "$src" link set nxsrc address 02:00:00:00:00:01
 ip -n "$dst" link set nxdst address 02:00:00:00:00:02
 ip -n "$src" addr add 10.77.0.1/24 dev nxsrc
 ip -n "$dst" addr add 10.77.0.2/24 dev nxdst
+ip -n "$src" -6 addr add fd77::1/64 dev nxsrc
+ip -n "$dst" -6 addr add fd77::2/64 dev nxdst
 ip -n "$src" link set nxsrc up
 ip -n "$dst" link set nxdst up
 ip netns exec "$dst" python3 -m http.server 8080 --bind 10.77.0.2 >"$tmp/server.log" 2>&1 &
@@ -43,7 +45,7 @@ else
   echo "iptables unavailable: filtered-port gate skipped" >&2
 fi
 ip -n "$src" -j -s link show nxsrc >"$tmp/nic-before.json"
-ip netns exec "$src" "$tmp/nyxr" scan --tcp-mode syn --interface nxsrc --next-hop-mac 02:00:00:00:00:02 --protocols tcp --ports "$ports" --workers 1 --timeout 250ms --json 10.77.0.2 >"$tmp/results.jsonl"
+ip netns exec "$src" "$tmp/nyxr" scan --tcp-mode syn --interface nxsrc --protocols tcp --ports "$ports" --workers 1 --timeout 250ms --json 10.77.0.2 >"$tmp/results.jsonl"
 python3 - "$tmp/results.jsonl" "$ports" <<'PY'
 import json, sys
 rows = [json.loads(line) for line in open(sys.argv[1])]
@@ -53,6 +55,15 @@ if '8082' in sys.argv[2]: expected[8082] = 'filtered'
 assert got == expected, (got, expected, rows)
 assert all(row['packets_tx'] == 1 for row in rows), rows
 print('AF_PACKET classification:', got)
+PY
+ip netns exec "$src" "$tmp/nyxr" scan --profile custom --protocols arp --interface nxsrc --timeout 300ms --json 10.77.0.2 >"$tmp/arp.jsonl"
+ip netns exec "$src" "$tmp/nyxr" scan --profile custom --protocols ndp --interface nxsrc --timeout 300ms --json fd77::2 >"$tmp/ndp.jsonl"
+python3 - "$tmp/arp.jsonl" "$tmp/ndp.jsonl" <<'PY'
+import json, sys
+for path, proto in zip(sys.argv[1:], ('arp', 'ndp')):
+    rows = [json.loads(line) for line in open(path)]
+    assert len(rows) == 1 and rows[0]['transport'] == proto and rows[0]['state'] == 'responsive' and rows[0]['mac'] == '02:00:00:00:00:02', rows
+    print(proto.upper(), 'discovery:', rows[0]['mac'])
 PY
 start_ns=$(date +%s%N)
 ip netns exec "$src" "$tmp/nyxr" scan --tcp-mode syn --interface nxsrc --next-hop-mac 02:00:00:00:00:02 --protocols tcp --ports 21000-21099 --workers 4 --timeout 100ms --json 10.77.0.2 >"$tmp/load.jsonl"

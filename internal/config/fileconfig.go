@@ -11,20 +11,23 @@ import (
 // reported rather than ignored. The CLI overlays command-line flags on top of a
 // parsed FileConfig; a future API can accept the same document over the wire.
 type FileConfig struct {
-	Targets      []string `yaml:"targets"`
-	Ports        string   `yaml:"ports"`
-	Protocols    string   `yaml:"protocols"`
-	Timeout      string   `yaml:"timeout"`
-	Rate         *int     `yaml:"rate"`
-	Workers      *int     `yaml:"workers"`
-	Profile      string   `yaml:"profile"`
-	UDPRetries   *int     `yaml:"udp_retries"`
-	UDPProbeFile string   `yaml:"udp_probe_file"`
-	TCPMode      string   `yaml:"tcp_mode"`
-	Interface    string   `yaml:"interface"`
-	SourceIP     string   `yaml:"source_ip"`
-	SourceMAC    string   `yaml:"source_mac"`
-	NextHopMAC   string   `yaml:"next_hop_mac"`
+	Targets       []string `yaml:"targets"`
+	Ports         string   `yaml:"ports"`
+	Protocols     string   `yaml:"protocols"`
+	Timeout       string   `yaml:"timeout"`
+	Rate          *int     `yaml:"rate"`
+	HostRate      *int     `yaml:"host_rate"`
+	SubnetRate    *int     `yaml:"subnet_rate"`
+	InterfaceRate *int     `yaml:"interface_rate"`
+	Workers       *int     `yaml:"workers"`
+	Profile       string   `yaml:"profile"`
+	UDPRetries    *int     `yaml:"udp_retries"`
+	UDPProbeFile  string   `yaml:"udp_probe_file"`
+	TCPMode       string   `yaml:"tcp_mode"`
+	Interface     string   `yaml:"interface"`
+	SourceIP      string   `yaml:"source_ip"`
+	SourceMAC     string   `yaml:"source_mac"`
+	NextHopMAC    string   `yaml:"next_hop_mac"`
 }
 
 // ParseFile reads and validates a YAML scan configuration. An empty path
