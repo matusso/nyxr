@@ -1,3 +1,4 @@
+schema: nyxr/udp/v1
 name: snmp-v2c-sysdescr
 transport: udp
 ports: [161]

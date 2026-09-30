@@ -37,27 +37,28 @@ const (
 // that justify it. The discovery fields keep their original JSON names so
 // existing consumers of nyxr output continue to work.
 type Observation struct {
-	Schema          string        `json:"schema,omitempty"`
-	Kind            string        `json:"kind,omitempty"`
-	ScanID          string        `json:"scan_id,omitempty"`
-	Timestamp       time.Time     `json:"timestamp"`
-	Target          netip.Addr    `json:"target"`
-	Transport       string        `json:"transport"`
-	Port            uint16        `json:"port,omitempty"`
-	State           string        `json:"state"`
-	Confidence      int           `json:"confidence"`
-	Reason          string        `json:"reason"`
-	Probe           string        `json:"probe"`
-	Service         string        `json:"service,omitempty"`
-	Product         string        `json:"product,omitempty"`
-	Version         string        `json:"version,omitempty"`
-	Fingerprint     string        `json:"fingerprint,omitempty"`
-	MAC             string        `json:"mac,omitempty"`
-	RTT             time.Duration `json:"rtt_ns"`
-	PacketsTX       int           `json:"packets_tx"`
-	PacketsRX       int           `json:"packets_rx"`
-	ProbesAttempted []string      `json:"probes_attempted,omitempty"`
-	ResponseHex     string        `json:"response_hex,omitempty"`
+	Schema          string            `json:"schema,omitempty"`
+	Kind            string            `json:"kind,omitempty"`
+	ScanID          string            `json:"scan_id,omitempty"`
+	Timestamp       time.Time         `json:"timestamp"`
+	Target          netip.Addr        `json:"target"`
+	Transport       string            `json:"transport"`
+	Port            uint16            `json:"port,omitempty"`
+	State           string            `json:"state"`
+	Confidence      int               `json:"confidence"`
+	Reason          string            `json:"reason"`
+	Probe           string            `json:"probe"`
+	Service         string            `json:"service,omitempty"`
+	Product         string            `json:"product,omitempty"`
+	Version         string            `json:"version,omitempty"`
+	Fingerprint     string            `json:"fingerprint,omitempty"`
+	MAC             string            `json:"mac,omitempty"`
+	RTT             time.Duration     `json:"rtt_ns"`
+	PacketsTX       int               `json:"packets_tx"`
+	PacketsRX       int               `json:"packets_rx"`
+	ProbesAttempted []string          `json:"probes_attempted,omitempty"`
+	ResponseHex     string            `json:"response_hex,omitempty"`
+	Fields          map[string]string `json:"fields,omitempty"`
 	// Attributes holds protocol fields such as http.server or ssh.software.
 	Attributes map[string]string `json:"attributes,omitempty"`
 	TLS        *TLS              `json:"tls,omitempty"`

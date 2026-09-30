@@ -130,6 +130,20 @@ func TestUDPCampaignRetriesNoResponse(t *testing.T) {
 	}
 }
 
+func TestUDPCampaignCapsCombinedRetries(t *testing.T) {
+	server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Skipf("loopback unavailable: %v", err)
+	}
+	defer server.Close()
+	p := probe.Probe{Name: "silent", Payload: []byte{1}, Matcher: "any", Retries: 5}
+	got := probeUDPCampaign(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: uint16(server.LocalAddr().(*net.UDPAddr).Port), transport: "udp"},
+		5*time.Millisecond, []probe.Probe{p}, 5, []byte("secret"), newProbeLimiter(0))
+	if got.State != "open|filtered" || got.PacketsTX != 6 {
+		t.Fatalf("got %+v", got)
+	}
+}
+
 func TestChecksum(t *testing.T) {
 	msg := []byte{8, 0, 0, 0, 0, 1, 0, 1}
 	c := checksum(msg)

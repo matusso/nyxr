@@ -1,0 +1,13 @@
+schema: nyxr/udp/v1
+name: llmnr-a
+transport: udp
+ports: [5355]
+tags: [llmnr, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "000000000001000000000000046e7978720000010001"
+timeout: 1s
+match:
+  - type: dns
+extract: [dns.rcode]

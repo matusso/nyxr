@@ -1,0 +1,13 @@
+schema: nyxr/udp/v1
+name: stun-binding
+transport: udp
+ports: [3478]
+tags: [stun, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "000100002112a442000000000000000000000000"
+timeout: 1s
+match:
+  - type: stun
+extract: [stun.message_type]

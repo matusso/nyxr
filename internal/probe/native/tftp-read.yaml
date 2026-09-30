@@ -1,0 +1,13 @@
+schema: nyxr/udp/v1
+name: tftp-read
+transport: udp
+ports: [69]
+tags: [tftp, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "00016e7978722d6e6f6e6578697374656e742d70726f6265006f6374657400"
+timeout: 1s
+match:
+  - type: tftp
+extract: [tftp.error_code]

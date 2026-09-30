@@ -1,3 +1,4 @@
+schema: nyxr/udp/v1
 name: dns-ns
 transport: udp
 ports: [53]
@@ -10,3 +11,4 @@ timeout: 750ms
 retries: 0
 match:
   - type: dns
+extract: [dns.rcode]

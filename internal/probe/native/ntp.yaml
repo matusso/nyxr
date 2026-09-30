@@ -1,3 +1,4 @@
+schema: nyxr/udp/v1
 name: ntp-client
 transport: udp
 ports: [123]
@@ -10,3 +11,4 @@ timeout: 1s
 retries: 0
 match:
   - type: ntp
+extract: [ntp.stratum]
