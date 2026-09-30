@@ -156,6 +156,20 @@ Pass it with `nyxr scan --config scan.yaml`; command-line options override
 matching file fields. Positional targets are added to file targets. A relative
 `udp_probe_file` path is resolved beside the scan configuration file.
 
+## Shell completion
+
+`nyxr completion <shell>` prints a completion script for `bash`, `zsh`,
+`fish`, or `powershell`. It completes subcommands, flags, profile names, port
+sets, protocols and network interfaces:
+
+```sh
+source <(nyxr completion bash)                                  # bash, current shell
+nyxr completion bash > ~/.local/share/bash-completion/completions/nyxr
+nyxr completion zsh > "${fpath[1]}/_nyxr"                      # zsh, then restart the shell
+nyxr completion fish > ~/.config/fish/completions/nyxr.fish     # fish
+nyxr completion powershell | Out-String | Invoke-Expression     # PowerShell; add to $PROFILE
+```
+
 ## Packet I/O and platform limits
 
 The Ethernet decoder uses `gopacket.DecodingLayerParser` and preallocated

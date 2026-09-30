@@ -1,0 +1,80 @@
+# bash completion for nyxr
+#
+# Load in the current shell:   source <(nyxr completion bash)
+# Load for every new shell:    nyxr completion bash > ~/.local/share/bash-completion/completions/nyxr
+
+_nyxr() {
+    local cur prev cmd i
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    # "--flag=value": readline splits on "=", so look one word further back.
+    if [[ "$cur" == "=" ]]; then
+        cur=""
+    fi
+    if [[ "$prev" == "=" && $COMP_CWORD -ge 2 ]]; then
+        prev="${COMP_WORDS[COMP_CWORD-2]}"
+    fi
+
+    cmd=""
+    for ((i = 1; i < COMP_CWORD; i++)); do
+        case "${COMP_WORDS[i]}" in
+            -*) ;;
+            *) cmd="${COMP_WORDS[i]}"; break ;;
+        esac
+    done
+
+    if [[ -z "$cmd" ]]; then
+        COMPREPLY=($(compgen -W "scan profiles decode sniff completion version help" -- "$cur"))
+        return 0
+    fi
+
+    case "$cmd" in
+        scan)
+            case "$prev" in
+                --profile|-profile)
+                    COMPREPLY=($(compgen -W "{{range .Profiles}}{{.Name}} {{end}}" -- "$cur"))
+                    return 0 ;;
+                --ports|-ports)
+                    COMPREPLY=($(compgen -W "{{join .PortSets " "}}" -- "$cur"))
+                    return 0 ;;
+                --protocols|-protocols)
+                    COMPREPLY=($(compgen -W "tcp udp icmp tcp,udp tcp,icmp udp,icmp tcp,udp,icmp" -- "$cur"))
+                    return 0 ;;
+                --payload|-payload|--config|-config|--payload-file|-payload-file)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0 ;;
+                --timeout|-timeout|--rate|-rate|--workers|-workers|--udp-retries|-udp-retries|--send-hex|-send-hex|--send-base64|-send-base64)
+                    return 0 ;;
+            esac
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=($(compgen -W "--profile --ports --protocols --timeout --rate --workers --udp-retries --payload --send-hex --send-base64 --payload-file --config --json --dry-run --help" -- "$cur"))
+            fi
+            ;;
+        profiles)
+            COMPREPLY=($(compgen -W "--json" -- "$cur"))
+            ;;
+        decode)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            ;;
+        sniff)
+            case "$prev" in
+                --interface|-interface)
+                    COMPREPLY=($(compgen -W "$(command ls /sys/class/net 2>/dev/null || ifconfig -l 2>/dev/null)" -- "$cur"))
+                    return 0 ;;
+                --count|-count|--timeout|-timeout)
+                    return 0 ;;
+            esac
+            COMPREPLY=($(compgen -W "--interface --count --timeout" -- "$cur"))
+            ;;
+        completion)
+            if [[ $COMP_CWORD -eq $((i + 1)) ]]; then
+                COMPREPLY=($(compgen -W "bash zsh fish powershell" -- "$cur"))
+            fi
+            ;;
+    esac
+    return 0
+}
+
+complete -o filenames -F _nyxr nyxr

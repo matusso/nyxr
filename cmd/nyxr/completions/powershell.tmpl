@@ -1,0 +1,74 @@
+# PowerShell completion for nyxr
+#
+# Load in the current shell:   nyxr completion powershell | Out-String | Invoke-Expression
+# Load for every new shell:    add the line above to $PROFILE
+
+Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock {
+    param($wordToComplete, $commandAst, $cursorPosition)
+
+    $words = @($commandAst.CommandElements |
+        Where-Object { $_.Extent.StartOffset -lt $cursorPosition } |
+        ForEach-Object { $_.ToString() })
+    # Drop the word under the cursor so $words holds only completed words.
+    if ($wordToComplete -ne '' -and $words.Count -gt 1) {
+        $words = @($words | Select-Object -First ($words.Count - 1))
+    }
+
+    $cmd = $null
+    $cmdIndex = 0
+    for ($i = 1; $i -lt $words.Count; $i++) {
+        if (-not $words[$i].StartsWith('-')) { $cmd = $words[$i]; $cmdIndex = $i; break }
+    }
+    $prev = if ($words.Count -gt 0) { $words[-1] } else { '' }
+
+    $emit = {
+        param([string[]]$items, [string]$type = 'ParameterValue', [hashtable]$tips = @{})
+        foreach ($item in $items) {
+            if ($item -like "$wordToComplete*") {
+                $tip = if ($tips.ContainsKey($item)) { $tips[$item] } else { $item }
+                [System.Management.Automation.CompletionResult]::new($item, $item, $type, $tip)
+            }
+        }
+    }
+
+    if (-not $cmd) {
+        & $emit @('scan', 'profiles', 'decode', 'sniff', 'completion', 'version', 'help') 'Command'
+        return
+    }
+
+    switch ($cmd) {
+        'scan' {
+            switch -Regex ($prev) {
+                '^--?profile$' {
+                    $tips = @{
+{{- range .Profiles}}
+                        {{ps .Name}} = {{ps .Description}}
+{{- end}}
+                    }
+                    & $emit @({{range $i, $p := .Profiles}}{{if $i}}, {{end}}{{ps $p.Name}}{{end}}) 'ParameterValue' $tips
+                    return
+                }
+                '^--?ports$' { & $emit @({{range $i, $s := .PortSets}}{{if $i}}, {{end}}{{ps $s}}{{end}}); return }
+                '^--?protocols$' { & $emit @('tcp', 'udp', 'icmp', 'tcp,udp', 'tcp,icmp', 'udp,icmp', 'tcp,udp,icmp'); return }
+                # Returning nothing lets PowerShell fall back to path completion.
+                '^--?(payload|payload-file|config|timeout|rate|workers|udp-retries|send-hex|send-base64)$' { return }
+            }
+            if ($wordToComplete.StartsWith('-')) {
+                & $emit @('--profile', '--ports', '--protocols', '--timeout', '--rate', '--workers', '--udp-retries',
+                    '--payload', '--send-hex', '--send-base64', '--payload-file', '--config', '--json', '--dry-run', '--help') 'ParameterName'
+            }
+        }
+        'profiles' { & $emit @('--json') 'ParameterName' }
+        'sniff' {
+            if ($prev -match '^--?interface$') {
+                & $emit @([System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces() | ForEach-Object { $_.Name })
+                return
+            }
+            if ($prev -match '^--?(count|timeout)$') { return }
+            & $emit @('--interface', '--count', '--timeout') 'ParameterName'
+        }
+        'completion' {
+            if ($words.Count -eq $cmdIndex + 1) { & $emit @('bash', 'zsh', 'fish', 'powershell') }
+        }
+    }
+}

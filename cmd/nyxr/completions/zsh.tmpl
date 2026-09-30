@@ -1,0 +1,89 @@
+#compdef nyxr
+# zsh completion for nyxr
+#
+# Load in the current shell:   source <(nyxr completion zsh)
+# Load for every new shell:    nyxr completion zsh > "${fpath[1]}/_nyxr"
+
+_nyxr_profiles() {
+    local -a profiles
+    profiles=(
+{{- range .Profiles}}
+        {{sh (printf "%s:%s" .Name .Description)}}
+{{- end}}
+    )
+    _describe -t profiles 'scan profile' profiles
+}
+
+_nyxr_ports() {
+    _values -s , 'port set' {{join .PortSets " "}}
+}
+
+_nyxr() {
+    local curcontext="$curcontext" state line ret=1
+    typeset -A opt_args
+
+    _arguments -C \
+        '1: :->command' \
+        '*:: :->args' && ret=0
+
+    case $state in
+        command)
+            local -a commands
+            commands=(
+                'scan:run a scan'
+                'profiles:list scan profiles'
+                'decode:decode an Ethernet pcap to JSON'
+                'sniff:capture and decode live frames'
+                'completion:print a shell completion script'
+                'version:print the version'
+                'help:show help'
+            )
+            _describe -t commands 'nyxr command' commands && ret=0
+            ;;
+        args)
+            case $line[1] in
+                scan)
+                    _arguments \
+                        '--profile=[scan profile]:profile:_nyxr_profiles' \
+                        '--ports=[ports, ranges, or a named set]:ports:_nyxr_ports' \
+                        '--protocols=[comma list of protocols]:protocols:_values -s , protocol tcp udp icmp' \
+                        '--timeout=[per-probe timeout]:duration (e.g. 1s, 750ms):' \
+                        '--rate=[max probes per second (0 = unlimited)]:rate:' \
+                        '--workers=[concurrent probe workers]:workers:' \
+                        '--udp-retries=[extra retries per UDP probe]:retries:(0 1 2 3 4 5)' \
+                        '--payload=[native YAML UDP probe definition]:probe file:_files -g "*.(yaml|yml)"' \
+                        '--send-hex=[custom UDP payload as hex]:hex:' \
+                        '--send-base64=[custom UDP payload as base64]:base64:' \
+                        '--payload-file=[custom raw UDP payload file]:payload file:_files' \
+                        '--config=[YAML scan configuration]:config file:_files -g "*.(yaml|yml)"' \
+                        '--json[newline-delimited JSON output]' \
+                        '--dry-run[resolve and print the plan without sending packets]' \
+                        '(- *)--help[show scan help]' \
+                        '*:target (IP, hostname, CIDR, or A-B range):_hosts' && ret=0
+                    ;;
+                profiles)
+                    _arguments '--json[JSON output]' && ret=0
+                    ;;
+                decode)
+                    _arguments '1:pcap file:_files -g "*.(pcap|cap)"' && ret=0
+                    ;;
+                sniff)
+                    _arguments \
+                        '--interface=[network interface]:interface:_net_interfaces' \
+                        '--count=[number of decoded packets]:count:' \
+                        '--timeout=[capture duration]:duration (e.g. 10s):' && ret=0
+                    ;;
+                completion)
+                    _arguments '1:shell:(bash zsh fish powershell)' && ret=0
+                    ;;
+            esac
+            ;;
+    esac
+    return ret
+}
+
+if [[ "$funcstack[1]" == "_nyxr" ]]; then
+    _nyxr "$@"
+else
+    compdef _nyxr nyxr
+fi
