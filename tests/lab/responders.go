@@ -48,7 +48,13 @@ func (r *UDPResponder) Counts() (int, int) {
 	defer r.mu.Unlock()
 	return r.received, r.sent
 }
-func (r *UDPResponder) Close() error { err := r.conn.Close(); <-r.done; return err }
+// Close stops reading, lets an in-flight reply burst finish, then closes the
+// socket, so Counts is final once Close returns.
+func (r *UDPResponder) Close() error {
+	r.conn.SetReadDeadline(time.Now())
+	<-r.done
+	return r.conn.Close()
+}
 
 func (r *UDPResponder) serve() {
 	defer close(r.done)

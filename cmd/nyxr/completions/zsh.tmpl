@@ -32,8 +32,9 @@ _nyxr() {
             commands=(
                 'scan:run a scan'
                 'profiles:list scan profiles'
-                'decode:decode an Ethernet pcap to JSON'
+                'decode:decode an Ethernet pcap or pcapng to JSON'
                 'sniff:capture and decode live frames'
+                'history:list or query stored scans, assets and evidence'
                 'completion:print a shell completion script'
                 'version:print the version'
                 'help:show help'
@@ -61,6 +62,15 @@ _nyxr() {
                         '--send-base64=[custom UDP payload as base64]:base64:' \
                         '--payload-file=[custom raw UDP payload file]:payload file:_files' \
                         '--config=[YAML scan configuration]:config file:_files -g "*.(yaml|yml)"' \
+                        '--service[deep service probes on open TCP ports]' \
+                        '--service-probes=[comma list of service probes]:probes:_values -s , probe banner ssh tls http dns' \
+                        '--service-fallback=[probes for unhinted silent ports, or none]:fallback:(http tls,http none)' \
+                        '--service-timeout=[upper bound for each service probe]:duration (e.g. 3s):' \
+                        '--service-workers=[concurrent service probe workers]:workers:' \
+                        '--service-rate=[new service connections per second (0 = unlimited)]:rate:' \
+                        '--pcapng=[write packet evidence to a pcapng file]:pcapng file:_files -g "*.pcapng"' \
+                        '--pcapng-max-mb=[pcapng size budget in MiB]:MiB:' \
+                        '--db=[store results in a SQLite database]:database file:_files' \
                         '--json[newline-delimited JSON output]' \
                         '--dry-run[resolve and print the plan without sending packets]' \
                         '(- *)--help[show scan help]' \
@@ -70,13 +80,26 @@ _nyxr() {
                     _arguments '--json[JSON output]' && ret=0
                     ;;
                 decode)
-                    _arguments '1:pcap file:_files -g "*.(pcap|cap)"' && ret=0
+                    _arguments '1:pcap or pcapng file:_files -g "*.(pcap|cap|pcapng)"' && ret=0
                     ;;
                 sniff)
                     _arguments \
                         '--interface=[network interface]:interface:_net_interfaces' \
                         '--count=[number of decoded packets]:count:' \
                         '--timeout=[capture duration]:duration (e.g. 10s):' && ret=0
+                    ;;
+                history)
+                    _arguments \
+                        '--db=[SQLite database written by nyxr scan --db]:database file:_files' \
+                        '--scan=[print the observations and packet evidence of one scan]:scan id:' \
+                        '--assets[print every address with the latest state of each port]' \
+                        '--unknown[print service observations with an unknown fingerprint]' \
+                        '--address=[restrict --scan or --unknown to one address]:address:' \
+                        '--limit=[maximum scans or observations]:limit:' \
+                        '--prune-older-than=[delete scans older than this duration]:duration (e.g. 720h):' \
+                        '--keep=[delete all but the newest N scans]:count:' \
+                        '--json[JSON output]' \
+                        '(- *)--help[show history help]' && ret=0
                     ;;
                 completion)
                     _arguments '1:shell:(bash zsh fish powershell)' && ret=0

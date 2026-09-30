@@ -63,6 +63,8 @@ type Profile struct {
 	Workers    int
 	UDPRetries int
 	Enforce    Enforcement
+	// Service enables the deep-probe stage by default when non-nil.
+	Service *ServiceDefaults
 }
 
 // profiles is the ordered catalog. The order controls how `nyxr profiles`
@@ -109,19 +111,36 @@ var profiles = []Profile{
 		Rate: 100, Workers: 64,
 	},
 
+	{
+		Name: "service", Description: "Top 100 TCP ports, then banner/SSH/TLS/HTTP/DNS identification",
+		Availability: StatusAvailable,
+		Ports:        "top100", Protocols: "tcp", Timeout: "1s", Rate: 100, Workers: 64,
+		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns", Fallback: "http", Timeout: "5s", Workers: 16, Rate: 50},
+	},
+	{
+		Name: "deep", Description: "Discovery plus TLS/HTTP/SSH/DNS interrogation, trying TLS and HTTP on every open port",
+		Availability: StatusAvailable,
+		Ports:        "top100", Protocols: "tcp", Timeout: "1s", Rate: 100, Workers: 64,
+		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns", Fallback: "tls,http", Timeout: "8s", Workers: 32, Rate: 50},
+	},
+	{
+		Name: "web", Description: "HTTP/HTTPS/TLS focused service detection",
+		Availability: StatusAvailable,
+		Ports:        "80,443,3000,5000,8000,8008,8080,8081,8443,8888,9000,9443", Protocols: "tcp", Timeout: "1s", Rate: 100, Workers: 64,
+		Service: &ServiceDefaults{Probes: "tls,http", Fallback: "tls,http", Timeout: "5s", Workers: 16, Rate: 50},
+	},
+	{
+		Name: "full", Description: "All TCP ports plus full deep service detection",
+		Availability: StatusAvailable,
+		Ports:        "all", Protocols: "tcp", Timeout: "1s", Rate: 1000, Workers: 256,
+		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns", Fallback: "tls,http", Timeout: "8s", Workers: 32, Rate: 50},
+	},
+
 	// Planned profiles depend on engines that later roadmap phases deliver.
-	{Name: "service", Description: "Service and version detection on discovered ports",
-		Availability: StatusPlanned, Requires: "the deep service-probe engine (ROADMAP Phase 3)"},
-	{Name: "deep", Description: "Discovery plus TLS/HTTP/SSH/DNS interrogation",
-		Availability: StatusPlanned, Requires: "deep service probes and the TLS subsystem (ROADMAP Phase 3)"},
-	{Name: "web", Description: "HTTP/HTTPS/TLS focused service detection",
-		Availability: StatusPlanned, Requires: "HTTP and TLS service probes (ROADMAP Phase 3)"},
 	{Name: "database", Description: "Database protocol handshakes (Redis, Mongo, SQL)",
-		Availability: StatusPlanned, Requires: "database protocol probes (ROADMAP Phase 3)"},
+		Availability: StatusPlanned, Requires: "database protocol probes (a later ROADMAP Phase 3 slice)"},
 	{Name: "iot", Description: "Device fingerprinting from mDNS/SSDP/SNMP/banners",
 		Availability: StatusPlanned, Requires: "the device fingerprint engine (ROADMAP Phase 4)"},
-	{Name: "full", Description: "Discovery plus full deep service detection",
-		Availability: StatusPlanned, Requires: "the combined discovery and deep-probe pipeline (ROADMAP Phase 3+)"},
 	{Name: "research", Description: "Packet-forge experiments with malformed packets",
 		Availability: StatusPlanned, Requires: "the packet forge and research policy (ROADMAP Phase 5)"},
 }

@@ -31,9 +31,11 @@ func TestUDPResponderFaults(t *testing.T) {
 			if err != nil {
 				t.Skipf("loopback unavailable: %v", err)
 			}
-			defer server.Close()
 			p := probe.Probe{Name: "dns", Payload: make([]byte, 12), Matcher: "dns", Retries: tc.retries}
 			got := probeUDPCampaign(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: server.Port(), transport: "udp"}, 20*time.Millisecond, []probe.Probe{p}, 0, []byte("lab-secret"), newProbeLimiter(0))
+			// The probe returns on the first reply; close first so the
+			// responder finishes its duplicate burst before counting.
+			server.Close()
 			if got.State != tc.want || got.Confidence != tc.confidence {
 				t.Fatalf("observation %+v", got)
 			}
