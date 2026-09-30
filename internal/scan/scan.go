@@ -2,6 +2,7 @@ package scan
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -14,20 +15,24 @@ import (
 	"time"
 
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/probe"
 )
 
 type Observation struct {
-	Timestamp  time.Time     `json:"timestamp"`
-	Target     netip.Addr    `json:"target"`
-	Transport  string        `json:"transport"`
-	Port       uint16        `json:"port,omitempty"`
-	State      string        `json:"state"`
-	Confidence int           `json:"confidence"`
-	Reason     string        `json:"reason"`
-	Probe      string        `json:"probe"`
-	RTT        time.Duration `json:"rtt_ns"`
-	PacketsTX  int           `json:"packets_tx"`
-	PacketsRX  int           `json:"packets_rx"`
+	Timestamp       time.Time     `json:"timestamp"`
+	Target          netip.Addr    `json:"target"`
+	Transport       string        `json:"transport"`
+	Port            uint16        `json:"port,omitempty"`
+	State           string        `json:"state"`
+	Confidence      int           `json:"confidence"`
+	Reason          string        `json:"reason"`
+	Probe           string        `json:"probe"`
+	Service         string        `json:"service,omitempty"`
+	RTT             time.Duration `json:"rtt_ns"`
+	PacketsTX       int           `json:"packets_tx"`
+	PacketsRX       int           `json:"packets_rx"`
+	ProbesAttempted []string      `json:"probes_attempted,omitempty"`
+	ResponseHex     string        `json:"response_hex,omitempty"`
 }
 
 type task struct {
@@ -42,8 +47,25 @@ func Run(parent context.Context, cfg config.Config, emit func(Observation) error
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
+	var udpProbes []probe.Probe
+	var secret [32]byte
+	if cfg.UDP {
+		udpProbes = cfg.UDPProbes
+		if len(udpProbes) == 0 {
+			var err error
+			udpProbes, err = probe.Builtins()
+			if err != nil {
+				return err
+			}
+		}
+		if _, err := rand.Read(secret[:]); err != nil {
+			return err
+		}
+	}
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
+	limiter := newProbeLimiter(cfg.Rate)
+	defer limiter.Close()
 	tasks := make(chan task, cfg.Workers*2)
 	results := make(chan Observation, cfg.Workers*2)
 	var workers sync.WaitGroup
@@ -55,10 +77,16 @@ func Run(parent context.Context, cfg config.Config, emit func(Observation) error
 				var result Observation
 				switch t.transport {
 				case "tcp":
+					if limiter.Wait(ctx) != nil {
+						return
+					}
 					result = probeTCP(ctx, t, cfg.Timeout)
 				case "udp":
-					result = probeUDP(ctx, t, cfg.Timeout)
+					result = probeUDPCampaign(ctx, t, cfg.Timeout, udpProbes, cfg.UDPRetries, secret[:], limiter)
 				case "icmp":
+					if limiter.Wait(ctx) != nil {
+						return
+					}
 					result = probeICMP(ctx, t, cfg.Timeout)
 				}
 				select {
@@ -72,23 +100,7 @@ func Run(parent context.Context, cfg config.Config, emit func(Observation) error
 	go func() { workers.Wait(); close(results) }()
 	go func() {
 		defer close(tasks)
-		var ticker *time.Ticker
-		if cfg.Rate > 0 {
-			interval := time.Second / time.Duration(cfg.Rate)
-			if interval < time.Nanosecond {
-				interval = time.Nanosecond
-			}
-			ticker = time.NewTicker(interval)
-			defer ticker.Stop()
-		}
 		send := func(t task) bool {
-			if ticker != nil {
-				select {
-				case <-ticker.C:
-				case <-ctx.Done():
-					return false
-				}
-			}
 			select {
 			case tasks <- t:
 				return true
@@ -144,56 +156,6 @@ func probeTCP(ctx context.Context, t task, timeout time.Duration) Observation {
 		o.State, o.Confidence, o.Reason, o.PacketsRX = "closed", 100, "connection refused", 1
 	} else if errors.Is(err, context.DeadlineExceeded) || isTimeout(err) {
 		o.State, o.Confidence, o.Reason = "filtered", 65, "connection timed out"
-	} else {
-		o.State, o.Reason = "error", err.Error()
-	}
-	return o
-}
-
-func udpPayload(port uint16) ([]byte, string) {
-	switch port {
-	case 53:
-		return []byte{0x7a, 0x19, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 7, 'e', 'x', 'a', 'm', 'p', 'l', 'e', 3, 'c', 'o', 'm', 0, 0, 1, 0, 1}, "dns-a"
-	case 123:
-		p := make([]byte, 48)
-		p[0] = 0x1b
-		return p, "ntp-client"
-	default:
-		return []byte{0}, "generic-byte"
-	}
-}
-
-func probeUDP(ctx context.Context, t task, timeout time.Duration) Observation {
-	payload, name := udpPayload(t.port)
-	o := base(t, name)
-	addr := &net.UDPAddr{IP: net.IP(t.target.AsSlice()), Port: int(t.port)}
-	conn, err := net.DialUDP("udp", nil, addr)
-	if err != nil {
-		o.State, o.Reason = "error", err.Error()
-		return o
-	}
-	defer conn.Close()
-	deadline := time.Now().Add(timeout)
-	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
-		deadline = d
-	}
-	_ = conn.SetDeadline(deadline)
-	start := time.Now()
-	_, err = conn.Write(payload)
-	if err != nil {
-		o.State, o.Reason = "error", err.Error()
-		return o
-	}
-	o.PacketsTX = 1
-	var buf [4096]byte
-	_, err = conn.Read(buf[:])
-	o.RTT = time.Since(start)
-	if err == nil {
-		o.State, o.Confidence, o.Reason, o.PacketsRX = "open", 95, "UDP response received", 1
-	} else if errors.Is(err, syscall.ECONNREFUSED) {
-		o.State, o.Confidence, o.Reason, o.PacketsRX = "closed", 95, "ICMP port unreachable", 1
-	} else if isTimeout(err) {
-		o.State, o.Confidence, o.Reason = "open|filtered", 30, "no UDP or ICMP response"
 	} else {
 		o.State, o.Reason = "error", err.Error()
 	}
