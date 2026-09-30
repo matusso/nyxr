@@ -9,7 +9,7 @@ PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 win
 
 export CGO_ENABLED := 0
 
-.PHONY: all build test vet check cross package checksums clean help
+.PHONY: all build test vet check fuzz benchmark cross package checksums clean help
 
 all: check build
 
@@ -27,6 +27,16 @@ vet:
 
 ## check: run tests and vet
 check: test vet
+
+## fuzz: run short hostile-input campaigns for decoder, pcap, and probe parsing
+fuzz:
+	$(GO) test -run '^$$' -fuzz '^FuzzDecoder$$' -fuzztime=5s -parallel=2 ./internal/packet
+	$(GO) test -run '^$$' -fuzz '^FuzzPCAPReader$$' -fuzztime=5s -parallel=2 ./internal/packet
+	$(GO) test -run '^$$' -fuzz '^FuzzDefinitionAndMatcher$$' -fuzztime=5s -parallel=2 ./internal/probe
+
+## benchmark: save fixed-workload measurements and CPU profile
+benchmark:
+	bash tests/performance/baseline.sh
 
 ## cross: build binaries for every supported platform into dist/
 cross:

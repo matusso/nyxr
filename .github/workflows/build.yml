@@ -16,6 +16,7 @@ jobs:
         with:
           go-version-file: go.mod
       - run: make check
+      - run: make fuzz
       - run: make package
       - name: Build and smoke test Docker image
         run: |

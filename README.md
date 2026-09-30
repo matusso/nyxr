@@ -211,10 +211,14 @@ buffers are pooled so receive work does not allocate a buffer per packet.
 
 The current packet decoder expects Ethernet frames (including a VLAN tag).
 Other link types and pcapng files are not yet supported. The raw path has
-fixture tests and six-target cross-build coverage. A macOS BPF open and
-timeout smoke test passed, but frame RX/TX on BPF/Npcap and privileged Linux
-scanning still need platform runtime smoke tests. Packet
-throughput and drop rates have not been measured.
+deterministic [PCAP fixtures](tests/pcaps/phase0.pcap), fake-responder fault
+tests, fuzz targets and six-target cross-build coverage. The
+[benchmark baseline](tests/performance/README.md) records decoder and
+synthetic scan throughput, allocations, CPU and injected packet loss. The
+[Linux namespace lab and platform gates](tests/lab/README.md) cover live
+packet behavior. A macOS BPF open and timeout smoke test passed previously,
+but live RX/TX on BPF/Npcap and privileged Linux scanning remain unverified;
+real NIC drop measurements are still pending.
 
 UDP port-unreachable reporting varies by operating system and firewall. A
 silent or rate-limited ICMP path remains `open|filtered`. The current UDP
