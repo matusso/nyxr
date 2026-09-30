@@ -1,0 +1,12 @@
+name: ntp-client
+transport: udp
+ports: [123]
+tags: [ntp, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "1b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+timeout: 1s
+retries: 0
+match:
+  - type: ntp

@@ -1,0 +1,12 @@
+name: snmp-v2c-sysdescr
+transport: udp
+ports: [161]
+tags: [snmp, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "302902010104067075626c6963a01c020400000000020100020100300e300c06082b060102010101000500"
+timeout: 1500ms
+retries: 0
+match:
+  - type: snmp

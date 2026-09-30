@@ -9,20 +9,24 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/matusso/nyxr/internal/probe"
 )
 
 // Config is shared by the CLI and scan engine. A future API can use the same
 // validated object without inheriting command-line parsing behavior.
 type Config struct {
-	Targets []netip.Addr
-	Ports   []uint16
-	TCP     bool
-	UDP     bool
-	ICMP    bool
-	Timeout time.Duration
-	Rate    int
-	Workers int
-	Profile string
+	Targets    []netip.Addr
+	Ports      []uint16
+	TCP        bool
+	UDP        bool
+	ICMP       bool
+	Timeout    time.Duration
+	Rate       int
+	Workers    int
+	Profile    string
+	UDPProbes  []probe.Probe
+	UDPRetries int
 }
 
 const MaxTargets = 65536
@@ -36,6 +40,9 @@ func (c Config) Validate() error {
 	}
 	if c.Timeout <= 0 || c.Workers < 1 || c.Workers > 4096 || c.Rate < 0 {
 		return errors.New("timeout must be positive, workers 1..4096, and rate nonnegative")
+	}
+	if c.UDPRetries < 0 || c.UDPRetries > 5 || len(c.UDPProbes) > 256 {
+		return errors.New("UDP retries must be 0..5 and custom probes at most 256")
 	}
 	return nil
 }
