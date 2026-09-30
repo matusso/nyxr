@@ -21,12 +21,13 @@ type ServiceDefaults struct {
 // ServiceOptions are caller overrides for the deep-probe stage. Enable nil
 // keeps the profile default; false disables the stage.
 type ServiceOptions struct {
-	Enable   *bool
-	Probes   string
-	Fallback string
-	Timeout  string
-	Workers  *int
-	Rate     *int
+	Enable     *bool
+	Probes     string
+	Fallback   string
+	Timeout    string
+	Workers    *int
+	Rate       *int
+	NmapProbes string // path to an nmap-service-probes file; enables the nmap probe
 }
 
 // Service is the resolved deep-probe stage. Enabled false means discovery
@@ -38,15 +39,20 @@ type Service struct {
 	Timeout  time.Duration
 	Workers  int
 	Rate     int
+	// NmapProbesFile is an optional nmap-service-probes file. The pipeline
+	// compiles it and hands the database to the engine; it is empty unless the
+	// nmap probe is in use. Remote requests may not set it.
+	NmapProbesFile string
 }
 
 // ServicePlan summarizes the stage for --dry-run.
 type ServicePlan struct {
-	Probes   []string `json:"probes"`
-	Fallback []string `json:"fallback,omitempty"`
-	Timeout  string   `json:"timeout"`
-	Workers  int      `json:"workers"`
-	Rate     int      `json:"rate"`
+	Probes     []string `json:"probes"`
+	Fallback   []string `json:"fallback,omitempty"`
+	Timeout    string   `json:"timeout"`
+	Workers    int      `json:"workers"`
+	Rate       int      `json:"rate"`
+	NmapProbes string   `json:"nmap_service_probes,omitempty"`
 }
 
 // Plan returns nil when the stage is disabled.
@@ -54,7 +60,8 @@ func (s Service) Plan() *ServicePlan {
 	if !s.Enabled {
 		return nil
 	}
-	return &ServicePlan{Probes: s.Probes, Fallback: s.Fallback, Timeout: s.Timeout.String(), Workers: s.Workers, Rate: s.Rate}
+	return &ServicePlan{Probes: s.Probes, Fallback: s.Fallback, Timeout: s.Timeout.String(),
+		Workers: s.Workers, Rate: s.Rate, NmapProbes: s.NmapProbesFile}
 }
 
 // Engine converts the stage into the service package configuration.
@@ -80,7 +87,8 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 	if o.Enable != nil {
 		enabled = *o.Enable
 	}
-	overridden := o.Probes != "" || o.Fallback != "" || o.Timeout != "" || o.Workers != nil || o.Rate != nil
+	nmapFile := strings.TrimSpace(o.NmapProbes)
+	overridden := o.Probes != "" || o.Fallback != "" || o.Timeout != "" || o.Workers != nil || o.Rate != nil || nmapFile != ""
 	if !enabled {
 		if overridden && o.Enable == nil {
 			return Service{}, errors.New("service probe options require --service or a service profile")
@@ -98,6 +106,21 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 	if err != nil {
 		return Service{}, err
 	}
+	// The nmap probe reads an nmap-service-probes file. Supplying the file
+	// enables the probe; naming the probe without a file is an error.
+	hasNmap := false
+	for _, p := range probes {
+		if p == service.ProbeNmap {
+			hasNmap = true
+		}
+	}
+	if nmapFile != "" && !hasNmap {
+		probes = append(probes, service.ProbeNmap)
+		hasNmap = true
+	}
+	if hasNmap && nmapFile == "" {
+		return Service{}, errors.New("the nmap service probe requires --nmap-service-probes <file>")
+	}
 	var fallback []string
 	if f := first(o.Fallback, d.Fallback); f != "" && f != "none" {
 		if fallback, err = serviceList(f); err != nil {
@@ -109,7 +132,7 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 		return Service{}, fmt.Errorf("service timeout: %w", err)
 	}
 	s := Service{Enabled: true, Probes: probes, Fallback: fallback, Timeout: timeout,
-		Workers: valueOr(o.Workers, d.Workers), Rate: valueOr(o.Rate, d.Rate)}
+		Workers: valueOr(o.Workers, d.Workers), Rate: valueOr(o.Rate, d.Rate), NmapProbesFile: nmapFile}
 	if err := s.ValidateFor(cfg); err != nil {
 		return Service{}, err
 	}

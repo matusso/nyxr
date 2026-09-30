@@ -52,6 +52,8 @@ func run(args []string, out io.Writer) error {
 		return runServe(args[1:], out)
 	case "history":
 		return runHistory(args[1:], out)
+	case "probe":
+		return runProbe(args[1:], out)
 	case "version":
 		_, err := fmt.Fprintln(out, version)
 		return err
@@ -71,6 +73,7 @@ Usage:
   nyxr decode capture.pcap[ng]           decode an Ethernet pcap or pcapng to JSON
   nyxr sniff --interface eth0 [flags]    capture and decode live frames
   nyxr history --db file [flags]         list or query stored scans, assets and evidence
+  nyxr probe import file [--json]        import and summarize an nmap-service-probes file
   nyxr serve --db file [flags]           serve the REST API and web UI (unprivileged)
   nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
   nyxr version                           print the version
@@ -121,11 +124,12 @@ Flags:
 
 Service identification, evidence and storage:
   --service             deep probes on open TCP ports (on for service, deep, web, full)
-  --service-probes list banner, ssh, tls, http, dns, modbus, ethernetip
+  --service-probes list banner, ssh, tls, http, dns, modbus, ethernetip, nmap
   --service-fallback l  probes for silent ports without a port hint, or none
   --service-timeout d   upper bound for each service probe
   --service-workers int concurrent service probe workers
   --service-rate int    new service connections/second (0 = unlimited)
+  --nmap-service-probes f  import an nmap-service-probes file to match banners
   --pcapng file         capture scan traffic on --interface as pcapng evidence
   --pcapng-max-mb int   pcapng size budget (default 1024)
   --db file             store the scan, observations and evidence in SQLite

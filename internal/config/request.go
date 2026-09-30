@@ -47,15 +47,16 @@ type Request struct {
 
 	// Stage settings: deep service probes, device fingerprinting and packet
 	// evidence. Service nil keeps the profile default.
-	Service         *bool  `yaml:"service" json:"service,omitempty"`
-	ServiceProbes   string `yaml:"service_probes" json:"service_probes,omitempty"`
-	ServiceFallback string `yaml:"service_fallback" json:"service_fallback,omitempty"`
-	ServiceTimeout  string `yaml:"service_timeout" json:"service_timeout,omitempty"`
-	ServiceWorkers  *int   `yaml:"service_workers" json:"service_workers,omitempty"`
-	ServiceRate     *int   `yaml:"service_rate" json:"service_rate,omitempty"`
-	Fingerprint     bool   `yaml:"fingerprint" json:"fingerprint,omitempty"`
-	PCAPNG          string `yaml:"pcapng" json:"pcapng,omitempty"`
-	PCAPNGMaxMB     *int   `yaml:"pcapng_max_mb" json:"pcapng_max_mb,omitempty"`
+	Service           *bool  `yaml:"service" json:"service,omitempty"`
+	ServiceProbes     string `yaml:"service_probes" json:"service_probes,omitempty"`
+	ServiceFallback   string `yaml:"service_fallback" json:"service_fallback,omitempty"`
+	ServiceTimeout    string `yaml:"service_timeout" json:"service_timeout,omitempty"`
+	ServiceWorkers    *int   `yaml:"service_workers" json:"service_workers,omitempty"`
+	ServiceRate       *int   `yaml:"service_rate" json:"service_rate,omitempty"`
+	NmapServiceProbes string `yaml:"nmap_service_probes" json:"nmap_service_probes,omitempty"`
+	Fingerprint       bool   `yaml:"fingerprint" json:"fingerprint,omitempty"`
+	PCAPNG            string `yaml:"pcapng" json:"pcapng,omitempty"`
+	PCAPNGMaxMB       *int   `yaml:"pcapng_max_mb" json:"pcapng_max_mb,omitempty"`
 }
 
 // ParseFile reads and validates a YAML scan request. An empty path returns a
@@ -136,6 +137,9 @@ func (r Request) Resolve(o ResolveOptions) (Resolved, error) {
 		if r.UDPProbeFile != "" || r.PayloadFile != "" {
 			return Resolved{}, errors.New("remote requests cannot read server files; use send_hex or send_base64")
 		}
+		if r.NmapServiceProbes != "" {
+			return Resolved{}, errors.New("remote requests cannot read server files; nmap_service_probes is a local path")
+		}
 		if r.PCAPNG != "" && (filepath.Base(r.PCAPNG) != r.PCAPNG || strings.ContainsAny(r.PCAPNG, `/\`) ||
 			strings.HasPrefix(r.PCAPNG, ".") || !strings.HasSuffix(r.PCAPNG, ".pcapng")) {
 			return Resolved{}, errors.New("remote pcapng must be a plain file name ending in .pcapng")
@@ -160,7 +164,7 @@ func (r Request) Resolve(o ResolveOptions) (Resolved, error) {
 		return Resolved{}, err
 	}
 	svc, err := BuildService(cfg, ServiceOptions{Enable: r.Service, Probes: r.ServiceProbes, Fallback: r.ServiceFallback,
-		Timeout: r.ServiceTimeout, Workers: r.ServiceWorkers, Rate: r.ServiceRate})
+		Timeout: r.ServiceTimeout, Workers: r.ServiceWorkers, Rate: r.ServiceRate, NmapProbes: r.NmapServiceProbes})
 	if err != nil {
 		return Resolved{}, err
 	}

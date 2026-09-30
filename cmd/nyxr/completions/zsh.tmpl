@@ -35,6 +35,7 @@ _nyxr() {
                 'decode:decode an Ethernet pcap or pcapng to JSON'
                 'sniff:capture and decode live frames'
                 'history:list or query stored scans, assets and evidence'
+                'probe:import and summarize an nmap-service-probes file'
                 'serve:serve the REST API and web UI'
                 'completion:print a shell completion script'
                 'version:print the version'
@@ -64,12 +65,13 @@ _nyxr() {
                         '--payload-file=[custom raw UDP payload file]:payload file:_files' \
                         '--config=[YAML scan configuration]:config file:_files -g "*.(yaml|yml)"' \
                         '--service[deep service probes on open TCP ports]' \
-                        '--service-probes=[comma list of service probes]:probes:_values -s , probe banner ssh tls http dns modbus ethernetip' \
+                        '--service-probes=[comma list of service probes]:probes:_values -s , probe banner ssh tls http dns modbus ethernetip nmap' \
                         '--allow-targets=[approved IPs or CIDRs]:allow targets:' \
                         '--service-fallback=[probes for unhinted silent ports, or none]:fallback:(http tls,http none)' \
                         '--service-timeout=[upper bound for each service probe]:duration (e.g. 3s):' \
                         '--service-workers=[concurrent service probe workers]:workers:' \
                         '--service-rate=[new service connections per second (0 = unlimited)]:rate:' \
+                        '--nmap-service-probes=[import an nmap-service-probes file for banner matching]:probes file:_files' \
                         '--pcapng=[write packet evidence to a pcapng file]:pcapng file:_files -g "*.pcapng"' \
                         '--pcapng-max-mb=[pcapng size budget in MiB]:MiB:' \
                         '--db=[store results in a SQLite database]:database file:_files' \
@@ -115,6 +117,12 @@ _nyxr() {
                         '--max-scans=[concurrent scans]:count:' \
                         '--allow-privileged[run even with root or raw-socket capabilities]' \
                         '(- *)--help[show serve help]' && ret=0
+                    ;;
+                probe)
+                    _arguments \
+                        '1:subcommand:(import)' \
+                        '--json[machine-readable summary]' \
+                        '*:nmap-service-probes file:_files' && ret=0
                     ;;
                 completion)
                     _arguments '1:shell:(bash zsh fish powershell)' && ret=0

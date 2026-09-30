@@ -15,6 +15,7 @@ import (
 	"github.com/matusso/nyxr/internal/capture"
 	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/device"
+	"github.com/matusso/nyxr/internal/nmapdb"
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/scan"
@@ -146,6 +147,14 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 		}
 		ec := opts.Service.Engine()
 		ec.Dial = opts.ServiceDial
+		if opts.Service.NmapProbesFile != "" {
+			db, err := nmapdb.LoadFile(opts.Service.NmapProbesFile)
+			if err != nil {
+				runErr = fmt.Errorf("nmap-service-probes: %w", err)
+				return
+			}
+			ec.Nmap = db
+		}
 		var err error
 		if engine, err = service.Start(ctx, ec, deliver); err != nil {
 			runErr = err

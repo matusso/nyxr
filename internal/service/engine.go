@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/matusso/nyxr/internal/nmapdb"
 	"github.com/matusso/nyxr/internal/observe"
 )
 
@@ -25,11 +26,12 @@ const (
 	ProbeDNS        = "dns"        // CHAOS version.bind TXT over TCP
 	ProbeModbus     = "modbus"     // Read Device Identification (function 43/14)
 	ProbeEtherNetIP = "ethernetip" // ListIdentity encapsulation request
+	ProbeNmap       = "nmap"       // match a connect banner against an imported nmap-service-probes database
 )
 
 // Names lists every probe in the order they are documented.
 func Names() []string {
-	return []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDNS, ProbeModbus, ProbeEtherNetIP}
+	return []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDNS, ProbeModbus, ProbeEtherNetIP, ProbeNmap}
 }
 
 // Per-probe time budgets. Config.Timeout caps each of them.
@@ -61,6 +63,11 @@ type Config struct {
 	Dial func(ctx context.Context, network, address string) (net.Conn, error)
 	// UserAgent is sent in HTTP requests.
 	UserAgent string
+	// Nmap is an optional imported nmap-service-probes database. When the
+	// "nmap" probe is enabled and this is set, a connect banner that the
+	// built-in matchers do not recognize is matched against the database's
+	// NULL-probe rules. It sends no additional traffic.
+	Nmap *nmapdb.Database
 }
 
 // Validate reports an unusable configuration.
@@ -84,7 +91,7 @@ func (c Config) Validate() error {
 	for _, list := range [][]string{c.Probes, c.Fallback} {
 		for _, p := range list {
 			if !known[p] {
-				return fmt.Errorf("unknown service probe %q (known: banner, ssh, tls, http, dns, modbus, ethernetip)", p)
+				return fmt.Errorf("unknown service probe %q (known: banner, ssh, tls, http, dns, modbus, ethernetip, nmap)", p)
 			}
 		}
 	}
