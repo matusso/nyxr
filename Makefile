@@ -1,5 +1,5 @@
-BINARY  := scanner
-PKG     := ./cmd/scanner
+BINARY  := nyxr
+PKG     := ./cmd/nyxr
 DIST    := dist
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
@@ -13,7 +13,7 @@ export CGO_ENABLED := 0
 
 all: check build
 
-## build: build the scanner for the host platform
+## build: build nyxr for the host platform
 build:
 	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) $(PKG)
 

@@ -1,4 +1,4 @@
-# Network / Port Security Scanner Roadmap
+# nyxr — Network / Port Security Scanner Roadmap
 
 ## 1. Product architecture
 
@@ -1047,17 +1047,17 @@ custom
 Examples:
 
 ```bash
-scanner scan 10.10.0.0/16 --profile fast
+nyxr scan 10.10.0.0/16 --profile fast
 ```
 
 ```bash
-scanner scan 10.10.0.0/16 \
+nyxr scan 10.10.0.0/16 \
   --profile udp-deep \
   --ports 53,123,161,500,623,1900,47808
 ```
 
 ```bash
-scanner scan host.example.com \
+nyxr scan host.example.com \
   --profile deep
 ```
 
@@ -1184,7 +1184,7 @@ Store in filesystem or S3-compatible object storage.
 Single-host deployment should still be easy:
 
 ```bash
-scanner web
+nyxr web
 ```
 
 ---
@@ -1233,8 +1233,8 @@ Do not run the web/API/database components as root just because raw sockets requ
 Use:
 
 ```text
-scanner-controller
-scanner-packetd
+nyxr-controller
+nyxr-packetd
 ```
 
 Only `packetd` gets the minimum required capabilities.
@@ -1368,9 +1368,9 @@ PACKETS
 
 ```text
 cmd/
-    scanner/
-    scannerd/
-    scanner-agent/
+    nyxr/
+    nyxrd/
+    nyxr-agent/
 
 internal/
     api/
@@ -1724,18 +1724,18 @@ Long-term target: compete with Masscan/ZMap for shallow discovery while transiti
 Expose:
 
 ```text
-scanner_packets_tx_total
-scanner_packets_rx_total
-scanner_rx_dropped_total
-scanner_targets_total
-scanner_targets_completed
-scanner_probes_total
-scanner_probe_timeout_total
-scanner_services_detected_total
-scanner_pps
-scanner_bps
-scanner_queue_depth
-scanner_packet_latency
+nyxr_packets_tx_total
+nyxr_packets_rx_total
+nyxr_rx_dropped_total
+nyxr_targets_total
+nyxr_targets_completed
+nyxr_probes_total
+nyxr_probe_timeout_total
+nyxr_services_detected_total
+nyxr_pps
+nyxr_bps
+nyxr_queue_depth
+nyxr_packet_latency
 ```
 
 Internal profiling:
