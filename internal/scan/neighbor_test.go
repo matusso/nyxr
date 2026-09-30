@@ -63,6 +63,19 @@ func TestNDPNeighborMatchesReply(t *testing.T) {
 	}
 }
 
+func TestARPBatchCorrelatesRepliesAndSilence(t *testing.T) {
+	local := netip.MustParseAddr("192.0.2.10")
+	first := netip.MustParseAddr("192.0.2.20")
+	silent := netip.MustParseAddr("192.0.2.21")
+	mac := net.HardwareAddr{2, 6, 7, 8, 9, 10}
+	fake := &fakePacketIO{frames: make(chan []byte, 4), arpReplies: map[netip.Addr]net.HardwareAddr{first: mac}}
+	got, err := resolveARPBatch(context.Background(), fake, net.HardwareAddr{2, 1, 2, 3, 4, 5}, local,
+		[]netip.Addr{first, silent}, 200*time.Millisecond, newProbeLimiter(0))
+	if err != nil || fake.sent != 2 || string(got[first]) != string(mac) || len(got[silent]) != 0 {
+		t.Fatalf("ARP batch: %+v, sent %d, %v", got, fake.sent, err)
+	}
+}
+
 func testICMPv6Checksum(source, destination, message []byte) uint16 {
 	var pseudo [40]byte
 	copy(pseudo[:16], source)

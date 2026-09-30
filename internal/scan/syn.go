@@ -55,14 +55,15 @@ func runSYN(parent context.Context, cfg config.Config, emit func(Observation) er
 		return fmt.Errorf("raw packet I/O on %s: %w", cfg.Interface, err)
 	}
 	defer io.Close()
+	limiter := newScopedProbeLimiter(cfg)
 	if len(cfg.NextHopMAC) == 0 {
-		neighbors, err := resolveNextHops(parent, cfg, io, srcMAC, source)
+		neighbors, err := resolveNextHops(parent, cfg, io, srcMAC, source, limiter)
 		if err != nil {
 			return fmt.Errorf("resolve SYN next hops: %w", err)
 		}
-		return runSYNWithIOResolved(parent, cfg, emit, io, srcMAC, source, neighbors)
+		return runSYNWithIOResolved(parent, cfg, emit, io, srcMAC, source, neighbors, limiter)
 	}
-	return runSYNWithIO(parent, cfg, emit, io, srcMAC, source)
+	return runSYNWithIOResolved(parent, cfg, emit, io, srcMAC, source, nil, limiter)
 }
 
 func selectIPv4Source(iface *net.Interface, requested netip.Addr) (netip.Addr, error) {
@@ -98,10 +99,10 @@ func selectIPv4Source(iface *net.Interface, requested netip.Addr) (netip.Addr, e
 }
 
 func runSYNWithIO(parent context.Context, cfg config.Config, emit func(Observation) error, io packetio.PacketIO, srcMAC net.HardwareAddr, source netip.Addr) error {
-	return runSYNWithIOResolved(parent, cfg, emit, io, srcMAC, source, nil)
+	return runSYNWithIOResolved(parent, cfg, emit, io, srcMAC, source, nil, nil)
 }
 
-func runSYNWithIOResolved(parent context.Context, cfg config.Config, emit func(Observation) error, io packetio.PacketIO, srcMAC net.HardwareAddr, source netip.Addr, neighbors map[netip.Addr]net.HardwareAddr) error {
+func runSYNWithIOResolved(parent context.Context, cfg config.Config, emit func(Observation) error, io packetio.PacketIO, srcMAC net.HardwareAddr, source netip.Addr, neighbors map[netip.Addr]net.HardwareAddr, limiter *probeLimiter) error {
 	var secret [32]byte
 	if _, err := rand.Read(secret[:]); err != nil {
 		return err
@@ -113,7 +114,9 @@ func runSYNWithIOResolved(parent context.Context, cfg config.Config, emit func(O
 	basePort := uint16(49152 + int(binary.BigEndian.Uint16(portSeed[:]))%(16384-cfg.Workers))
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
-	limiter := newScopedProbeLimiter(cfg)
+	if limiter == nil {
+		limiter = newScopedProbeLimiter(cfg)
+	}
 	defer limiter.Close()
 	results := make(chan Observation, cfg.Workers*2)
 	queues := make([]chan task, cfg.Workers)
