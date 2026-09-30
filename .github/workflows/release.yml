@@ -10,6 +10,9 @@ on:
 permissions:
   contents: write
   packages: write
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -78,3 +81,7 @@ jobs:
           build-args: |
             VERSION=${{ env.TAG }}
             SOURCE=https://github.com/${{ github.repository }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=nyxr
+          cache-to: type=gha,mode=max,scope=nyxr
