@@ -21,6 +21,7 @@ type fakePacketIO struct {
 	mu           sync.Mutex
 	sent         int
 	destinations []net.HardwareAddr
+	arpReplies   map[netip.Addr]net.HardwareAddr
 }
 
 func (f *fakePacketIO) ReceiveBatch(ctx context.Context, buffers [][]byte) (int, error) {
@@ -38,6 +39,21 @@ func (f *fakePacketIO) SendBatch(ctx context.Context, frames [][]byte) (int, err
 	f.sent++
 	f.destinations = append(f.destinations, append(net.HardwareAddr(nil), frames[0][:6]...))
 	f.mu.Unlock()
+	if len(frames[0]) >= 42 && binary.BigEndian.Uint16(frames[0][12:14]) == 0x0806 && f.arpReplies != nil {
+		request := frames[0]
+		hop := netip.AddrFrom4([4]byte(request[38:42]))
+		if mac := f.arpReplies[hop]; len(mac) == 6 {
+			reply := append([]byte(nil), request...)
+			copy(reply[:6], request[6:12])
+			copy(reply[6:12], mac)
+			binary.BigEndian.PutUint16(reply[20:22], 2)
+			copy(reply[22:28], mac)
+			copy(reply[28:32], request[38:42])
+			copy(reply[32:38], request[22:28])
+			copy(reply[38:42], request[28:32])
+			f.frames <- reply
+		}
+	}
 	if f.flags != 0 {
 		request := frames[0]
 		reply := make([]byte, len(request))
@@ -111,7 +127,7 @@ func TestRawSYNUsesResolvedMACPerTarget(t *testing.T) {
 		got = append(got, o)
 		return nil
 	}, fake, net.HardwareAddr{2, 1, 2, 3, 4, 5}, netip.MustParseAddr("192.0.2.10"),
-		map[netip.Addr]net.HardwareAddr{first: mac1, second: mac2})
+		map[netip.Addr]net.HardwareAddr{first: mac1, second: mac2}, nil)
 	if err != nil || len(got) != 2 || len(fake.destinations) != 2 ||
 		string(fake.destinations[0]) != string(mac1) || string(fake.destinations[1]) != string(mac2) {
 		t.Fatalf("resolved destinations: %+v, %+v, %v", got, fake.destinations, err)
