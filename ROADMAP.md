@@ -9,15 +9,15 @@ This is the execution plan for the product described in [INSTRUCTIONS.md](INSTRU
 | Area | Status | Implemented now | Main gap |
 | --- | --- | --- | --- |
 | CLI and configuration | Done | `scan`, `profiles`, `decode`, `sniff`; shared `internal/config` contract (flag/file/profile merge with one validation path); full profile catalog with honest `planned` gating; named port sets (`top100`, `all`); `--dry-run` plan (text/JSON); target/CIDR/range and port parsing; JSON observations; bounded workers | Rate-scheduling hierarchy and target/policy enforcement (tracked in the safety row and Phases 4/9); the API/web consuming the same contract (Phase 6) |
-| Portable scans | Partial | TCP connect and UDP socket scans on IPv4/IPv6; privileged IPv4 ICMP echo | TCP SYN/other flag modes, IPv6 ICMP echo, ARP/NDP, SCTP and IP protocol scans |
-| Packet path | Partial | Reused `gopacket.DecodingLayerParser` for Ethernet IPv4/IPv6 TCP/UDP/ICMP; packet I/O interface; Linux AF_PACKET `sniff` | Scanner RX/TX integration, packet templates, queue sharding, macOS BPF and Windows Npcap backends |
+| Portable scans | Partial | TCP connect and UDP socket scans on IPv4/IPv6; privileged IPv4 ICMP echo; explicit raw IPv4 TCP SYN mode | Other TCP flag modes, IPv6 raw SYN/ICMP echo, ARP/NDP, SCTP and IP protocol scans |
+| Packet path | Partial | Reused `gopacket.DecodingLayerParser` for Ethernet/VLAN IPv4/IPv6 TCP/UDP/ICMP and quoted IPv4 TCP; fixed-worker raw IPv4 TCP SYN scan with checksummed packet templates, token-validated SYN/ACK, RST/ACK and ICMP classification, bounded receive/decode/reply queues; AF_PACKET, BPF and Npcap live Ethernet backends | Privileged Linux and live macOS/Windows runtime gates, automatic neighbor/next-hop discovery, hardware multi-queue RX fanout and measured throughput/drops |
 | UDP intelligence | Partial | Embedded native DNS A/NS, NTP and SNMPv2c GET probes; custom YAML/binary payloads; token checks, bounded late-reply matching, retries, confidence and response samples | Raw ICMP correlation, adaptive retries, broader protocol coverage and calibrated confidence |
 | Safety and rate control | Partial | Global application-level probe rate, bounded concurrency, enforced read-only TCP-only `ot-safe` profile (rejects UDP/ICMP, custom payloads, unlimited or >5 rate, >4 workers, <3s timeout) | Per-host/subnet/interface limits, adaptive feedback, target allowlists/dry-run policy and research guardrails |
 | Evidence and storage | Partial | Observation JSON, classic Ethernet pcap *reading*, limited UDP response hex | Asynchronous pcapng writing, packet-to-observation links, durable asset database |
 | Build and release | Done | Tests/vet in CI, cgo-free builds and release archives/checksums for linux/windows/darwin on amd64/arm64, and a Linux amd64/arm64 GHCR image | Runtime smoke tests on all six binary targets and signed release provenance |
 | Deep services, UI and agents | Planned | Architectural intent in `INSTRUCTIONS.md` | Protocol probes, API, web UI, scripting and distributed execution |
 
-Cross-compilation confirms that a binary builds; it does **not** prove that live packet capture, raw sockets or every scan mode works on that operating system. Current macOS and Windows live packet I/O backends explicitly report unavailable. No packet-rate claim is established yet.
+Cross-compilation confirms that a binary builds; it does **not** prove that live packet capture, raw sockets or every scan mode works on that operating system. A macOS BPF open/bind/timeout smoke test passed on `en0`; no received or transmitted frames were verified. Full BPF and Npcap live runtime gates remain open. Raw SYN currently requires an operator-supplied next-hop MAC and supports IPv4 TCP only. No packet-rate claim is established yet.
 
 ## Delivery rules
 
@@ -30,7 +30,7 @@ Cross-compilation confirms that a binary builds; it does **not** prove that live
 ## Next delivery order
 
 1. **Finish Phase 0 measurement and lab fixtures.** Establish reproducible packet and network behavior before tuning or adding more raw modes.
-2. **Finish the Phase 1 packet discovery path.** Integrate Linux AF_PACKET RX/TX with TCP SYN and response correlation, then fill IPv6 ICMP and neighbor discovery gaps. Keep other OSes on the portable connect path until their live backends pass runtime tests.
+2. **Finish the Phase 1 packet discovery path.** Run privileged AF_PACKET, BPF and Npcap smoke tests; add automatic neighbor/route resolution and multi-queue RX sharding, then fill IPv6 ICMP and neighbor discovery gaps. Keep connect as the default until live raw backends pass runtime tests.
 3. **Finish Phase 2 UDP classification.** Correlate raw ICMP errors with probes, expand safe native probes, and tune retry/confidence rules against controlled loss and firewall cases.
 4. **Introduce the observation/evidence contract before broad fingerprinting.** This gives deep probes, storage, API and UI one stable result shape.
 
@@ -52,10 +52,13 @@ Cross-compilation confirms that a binary builds; it does **not** prove that live
 - [x] IPv4/IPv6 target parsing, CIDRs/ranges, TCP connect scanning, IPv4 ICMP echo, global rate limiting, JSON output and bounded workers.
 - [x] Reusable Ethernet/IP/TCP/UDP/ICMP decoder and a Linux AF_PACKET packet I/O boundary.
 - [x] Shared `internal/config` request contract (`Options` merged from flags/file/profile, resolved and validated once into `Config`) driving the CLI, a full profile catalog with `planned` profiles gated by clear errors, named port sets, and a `--dry-run` plan; the same contract is ready for the Phase 6 API/UI.
-- [ ] Connect raw RX/TX to the scan engine with fixed workers, reusable buffers and bounded result queues; classify SYN/ACK, RST, ICMP errors and timeouts.
-- [ ] Implement Linux TCP SYN using packet templates, correct checksums, source/interface selection and token-based response validation. Prevent unrelated or late traffic from becoming a result.
+- [x] Connect raw RX/TX to the scan engine with fixed TX workers, sharded reusable decoder workers, pooled RX buffers and bounded task/decode/result/reply queues; classify SYN/ACK, RST/ACK, ICMP errors and timeouts with fixture-backed correlation tests.
+- [x] Implement IPv4 TCP SYN over the shared packet I/O contract using checksummed packet templates, explicit next-hop MAC, source/interface selection and per-probe HMAC sequence tokens. Reject unrelated and late replies. Linux uses AF_PACKET; the same mode can use BPF/Npcap when available.
 - [ ] Implement IPv6 ICMP echo, ARP and NDP discovery; add controlled fixtures for fragmented and extension-header traffic.
-- [ ] Add portable mode selection and explicit capability errors. Implement/test macOS BPF and Windows Npcap live backends before advertising raw scans on those platforms.
+- [x] Add explicit `connect`/`syn` TCP mode selection and capability errors, keeping unprivileged connect as the default.
+- [ ] Pass privileged runtime smoke tests for Linux AF_PACKET, macOS BPF and Windows Npcap live backends. BPF/Npcap code and six-target cross-builds exist, but live behavior is unverified.
+- [ ] Resolve routes and ARP/NDP neighbors automatically; current SYN mode requires the correct next-hop MAC from the operator.
+- [ ] Add hardware RX queue/socket fanout after measuring the current single reader and sharded decoder workers.
 - [ ] Add per-host/subnet/interface rate limits, backpressure and cancellation; measure actual packets sent rather than counting only scheduled targets.
 - [ ] Add TCP ACK/FIN/NULL/XMAS/custom flags only after the SYN path and safety controls are stable.
 

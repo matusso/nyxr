@@ -16,13 +16,26 @@ type Decoded struct {
 	SourcePort  uint16     `json:"source_port,omitempty"`
 	DestPort    uint16     `json:"dest_port,omitempty"`
 	TCPFlags    uint8      `json:"tcp_flags,omitempty"`
+	TCPSeq      uint32     `json:"tcp_seq,omitempty"`
+	TCPAck      uint32     `json:"tcp_ack,omitempty"`
 	ICMPType    uint8      `json:"icmp_type,omitempty"`
+	ICMPCode    uint8      `json:"icmp_code,omitempty"`
+	Quote       QuotedTCP  `json:"-"`
+}
+
+// QuotedTCP holds the original packet header included in an ICMP error.
+type QuotedTCP struct {
+	Source, Destination  netip.Addr
+	SourcePort, DestPort uint16
+	Sequence             uint32
+	Valid                bool
 }
 
 // Decoder belongs to one RX worker. It must not be shared concurrently.
 // The hot path reuses both layer structs and the decoded-layer slice.
 type Decoder struct {
 	eth     layers.Ethernet
+	vlan    layers.Dot1Q
 	ip4     layers.IPv4
 	ip6     layers.IPv6
 	tcp     layers.TCP
@@ -37,7 +50,7 @@ type Decoder struct {
 func NewDecoder() *Decoder {
 	d := &Decoder{decoded: make([]gopacket.LayerType, 0, 8)}
 	d.parser = gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet,
-		&d.eth, &d.ip4, &d.ip6, &d.tcp, &d.udp, &d.icmp4, &d.icmp6, &d.payload)
+		&d.eth, &d.vlan, &d.ip4, &d.ip6, &d.tcp, &d.udp, &d.icmp4, &d.icmp6, &d.payload)
 	d.parser.IgnoreUnsupported = true
 	return d
 }
@@ -62,6 +75,7 @@ func (d *Decoder) Decode(frame []byte) (Decoded, bool) {
 		case layers.LayerTypeTCP:
 			result.Protocol = "tcp"
 			result.SourcePort, result.DestPort = uint16(d.tcp.SrcPort), uint16(d.tcp.DstPort)
+			result.TCPSeq, result.TCPAck = d.tcp.Seq, d.tcp.Ack
 			if d.tcp.FIN {
 				result.TCPFlags |= 1
 			}
@@ -86,10 +100,33 @@ func (d *Decoder) Decode(frame []byte) (Decoded, bool) {
 		case layers.LayerTypeICMPv4:
 			result.Protocol = "icmp"
 			result.ICMPType = uint8(d.icmp4.TypeCode.Type())
+			result.ICMPCode = uint8(d.icmp4.TypeCode.Code())
+			result.Quote = parseQuotedTCP(d.icmp4.Payload)
 		case layers.LayerTypeICMPv6:
 			result.Protocol = "icmp6"
 			result.ICMPType = uint8(d.icmp6.TypeCode.Type())
+			result.ICMPCode = uint8(d.icmp6.TypeCode.Code())
 		}
 	}
 	return result, hasIP && result.Protocol != ""
+}
+
+// ICMPv4 quotes at least an IPv4 header and eight transport bytes. Require
+// enough bytes for the TCP sequence token and reject later fragments.
+func parseQuotedTCP(raw []byte) QuotedTCP {
+	if len(raw) < 28 || raw[0]>>4 != 4 || raw[9] != 6 {
+		return QuotedTCP{}
+	}
+	hlen := int(raw[0]&15) * 4
+	if hlen < 20 || len(raw) < hlen+8 || raw[6]&0x1f != 0 || raw[7] != 0 {
+		return QuotedTCP{}
+	}
+	var q QuotedTCP
+	q.Source = netip.AddrFrom4([4]byte(raw[12:16]))
+	q.Destination = netip.AddrFrom4([4]byte(raw[16:20]))
+	q.SourcePort = uint16(raw[hlen])<<8 | uint16(raw[hlen+1])
+	q.DestPort = uint16(raw[hlen+2])<<8 | uint16(raw[hlen+3])
+	q.Sequence = uint32(raw[hlen+4])<<24 | uint32(raw[hlen+5])<<16 | uint32(raw[hlen+6])<<8 | uint32(raw[hlen+7])
+	q.Valid = true
+	return q
 }

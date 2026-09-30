@@ -50,11 +50,12 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
                 }
                 '^--?ports$' { & $emit @({{range $i, $s := .PortSets}}{{if $i}}, {{end}}{{ps $s}}{{end}}); return }
                 '^--?protocols$' { & $emit @('tcp', 'udp', 'icmp', 'tcp,udp', 'tcp,icmp', 'udp,icmp', 'tcp,udp,icmp'); return }
+                '^--?tcp-mode$' { & $emit @('connect', 'syn'); return }
                 # Returning nothing lets PowerShell fall back to path completion.
-                '^--?(payload|payload-file|config|timeout|rate|workers|udp-retries|send-hex|send-base64)$' { return }
+                '^--?(payload|payload-file|config|timeout|rate|workers|udp-retries|send-hex|send-base64|interface|source-ip|source-mac|next-hop-mac)$' { return }
             }
             if ($wordToComplete.StartsWith('-')) {
-                & $emit @('--profile', '--ports', '--protocols', '--timeout', '--rate', '--workers', '--udp-retries',
+                & $emit @('--profile', '--ports', '--protocols', '--timeout', '--rate', '--workers', '--udp-retries', '--tcp-mode', '--interface', '--source-ip', '--source-mac', '--next-hop-mac',
                     '--payload', '--send-hex', '--send-base64', '--payload-file', '--config', '--json', '--dry-run', '--help') 'ParameterName'
             }
         }

@@ -4,6 +4,7 @@ package packetio
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"net"
 	"sync/atomic"
@@ -32,7 +33,10 @@ func OpenLive(device string) (PacketIO, error) {
 		_ = syscall.Close(fd)
 		return nil, err
 	}
-	_ = syscall.SetNonblock(fd, true)
+	if err := syscall.SetNonblock(fd, true); err != nil {
+		_ = syscall.Close(fd)
+		return nil, err
+	}
 	return &live{fd: fd, ifindex: iface.Index}, nil
 }
 
@@ -76,7 +80,12 @@ func (l *live) SendBatch(ctx context.Context, frames [][]byte) (int, error) {
 		if err := ctx.Err(); err != nil {
 			return i, err
 		}
-		if err := syscall.Sendto(l.fd, frame, 0, &syscall.SockaddrLinklayer{Ifindex: l.ifindex, Protocol: htons(syscall.ETH_P_ALL)}); err != nil {
+		if len(frame) < 14 {
+			return i, errors.New("Ethernet frame is truncated")
+		}
+		addr := &syscall.SockaddrLinklayer{Ifindex: l.ifindex, Protocol: htons(binary.BigEndian.Uint16(frame[12:14])), Halen: 6}
+		copy(addr.Addr[:], frame[:6])
+		if err := syscall.Sendto(l.fd, frame, 0, addr); err != nil {
 			return i, err
 		}
 		l.tx.Add(1)

@@ -27,6 +27,11 @@ type Config struct {
 	Profile    string
 	UDPProbes  []probe.Probe
 	UDPRetries int
+	TCPMode    string // connect (default) or syn
+	Interface  string // required for raw Ethernet SYN scans
+	SourceIP   netip.Addr
+	SourceMAC  net.HardwareAddr
+	NextHopMAC net.HardwareAddr
 }
 
 const MaxTargets = 65536
@@ -44,7 +49,50 @@ func (c Config) Validate() error {
 	if c.UDPRetries < 0 || c.UDPRetries > 5 || len(c.UDPProbes) > 256 {
 		return errors.New("UDP retries must be 0..5 and custom probes at most 256")
 	}
+	if c.TCPMode != "" && c.TCPMode != "connect" && c.TCPMode != "syn" {
+		return fmt.Errorf("unknown TCP mode %q", c.TCPMode)
+	}
+	if c.TCPMode == "syn" {
+		if !c.TCP || c.UDP || c.ICMP {
+			return errors.New("TCP SYN mode requires TCP-only scanning")
+		}
+		if c.Profile == "ot-safe" {
+			return errors.New("ot-safe requires TCP connect mode")
+		}
+		if c.Interface == "" || len(c.NextHopMAC) != 6 {
+			return errors.New("TCP SYN mode requires an interface and next-hop Ethernet MAC")
+		}
+		if len(c.SourceMAC) != 0 && len(c.SourceMAC) != 6 {
+			return errors.New("source MAC must be an Ethernet address")
+		}
+		if len(c.SourceMAC) == 6 && (c.SourceMAC[0]&1 != 0 || isZeroMAC(c.SourceMAC)) {
+			return errors.New("source MAC must be a unicast Ethernet address")
+		}
+		if c.SourceIP.IsValid() && !c.SourceIP.Is4() {
+			return errors.New("TCP SYN mode currently requires an IPv4 source")
+		}
+		if c.SourceIP.IsValid() && (c.SourceIP.IsUnspecified() || c.SourceIP.IsMulticast()) {
+			return errors.New("TCP SYN source must be a unicast IPv4 address")
+		}
+		if c.NextHopMAC[0]&1 != 0 || isZeroMAC(c.NextHopMAC) {
+			return errors.New("TCP SYN next-hop MAC must be a unicast Ethernet address")
+		}
+		for _, target := range c.Targets {
+			if !target.Is4() {
+				return errors.New("TCP SYN mode currently supports IPv4 targets only")
+			}
+		}
+	}
 	return nil
+}
+
+func isZeroMAC(mac net.HardwareAddr) bool {
+	for _, b := range mac {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func ParseProtocols(s string) (tcp, udp, icmp bool, err error) {

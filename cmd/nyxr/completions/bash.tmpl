@@ -42,14 +42,20 @@ _nyxr() {
                 --protocols|-protocols)
                     COMPREPLY=($(compgen -W "tcp udp icmp tcp,udp tcp,icmp udp,icmp tcp,udp,icmp" -- "$cur"))
                     return 0 ;;
+                --tcp-mode|-tcp-mode)
+                    COMPREPLY=($(compgen -W "connect syn" -- "$cur"))
+                    return 0 ;;
+                --interface|-interface)
+                    COMPREPLY=($(compgen -W "$(command ls /sys/class/net 2>/dev/null || ifconfig -l 2>/dev/null)" -- "$cur"))
+                    return 0 ;;
                 --payload|-payload|--config|-config|--payload-file|-payload-file)
                     COMPREPLY=($(compgen -f -- "$cur"))
                     return 0 ;;
-                --timeout|-timeout|--rate|-rate|--workers|-workers|--udp-retries|-udp-retries|--send-hex|-send-hex|--send-base64|-send-base64)
+                --timeout|-timeout|--rate|-rate|--workers|-workers|--udp-retries|-udp-retries|--send-hex|-send-hex|--send-base64|-send-base64|--source-ip|-source-ip|--source-mac|-source-mac|--next-hop-mac|-next-hop-mac)
                     return 0 ;;
             esac
             if [[ "$cur" == -* ]]; then
-                COMPREPLY=($(compgen -W "--profile --ports --protocols --timeout --rate --workers --udp-retries --payload --send-hex --send-base64 --payload-file --config --json --dry-run --help" -- "$cur"))
+                COMPREPLY=($(compgen -W "--profile --ports --protocols --timeout --rate --workers --udp-retries --tcp-mode --interface --source-ip --source-mac --next-hop-mac --payload --send-hex --send-base64 --payload-file --config --json --dry-run --help" -- "$cur"))
             fi
             ;;
         profiles)

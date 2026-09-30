@@ -21,6 +21,11 @@ type Plan struct {
 	Workers       int      `json:"workers"`
 	UDPRetries    int      `json:"udp_retries,omitempty"`
 	UDPProbes     []string `json:"udp_probes,omitempty"`
+	TCPMode       string   `json:"tcp_mode"`
+	Interface     string   `json:"interface,omitempty"`
+	SourceIP      string   `json:"source_ip,omitempty"`
+	SourceMAC     string   `json:"source_mac,omitempty"`
+	NextHopMAC    string   `json:"next_hop_mac,omitempty"`
 	// Tasks is the number of scheduled probe tasks (targets x protocols x
 	// ports, plus one ICMP task per target). It is a task count, not a packet
 	// count: a UDP campaign can send several packets per task.
@@ -39,6 +44,17 @@ func (c Config) Plan() Plan {
 		Rate:        c.Rate,
 		Workers:     c.Workers,
 		UDPRetries:  c.UDPRetries,
+		TCPMode:     c.TCPMode,
+		Interface:   c.Interface,
+	}
+	if c.SourceIP.IsValid() {
+		p.SourceIP = c.SourceIP.String()
+	}
+	if len(c.SourceMAC) != 0 {
+		p.SourceMAC = c.SourceMAC.String()
+	}
+	if len(c.NextHopMAC) != 0 {
+		p.NextHopMAC = c.NextHopMAC.String()
 	}
 	for i, t := range c.Targets {
 		if i == 5 {

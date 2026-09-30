@@ -85,6 +85,11 @@ Flags:
   --rate int            max probes/second (0 = unlimited)
   --workers int         concurrent probe workers
   --udp-retries int     extra retries per UDP probe
+  --tcp-mode string     connect (default) or raw Ethernet syn
+  --interface string    Ethernet interface for SYN mode
+  --source-ip string    interface IPv4 address for SYN mode (auto if unique)
+  --source-mac string   source Ethernet MAC (for Npcap adapter names)
+  --next-hop-mac string destination or gateway MAC for SYN mode
   --payload file        native YAML UDP probe definition
   --send-hex string     custom UDP payload as hex
   --send-base64 string  custom UDP payload as base64
@@ -109,6 +114,11 @@ func runScan(args []string, out io.Writer) error {
 	workersFlag := fs.Int("workers", -1, "concurrent probe workers")
 	configFlag := fs.String("config", "", "YAML configuration file")
 	udpRetriesFlag := fs.Int("udp-retries", -1, "extra retries for each UDP probe")
+	tcpModeFlag := fs.String("tcp-mode", "", "connect or syn")
+	interfaceFlag := fs.String("interface", "", "Ethernet interface for SYN mode")
+	sourceIPFlag := fs.String("source-ip", "", "interface IPv4 address for SYN mode")
+	sourceMACFlag := fs.String("source-mac", "", "source Ethernet MAC for SYN mode")
+	nextHopMACFlag := fs.String("next-hop-mac", "", "destination or gateway MAC for SYN mode")
 	probeFlag := fs.String("payload", "", "native YAML UDP probe definition")
 	hexFlag := fs.String("send-hex", "", "custom UDP payload in hex")
 	base64Flag := fs.String("send-base64", "", "custom UDP payload in base64")
@@ -131,11 +141,16 @@ func runScan(args []string, out io.Writer) error {
 	}
 
 	opts := config.Options{
-		Targets:   append(append([]string{}, fc.Targets...), fs.Args()...),
-		Profile:   first(*profileFlag, fc.Profile),
-		Ports:     first(*portsFlag, fc.Ports),
-		Protocols: first(*protoFlag, fc.Protocols),
-		Timeout:   first(timeoutText(*timeoutFlag), fc.Timeout),
+		Targets:    append(append([]string{}, fc.Targets...), fs.Args()...),
+		Profile:    first(*profileFlag, fc.Profile),
+		Ports:      first(*portsFlag, fc.Ports),
+		Protocols:  first(*protoFlag, fc.Protocols),
+		Timeout:    first(timeoutText(*timeoutFlag), fc.Timeout),
+		TCPMode:    first(*tcpModeFlag, fc.TCPMode),
+		Interface:  first(*interfaceFlag, fc.Interface),
+		SourceIP:   first(*sourceIPFlag, fc.SourceIP),
+		SourceMAC:  first(*sourceMACFlag, fc.SourceMAC),
+		NextHopMAC: first(*nextHopMACFlag, fc.NextHopMAC),
 	}
 	opts.Rate = mergeInt(*rateFlag, fc.Rate)
 	opts.Workers = mergeInt(*workersFlag, fc.Workers)
@@ -198,6 +213,19 @@ func emitPlan(out io.Writer, plan config.Plan, asJSON bool) error {
 	fmt.Fprintf(out, "timeout     %s\n", plan.Timeout)
 	fmt.Fprintf(out, "rate        %s\n", rateText(plan.Rate))
 	fmt.Fprintf(out, "workers     %d\n", plan.Workers)
+	fmt.Fprintf(out, "tcp-mode    %s\n", plan.TCPMode)
+	if plan.Interface != "" {
+		fmt.Fprintf(out, "interface   %s\n", plan.Interface)
+	}
+	if plan.SourceIP != "" {
+		fmt.Fprintf(out, "source-ip   %s\n", plan.SourceIP)
+	}
+	if plan.SourceMAC != "" {
+		fmt.Fprintf(out, "source-mac  %s\n", plan.SourceMAC)
+	}
+	if plan.NextHopMAC != "" {
+		fmt.Fprintf(out, "next-hop    %s\n", plan.NextHopMAC)
+	}
 	if plan.UDPRetries > 0 {
 		fmt.Fprintf(out, "udp-retries %d\n", plan.UDPRetries)
 	}
