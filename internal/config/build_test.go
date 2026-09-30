@@ -141,6 +141,24 @@ func TestBuildPayloadOneSource(t *testing.T) {
 	}
 }
 
+func TestBuildRawSYNRequirements(t *testing.T) {
+	base := Options{Targets: []string{"192.0.2.1"}, TCPMode: "syn", Interface: "eth0", NextHopMAC: "02:11:22:33:44:55"}
+	cfg, err := Build(base)
+	if err != nil || cfg.TCPMode != "syn" || cfg.Plan().NextHopMAC != base.NextHopMAC {
+		t.Fatalf("SYN configuration: %+v, %v", cfg, err)
+	}
+	for _, tc := range []Options{
+		{Targets: base.Targets, TCPMode: "syn", Interface: "eth0"},
+		{Targets: base.Targets, TCPMode: "syn", Interface: "eth0", NextHopMAC: "ff:ff:ff:ff:ff:ff"},
+		{Targets: []string{"2001:db8::1"}, TCPMode: "syn", Interface: "eth0", NextHopMAC: base.NextHopMAC},
+		{Targets: base.Targets, Profile: "ot-safe", TCPMode: "syn", Interface: "eth0", NextHopMAC: base.NextHopMAC},
+	} {
+		if _, err := Build(tc); err == nil {
+			t.Fatalf("accepted unsafe SYN configuration: %+v", tc)
+		}
+	}
+}
+
 func TestResolvePorts(t *testing.T) {
 	all, err := ResolvePorts("all")
 	if err != nil || len(all) != 65535 {

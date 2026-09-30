@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/probe"
 )
 
@@ -46,6 +47,9 @@ type task struct {
 func Run(parent context.Context, cfg config.Config, emit func(Observation) error) error {
 	if err := cfg.Validate(); err != nil {
 		return err
+	}
+	if cfg.TCPMode == "syn" {
+		return runSYN(parent, cfg, emit, packetio.OpenLive)
 	}
 	var udpProbes []probe.Probe
 	var secret [32]byte

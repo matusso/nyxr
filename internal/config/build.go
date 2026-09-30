@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,6 +30,11 @@ type Options struct {
 	Workers    *int
 	UDPRetries *int
 	Payload    PayloadSource
+	TCPMode    string
+	Interface  string
+	SourceIP   string
+	SourceMAC  string
+	NextHopMAC string
 }
 
 // PayloadSource selects at most one custom UDP payload. When any field is set
@@ -163,6 +170,28 @@ func Build(o Options) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	mode := first(o.TCPMode, "connect")
+	var sourceIP netip.Addr
+	if o.SourceIP != "" {
+		sourceIP, err = netip.ParseAddr(o.SourceIP)
+		if err != nil {
+			return Config{}, fmt.Errorf("source IP: %w", err)
+		}
+	}
+	var nextHopMAC net.HardwareAddr
+	if o.NextHopMAC != "" {
+		nextHopMAC, err = net.ParseMAC(o.NextHopMAC)
+		if err != nil {
+			return Config{}, fmt.Errorf("next-hop MAC: %w", err)
+		}
+	}
+	var sourceMAC net.HardwareAddr
+	if o.SourceMAC != "" {
+		sourceMAC, err = net.ParseMAC(o.SourceMAC)
+		if err != nil {
+			return Config{}, fmt.Errorf("source MAC: %w", err)
+		}
+	}
 
 	if err := profile.Enforce.check(name, tcp, udp, icmp, rate, workers, timeout, len(udpProbes) > 0); err != nil {
 		return Config{}, err
@@ -177,6 +206,7 @@ func Build(o Options) (Config, error) {
 		Targets: targets, Ports: ports, TCP: tcp, UDP: udp, ICMP: icmp,
 		Timeout: timeout, Rate: rate, Workers: workers, Profile: name,
 		UDPProbes: udpProbes, UDPRetries: retries,
+		TCPMode: mode, Interface: o.Interface, SourceIP: sourceIP, SourceMAC: sourceMAC, NextHopMAC: nextHopMAC,
 	}
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err

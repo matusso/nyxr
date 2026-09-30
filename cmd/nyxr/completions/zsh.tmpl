@@ -51,6 +51,11 @@ _nyxr() {
                         '--rate=[max probes per second (0 = unlimited)]:rate:' \
                         '--workers=[concurrent probe workers]:workers:' \
                         '--udp-retries=[extra retries per UDP probe]:retries:(0 1 2 3 4 5)' \
+                        '--tcp-mode=[TCP scan method]:mode:(connect syn)' \
+                        '--interface=[Ethernet interface]:interface:_net_interfaces' \
+                        '--source-ip=[source IPv4 address]:source IP:' \
+                        '--source-mac=[source Ethernet MAC]:source MAC:' \
+                        '--next-hop-mac=[destination or gateway MAC]:next-hop MAC:' \
                         '--payload=[native YAML UDP probe definition]:probe file:_files -g "*.(yaml|yml)"' \
                         '--send-hex=[custom UDP payload as hex]:hex:' \
                         '--send-base64=[custom UDP payload as base64]:base64:' \

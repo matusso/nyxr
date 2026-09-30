@@ -4,9 +4,9 @@ An early cross-platform network scanner built around the architecture in
 [ROADMAP.md](ROADMAP.md). This first implementation provides a CLI with a shared
 configuration contract, a full profile catalog, bounded concurrent TCP connect
 and UDP probe campaigns, IPv4 ICMP echo, address and port parsing, rate
-limiting, structured observations, and a reusable gopacket receive decoder.
-It does not yet implement the roadmap's SYN engine, service fingerprinting,
-distributed control plane, or web UI.
+limiting, structured observations, a reusable gopacket receive decoder, and an
+explicit raw IPv4 TCP SYN mode. Service fingerprinting, distributed control
+plane, and web UI remain on the roadmap.
 
 ## Build
 
@@ -77,7 +77,7 @@ the token is derived from a per-scan secret. An unmatched UDP response is retain
 fingerprint with a hex evidence sample. No response is `open|filtered` with
 low confidence; it is never reported as definitely open. Connected UDP sockets
 also classify ICMP port-unreachable errors when the OS delivers them. TCP uses
-ordinary connect calls, so it works without raw packet privileges. The
+ordinary connect calls by default, so it works without raw packet privileges. The
 `ot-safe` profile limits rate and concurrency
 and uses TCP connect only.
 
@@ -177,19 +177,44 @@ Ethernet, IPv4/IPv6, TCP, UDP, and ICMP layers. `nyxr decode` demonstrates
 this path on pcap files without `PacketSource`. The packet I/O interface accepts
 batches of raw Ethernet frames and keeps acquisition separate from decoding.
 
-- **Linux:** `sniff` uses an AF_PACKET backend. Opening it requires root or
-  `CAP_NET_RAW`; a suitable interface and link-layer permissions are also
-  required. The CLI does not yet transmit SYN probes.
-- **macOS:** TCP/UDP scans and pcap decoding work. Live Ethernet I/O needs a
-  BPF backend and suitable `/dev/bpf` permissions; that backend is pending.
-- **Windows:** TCP/UDP scans and pcap decoding work. Live Ethernet I/O needs
-  an Npcap backend and Npcap installation; that backend is pending.
+TCP scanning uses portable connect mode by default. To send raw IPv4 SYNs,
+select an Ethernet interface and the MAC address of the target or its next-hop
+gateway:
+
+```sh
+sudo nyxr scan --tcp-mode syn --interface eth0 --next-hop-mac 02:11:22:33:44:55 \
+  --protocols tcp --ports 80,443 192.0.2.10
+```
+
+Use `--source-ip` if the interface has several IPv4 addresses. The source IP
+must belong to that interface. On Windows, Npcap adapter IDs may differ from
+OS interface names; supply the Npcap adapter ID with `--interface` and specify
+both `--source-ip` and `--source-mac`. Raw mode requires TCP-only IPv4 targets;
+the `ot-safe` profile always uses connect mode. `--dry-run` includes the chosen
+mode and link details. No ARP, NDP or route lookup is performed: the operator
+must supply the actual next-hop MAC for the chosen interface. An incorrect MAC
+can cause every probe to time out. A SYN/ACK is `open`, a matching RST/ACK is
+`closed`, and a matching ICMP destination-unreachable or timeout is `filtered`.
+Replies must match the target, ports and a per-probe sequence token. A single
+packet reader feeds bounded queues and reusable decoder workers; received
+buffers are pooled so receive work does not allocate a buffer per packet.
+
+- **Linux:** `sniff` and SYN mode use AF_PACKET. Opening it requires root or
+  `CAP_NET_RAW` and an Ethernet interface.
+- **macOS:** `sniff` and SYN mode use `/dev/bpf`; the process needs access to
+  a free BPF device and an Ethernet interface.
+- **Windows:** `sniff` and SYN mode load Npcap's `wpcap.dll` at runtime. Npcap
+  must be installed and the named adapter must expose Ethernet frames.
 - **ICMP:** IPv4 echo uses a raw socket and generally needs elevated privileges
   on all platforms. IPv6 echo is not implemented. Permission and unsupported
   conditions appear as observations instead of silently changing scan methods.
 
-The current packet decoder expects Ethernet pcap frames. Other link types and
-pcapng files are not yet supported.
+The current packet decoder expects Ethernet frames (including a VLAN tag).
+Other link types and pcapng files are not yet supported. The raw path has
+fixture tests and six-target cross-build coverage. A macOS BPF open and
+timeout smoke test passed, but frame RX/TX on BPF/Npcap and privileged Linux
+scanning still need platform runtime smoke tests. Packet
+throughput and drop rates have not been measured.
 
 UDP port-unreachable reporting varies by operating system and firewall. A
 silent or rate-limited ICMP path remains `open|filtered`. The current UDP

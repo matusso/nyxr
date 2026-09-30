@@ -20,6 +20,11 @@ type FileConfig struct {
 	Profile      string   `yaml:"profile"`
 	UDPRetries   *int     `yaml:"udp_retries"`
 	UDPProbeFile string   `yaml:"udp_probe_file"`
+	TCPMode      string   `yaml:"tcp_mode"`
+	Interface    string   `yaml:"interface"`
+	SourceIP     string   `yaml:"source_ip"`
+	SourceMAC    string   `yaml:"source_mac"`
+	NextHopMAC   string   `yaml:"next_hop_mac"`
 }
 
 // ParseFile reads and validates a YAML scan configuration. An empty path
