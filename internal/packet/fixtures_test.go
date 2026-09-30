@@ -78,7 +78,11 @@ func FuzzDecoder(f *testing.F) {
 		}
 		f.Add(frame)
 	}
-	f.Fuzz(func(t *testing.T, frame []byte) { _, _ = NewDecoder().Decode(frame); _ = parseQuotedTCP(frame) })
+	f.Fuzz(func(t *testing.T, frame []byte) {
+		_, _ = NewDecoder().Decode(frame)
+		_, _ = DecodeResearch(frame)
+		_ = parseQuotedTCP(frame)
+	})
 }
 
 func FuzzPCAPReader(f *testing.F) {
