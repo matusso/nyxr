@@ -26,7 +26,7 @@ _nyxr() {
     done
 
     if [[ -z "$cmd" ]]; then
-        COMPREPLY=($(compgen -W "scan profiles decode sniff history completion version help" -- "$cur"))
+        COMPREPLY=($(compgen -W "scan profiles decode sniff history serve completion version help" -- "$cur"))
         return 0
     fi
 
@@ -54,14 +54,14 @@ _nyxr() {
                 --service-fallback|-service-fallback)
                     COMPREPLY=($(compgen -W "http tls,http none" -- "$cur"))
                     return 0 ;;
-                --payload|-payload|--config|-config|--payload-file|-payload-file|--pcapng|-pcapng|--db|-db)
+                --payload|-payload|--config|-config|--payload-file|-payload-file|--pcapng|-pcapng|--db|-db|--packetd|-packetd)
                     COMPREPLY=($(compgen -f -- "$cur"))
                     return 0 ;;
                 --timeout|-timeout|--rate|-rate|--workers|-workers|--udp-retries|-udp-retries|--send-hex|-send-hex|--send-base64|-send-base64|--source-ip|-source-ip|--source-mac|-source-mac|--next-hop-mac|-next-hop-mac|--allow-targets|-allow-targets|--service-timeout|-service-timeout|--service-workers|-service-workers|--service-rate|-service-rate|--pcapng-max-mb|-pcapng-max-mb)
                     return 0 ;;
             esac
             if [[ "$cur" == -* ]]; then
-                COMPREPLY=($(compgen -W "--profile --ports --protocols --timeout --rate --workers --udp-retries --tcp-mode --interface --source-ip --source-mac --next-hop-mac --allow-targets --payload --send-hex --send-base64 --payload-file --config --service --service-probes --service-fallback --service-timeout --service-workers --service-rate --pcapng --pcapng-max-mb --db --fingerprint --json --dry-run --help" -- "$cur"))
+                COMPREPLY=($(compgen -W "--profile --ports --protocols --timeout --rate --workers --udp-retries --tcp-mode --interface --source-ip --source-mac --next-hop-mac --allow-targets --payload --send-hex --send-base64 --payload-file --config --service --service-probes --service-fallback --service-timeout --service-workers --service-rate --pcapng --pcapng-max-mb --db --fingerprint --packetd --json --dry-run --help" -- "$cur"))
             fi
             ;;
         profiles)
@@ -89,6 +89,16 @@ _nyxr() {
                     return 0 ;;
             esac
             COMPREPLY=($(compgen -W "--db --scan --assets --unknown --address --limit --prune-older-than --keep --json --help" -- "$cur"))
+            ;;
+        serve)
+            case "$prev" in
+                --db|-db|--packetd|-packetd|--evidence-dir|-evidence-dir|--token-file|-token-file)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0 ;;
+                --listen|-listen|--max-scans|-max-scans)
+                    return 0 ;;
+            esac
+            COMPREPLY=($(compgen -W "--listen --db --packetd --evidence-dir --token-file --max-scans --allow-privileged --help" -- "$cur"))
             ;;
         completion)
             if [[ $COMP_CWORD -eq $((i + 1)) ]]; then

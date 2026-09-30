@@ -6,7 +6,9 @@ configuration contract, a full profile catalog, bounded concurrent TCP connect
 and UDP probe campaigns, IPv4/IPv6 ICMP echo, ARP/NDP discovery, address and port parsing, rate
 limiting, structured observations, a reusable gopacket receive decoder, and an
 explicit raw IPv4 TCP SYN mode. Service identification and device fingerprinting
-are available; the distributed control plane and web UI remain on the roadmap.
+are available, as are a REST API with live events and a web UI served by an
+unprivileged `nyxr serve`, with raw packet I/O isolated in `nyxr-packetd`. The
+distributed control plane remains on the roadmap.
 
 ## Build
 
@@ -14,7 +16,7 @@ Go 1.27.1 or newer is required. nyxr builds without cgo:
 
 ```sh
 make check      # go test + go vet
-make build      # ./nyxr for the host platform
+make build      # ./nyxr and ./nyxr-packetd for the host platform
 make package    # dist/: archives for all platforms + SHA256SUMS
 make help       # list all targets
 ```
@@ -120,7 +122,48 @@ the roadmap phase they need, rather than silently downgrading to a weaker scan.
 | `full` | available | All TCP ports plus deep service identification |
 | `database` | planned | Database protocol handshakes (a later Phase 3 slice) |
 | `iot` | available | TCP service identity and multi-source device fingerprinting |
-| `research` | planned | Packet-forge experiments (roadmap Phase 5) |
+| `research` | available | Allowlisted, paced raw TCP/UDP/ICMP/SCTP/IP packet experiments |
+
+### Research packets
+
+The `research` profile sends raw Ethernet frames and needs the same packet I/O
+privileges as SYN mode. It requires `--interface` and `--allow-targets` before
+any frame is sent. It accepts at most 256 targets and 1,024 ports, uses one
+outstanding probe at a time, and caps the configured send rate at five frames
+per second. Fragmented datagrams consume one rate slot per fragment. The
+default is one TCP SYN on port 80 per target. Use `--dry-run --json` to review
+the resolved scope and packet controls.
+
+```sh
+sudo nyxr scan --profile research --protocols tcp --tcp-flags xmas \
+  --ports 443 --interface eth0 --allow-targets 192.0.2.0/24 \
+  --dry-run 192.0.2.10
+sudo nyxr scan --profile research --protocols sctp --ports 2905 \
+  --interface eth0 --allow-targets 192.0.2.0/24 192.0.2.10
+sudo nyxr scan --profile research --protocols ip --ip-protocol 47 \
+  --interface eth0 --allow-targets 192.0.2.0/24 192.0.2.10
+```
+
+`--research-kind` is an alias for choosing exactly one research protocol when
+the normal `--protocols` field is already set by a configuration file. The
+builder also accepts `--forge-payload-hex`, `--fragment-size` (a multiple of
+eight), `--bad-checksum`, and `--ip-length` for a deliberate length override.
+TCP flags accept `fin,syn,rst,psh,ack,urg`, `null`, `xmas`, or a numeric mask.
+Malformed overrides and arbitrary TCP flags are rejected outside `research`.
+The research path never treats an uncorrelated reply as proof of an open port:
+SCTP uses the INIT tag, TCP uses the sequence token, and ICMP errors use the
+quoted addresses, protocol and probe identifier. Direct IP-protocol replies
+have lower confidence because they have no transaction token. IPv6 raw
+research currently requires an explicit `--next-hop-mac`; IPv4 resolves the
+route and ARP neighbor automatically. Remote API requests cannot use the
+research profile.
+
+`internal/packet.ForgeFrames` provides validated Ethernet/VLAN, IPv4/IPv6,
+TCP/UDP/ICMP/SCTP and raw IP protocol construction. It supports aligned IPv4
+and TCP options, bounded IPv6 extension chains, checksums, and explicit
+fragmentation. The CLI exposes the controls above; the additional builder
+fields are available to internal callers after research policy validation.
+Live raw behavior still needs privileged runtime testing on each platform.
 
 `ot-safe` requires `--allow-targets` (literal IPs or CIDRs); every resolved
 target must be inside it. It permits TCP connect on ports 80, 443, 502 and
@@ -185,11 +228,15 @@ in the observation's `fields` map. Only `safety: safe` is accepted. A probe
 with no applicable port falls back to the generic byte. TFTP and SSDP replies
 have lower confidence because they lack a transaction token.
 
-The CLI and a future API share one configuration contract: flags and file
-fields are merged into a single set of options, resolved against the selected
-profile, then validated once before any scan runs (`internal/config`). This
-keeps command-line parsing out of the engine and lets every interface produce
-the same validated request.
+The CLI and the API share one request document, `config.Request`: the CLI
+reads it from YAML and overlays flags, the API accepts the same field names as
+JSON, and both call the same `Resolve` to apply the profile and validate once
+before any scan runs (`internal/config`). Unknown fields are rejected in both
+encodings. Every field below, including the stage fields (`service`,
+`service_probes`, `service_fallback`, `service_timeout`, `service_workers`,
+`service_rate`, `fingerprint`, `pcapng`, `pcapng_max_mb`) and the payload
+fields (`send_hex`, `send_base64`, `payload_file`), is accepted by both, with
+the remote restrictions described under [API and web UI](#api-and-web-ui).
 
 Configuration can be supplied as YAML:
 
@@ -281,6 +328,87 @@ nyxr history --db nyxr.db --prune-older-than 720h # retention (or --keep 20)
 Pruning deletes scans with their observations, evidence and packet index,
 then removes assets that no longer have any records. pcapng files are left on
 disk.
+
+## API and web UI
+
+`nyxr serve` runs the REST API, live scan events and an embedded web UI
+(dashboard, scan creation with dry-run plan, running and past scans with live
+results, assets, services, profiles, packet evidence and pcapng download):
+
+```sh
+nyxr serve --db nyxr.db                      # http://127.0.0.1:8484
+NYXR_API_TOKEN=$(openssl rand -hex 16) nyxr serve --db nyxr.db --listen 0.0.0.0:8484
+```
+
+| Method and path | Purpose |
+| --- | --- |
+| `GET /api/v1/profiles` | profile catalog (same as `nyxr profiles --json`) |
+| `POST /api/v1/plan` | resolve a request and return the dry-run plan |
+| `POST /api/v1/scans` | start a scan; `201` with the running `scan` summary |
+| `GET /api/v1/scans` | stored scans, newest first, with live counters for running ones |
+| `GET /api/v1/scans/{id}` | one scan summary |
+| `POST /api/v1/scans/{id}/cancel` | stop a running scan; partial results are kept |
+| `GET /api/v1/scans/{id}/observations` | stored records; filters `address`, `kind`, `transport`, `port`, `service`, `unknown`, `limit` |
+| `GET /api/v1/scans/{id}/evidence` | packet-evidence records |
+| `GET /api/v1/scans/{id}/events` | Server-Sent Events: `observation`, `packet-evidence`, `scan` |
+| `GET /api/v1/scans/{id}/pcapng` | capture file, for captures in `--evidence-dir` only |
+| `GET /api/v1/assets`, `GET /api/v1/observations` | asset inventory and cross-scan queries |
+
+```sh
+curl -s -H 'Content-Type: application/json' localhost:8484/api/v1/scans \
+  -d '{"targets":["192.0.2.10"],"ports":"22,80,443","protocols":"tcp","service":true}'
+curl -N localhost:8484/api/v1/scans/<scan_id>/events
+```
+
+The request body is the `--config` document in JSON, and results are the same
+`nyxr/v1` records the CLI prints. A test runs the same loopback scan through
+`nyxr scan` and the API and requires identical observations apart from IDs and
+timings. Remote requests may not name server files (`udp_probe_file`,
+`payload_file`); `pcapng` must be a bare `*.pcapng` name, which the server
+places in `--evidence-dir`.
+
+Live events are bounded. Each running scan keeps its last 4096 events for
+replay and each subscriber a 256-event queue. A subscriber that falls behind
+receives `lagged` and is disconnected rather than slowing the scan. It can
+resume with `Last-Event-ID` or read the stored observations. `--max-scans`
+(default 1) limits concurrent scans so they do not exceed each other's rate
+budgets.
+
+Security defaults: the server listens on loopback and rejects foreign `Host`
+headers, which blocks DNS rebinding. A non-loopback listener requires a bearer
+token of at least 16 characters (`NYXR_API_TOKEN` or `--token-file`).
+POSTs must be `application/json`, so a browser cannot submit them
+cross-origin without a preflight, and the server approves no CORS requests.
+The UI is served with a strict same-origin CSP and renders every scanned value
+as text. Authentication beyond one shared token, RBAC, approvals and audit
+trails are Phase 9 work.
+
+### Privilege separation with nyxr-packetd
+
+`nyxr serve` refuses to start as root or, on Linux, with `CAP_NET_RAW` or
+`CAP_NET_ADMIN`, unless given `--allow-privileged`. Raw packet I/O goes through
+`nyxr-packetd`, a separate binary, so the capabilities never reach the API,
+UI or database code:
+
+```sh
+sudo setcap cap_net_raw,cap_net_admin+ep ./nyxr-packetd
+./nyxr-packetd --socket /run/nyxr/packetd.sock --interface eth0 &
+nyxr serve --db nyxr.db --packetd /run/nyxr/packetd.sock --evidence-dir ./evidence
+nyxr scan --packetd /run/nyxr/packetd.sock --tcp-mode syn --interface eth0 ...
+```
+
+packetd only relays Ethernet frames, over a Unix socket (mode `0660` by
+default; world access is refused). It opens only the interfaces listed in
+`--interface`. It drops transmit frames that are shorter than an Ethernet
+header or carry a source MAC other than the interface's. Frames are capped at
+9216 bytes, sessions at `--max-clients` (default 4), and transmit rate at
+`--max-pps`. Scan logic, parsing and storage stay in the unprivileged
+process. Raw SYN, ARP/NDP and API pcapng capture use packetd; the API refuses
+them when started without `--packetd`. Limits: ICMP echo still needs a raw IP
+socket in the scanning process, so the API refuses ICMP requests for now. The
+`research` profile is CLI-only. The relay was exercised end to end on macOS,
+where it behaves like the local BPF backend, whose live RX/TX gate is still
+open (see below). It has not yet been run on privileged Linux.
 
 ## Shell completion
 

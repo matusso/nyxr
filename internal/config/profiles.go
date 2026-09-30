@@ -143,8 +143,8 @@ var profiles = []Profile{
 	{Name: "iot", Description: "Device fingerprinting from safe service and discovery signals",
 		Availability: StatusAvailable, Ports: "22,80,443,502,8080,8443,44818", Protocols: "tcp", Timeout: "2s", Rate: 20, Workers: 16,
 		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,modbus,ethernetip", Fallback: "none", Timeout: "4s", Workers: 8, Rate: 20}},
-	{Name: "research", Description: "Packet-forge experiments with malformed packets",
-		Availability: StatusPlanned, Requires: "the packet forge and research policy (ROADMAP Phase 5)"},
+	{Name: "research", Description: "Allowlisted, low-rate raw packet experiments",
+		Availability: StatusAvailable, Ports: "80", Protocols: "tcp", Timeout: "1s", Rate: 5, Workers: 1},
 }
 
 // Profiles returns the catalog in display order. The slice is a copy so callers

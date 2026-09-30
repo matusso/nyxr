@@ -13,7 +13,7 @@ import (
 	"github.com/matusso/nyxr/internal/packetio"
 )
 
-func runNeighbor(parent context.Context, cfg config.Config, emit func(Observation) error) error {
+func runNeighbor(parent context.Context, cfg config.Config, emit func(Observation) error, open packetio.Opener) error {
 	iface, lookupErr := net.InterfaceByName(cfg.Interface)
 	var sourceMAC net.HardwareAddr
 	if lookupErr == nil {
@@ -30,7 +30,7 @@ func runNeighbor(parent context.Context, cfg config.Config, emit func(Observatio
 		}
 		sourceMAC = cfg.SourceMAC
 	}
-	io, err := packetio.OpenLive(cfg.Interface)
+	io, err := open(cfg.Interface)
 	if err != nil {
 		return fmt.Errorf("raw packet I/O on %s: %w", cfg.Interface, err)
 	}

@@ -69,6 +69,9 @@ var defaultService = ServiceDefaults{Probes: "banner,ssh,tls,http,dns", Fallback
 // BuildService resolves the deep-probe stage for an already validated
 // discovery Config, using the same profile.
 func BuildService(cfg Config, o ServiceOptions) (Service, error) {
+	if cfg.Research != nil && (o.Enable != nil && *o.Enable || o.Probes != "" || o.Fallback != "" || o.Timeout != "" || o.Workers != nil || o.Rate != nil) {
+		return Service{}, errors.New("research packet experiments cannot run deep service probes")
+	}
 	profile, ok := LookupProfile(cfg.Profile)
 	if !ok {
 		return Service{}, fmt.Errorf("unknown profile %q", cfg.Profile)
@@ -118,6 +121,9 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 func (s Service) ValidateFor(cfg Config) error {
 	if !s.Enabled {
 		return nil
+	}
+	if cfg.Research != nil {
+		return errors.New("research packet experiments cannot run deep service probes")
 	}
 	if !cfg.TCP {
 		return errors.New("deep service probes require the TCP protocol")

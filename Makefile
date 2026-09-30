@@ -1,5 +1,7 @@
 BINARY  := nyxr
 PKG     := ./cmd/nyxr
+PACKETD := nyxr-packetd
+PACKETD_PKG := ./cmd/nyxr-packetd
 DIST    := dist
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
@@ -13,9 +15,10 @@ export CGO_ENABLED := 0
 
 all: check build
 
-## build: build nyxr for the host platform
+## build: build nyxr and nyxr-packetd for the host platform
 build:
 	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) $(PKG)
+	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(PACKETD) $(PACKETD_PKG)
 
 ## test: run unit tests
 test:
@@ -48,6 +51,8 @@ cross:
 		out=$(DIST)/$(BINARY)-$$os-$$arch$$ext; \
 		echo "build $$out"; \
 		GOOS=$$os GOARCH=$$arch $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $$out $(PKG); \
+		echo "build $(DIST)/$(PACKETD)-$$os-$$arch$$ext"; \
+		GOOS=$$os GOARCH=$$arch $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST)/$(PACKETD)-$$os-$$arch$$ext $(PACKETD_PKG); \
 	done
 
 ## package: build release archives (tar.gz, zip for windows) and checksums
@@ -59,6 +64,7 @@ package: cross
 		stage=$(DIST)/$$name; \
 		rm -rf $$stage; mkdir -p $$stage; \
 		cp $(DIST)/$(BINARY)-$$os-$$arch$$ext $$stage/$(BINARY)$$ext; \
+		cp $(DIST)/$(PACKETD)-$$os-$$arch$$ext $$stage/$(PACKETD)$$ext; \
 		cp README.md LICENSE $$stage/; \
 		if [ "$$os" = windows ]; then \
 			(cd $(DIST) && rm -f $$name.zip && zip -qr $$name.zip $$name); \
@@ -77,7 +83,7 @@ checksums:
 
 ## clean: remove build output
 clean:
-	rm -rf $(DIST) $(BINARY) $(BINARY).exe
+	rm -rf $(DIST) $(BINARY) $(BINARY).exe $(PACKETD) $(PACKETD).exe
 
 ## help: list targets
 help:

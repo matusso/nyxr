@@ -11,6 +11,8 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
     -trimpath -ldflags "-s -w -X main.version=$VERSION" -o /nyxr ./cmd/nyxr
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
+    -trimpath -ldflags "-s -w -X main.version=$VERSION" -o /nyxr-packetd ./cmd/nyxr-packetd
 
 FROM scratch
 ARG VERSION=dev
@@ -19,4 +21,5 @@ LABEL org.opencontainers.image.source=$SOURCE \
       org.opencontainers.image.version=$VERSION
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /nyxr /nyxr
+COPY --from=build /nyxr-packetd /nyxr-packetd
 ENTRYPOINT ["/nyxr"]

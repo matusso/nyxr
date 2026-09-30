@@ -306,34 +306,52 @@ func (s *Store) AddPacketEvidence(ctx context.Context, batch []observe.PacketEvi
 	return tx.Commit()
 }
 
+const scanColumns = `id, schema, profile, started_at, finished_at, status, error, targets, observations, services, capture`
+
 // Scans lists the newest scans first.
 func (s *Store) Scans(ctx context.Context, limit int) ([]observe.Scan, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT id, schema, profile, started_at, finished_at, status, error, targets, observations, services, capture
-		FROM scans ORDER BY started_at DESC, id DESC LIMIT ?`, limit)
+	rows, err := s.db.QueryContext(ctx, `SELECT `+scanColumns+` FROM scans ORDER BY started_at DESC, id DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var out []observe.Scan
 	for rows.Next() {
-		var sc observe.Scan
-		var started, finished, capture string
-		if err := rows.Scan(&sc.ID, &sc.Schema, &sc.Profile, &started, &finished, &sc.Status, &sc.Error, &sc.Targets, &sc.Observations, &sc.Services, &capture); err != nil {
+		sc, err := scanRow(rows)
+		if err != nil {
 			return nil, err
-		}
-		sc.Kind, sc.Started, sc.Finished = observe.KindScan, parseTS(started), parseTS(finished)
-		if capture != "" {
-			sc.Capture = new(observe.CaptureStats)
-			if err := json.Unmarshal([]byte(capture), sc.Capture); err != nil {
-				return nil, err
-			}
 		}
 		out = append(out, sc)
 	}
 	return out, rows.Err()
+}
+
+// Scan returns one scan summary; ok is false when id is unknown.
+func (s *Store) Scan(ctx context.Context, id string) (sc observe.Scan, ok bool, err error) {
+	sc, err = scanRow(s.db.QueryRowContext(ctx, `SELECT `+scanColumns+` FROM scans WHERE id = ?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return observe.Scan{}, false, nil
+	}
+	return sc, err == nil, err
+}
+
+func scanRow(row interface{ Scan(...any) error }) (observe.Scan, error) {
+	var sc observe.Scan
+	var started, finished, capture string
+	if err := row.Scan(&sc.ID, &sc.Schema, &sc.Profile, &started, &finished, &sc.Status, &sc.Error, &sc.Targets, &sc.Observations, &sc.Services, &capture); err != nil {
+		return sc, err
+	}
+	sc.Kind, sc.Started, sc.Finished = observe.KindScan, parseTS(started), parseTS(finished)
+	if capture != "" {
+		sc.Capture = new(observe.CaptureStats)
+		if err := json.Unmarshal([]byte(capture), sc.Capture); err != nil {
+			return sc, err
+		}
+	}
+	return sc, nil
 }
 
 // Filter selects observations. Zero fields match everything.

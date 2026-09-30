@@ -20,7 +20,7 @@ import (
 	"github.com/matusso/nyxr/internal/packetio"
 )
 
-type liveOpener func(string) (packetio.PacketIO, error)
+type liveOpener = packetio.Opener
 
 // runSYN uses fixed transmit workers with one outstanding probe each. An RX
 // worker owns its decoder and routes compact values by the probe source port.

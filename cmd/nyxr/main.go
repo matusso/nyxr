@@ -16,6 +16,7 @@ import (
 	"github.com/matusso/nyxr/internal/capture"
 	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/packet"
+	"github.com/matusso/nyxr/internal/packetd"
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/scan"
 )
@@ -47,6 +48,8 @@ func run(args []string, out io.Writer) error {
 		return runSniff(args[1:], out)
 	case "completion":
 		return runCompletion(args[1:], out)
+	case "serve":
+		return runServe(args[1:], out)
 	case "history":
 		return runHistory(args[1:], out)
 	case "version":
@@ -68,6 +71,7 @@ Usage:
   nyxr decode capture.pcap[ng]           decode an Ethernet pcap or pcapng to JSON
   nyxr sniff --interface eth0 [flags]    capture and decode live frames
   nyxr history --db file [flags]         list or query stored scans, assets and evidence
+  nyxr serve --db file [flags]           serve the REST API and web UI (unprivileged)
   nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
   nyxr version                           print the version
   nyxr help                              show this help
@@ -84,7 +88,7 @@ func scanUsage(out io.Writer) {
 Flags:
   --profile string      scan profile (default "discovery"; see: nyxr profiles)
   --ports string        ports, ranges (80,443,8000-8100), or a set (all, top100)
-  --protocols string    comma list of tcp, udp, icmp, arp, ndp
+  --protocols string    comma list of tcp, udp, icmp, arp, ndp; research also accepts sctp, ip
   --timeout duration    per-probe timeout (e.g. 1s, 750ms)
   --rate int            max probes/second (0 = unlimited)
   --host-rate int       max probes/second per address
@@ -105,7 +109,15 @@ Flags:
   --json                newline-delimited JSON output
   --dry-run             resolve and print the plan without sending packets
   --allow-targets list  approved IP/CIDR targets (required for ot-safe)
+  --research-kind name  tcp, udp, icmp, sctp or ip (research profile only)
+  --ip-protocol n      IP protocol number for research IP scans
+  --tcp-flags list     TCP flags (syn, ack, fin, null, xmas or numeric mask)
+  --fragment-size n   IP payload bytes per fragment, multiple of eight
+  --bad-checksum      deliberately corrupt transport checksum
+  --ip-length n       override IP payload/total length field
+  --forge-payload-hex hex  raw research payload bytes
   --fingerprint         classify devices from independent observations
+  --packetd socket      raw packet I/O through nyxr-packetd instead of local privilege
 
 Service identification, evidence and storage:
   --service             deep probes on open TCP ports (on for service, deep, web, full)
@@ -127,7 +139,7 @@ func runScan(args []string, out io.Writer) error {
 	fs.SetOutput(io.Discard)
 	fs.Usage = func() { scanUsage(out) }
 	portsFlag := fs.String("ports", "", "comma-separated ports, ranges, or a named set")
-	protoFlag := fs.String("protocols", "", "tcp,udp,icmp,arp,ndp")
+	protoFlag := fs.String("protocols", "", "tcp,udp,icmp,arp,ndp; research: sctp,ip")
 	profileFlag := fs.String("profile", "", "scan profile")
 	timeoutFlag := fs.Duration("timeout", 0, "probe timeout")
 	rateFlag := fs.Int("rate", -1, "maximum probes per second (0 unlimited)")
@@ -149,6 +161,14 @@ func runScan(args []string, out io.Writer) error {
 	jsonFlag := fs.Bool("json", false, "newline-delimited JSON output")
 	dryRunFlag := fs.Bool("dry-run", false, "resolve and print the plan without scanning")
 	allowTargetsFlag := fs.String("allow-targets", "", "comma-separated approved IPs or CIDRs")
+	researchKindFlag := fs.String("research-kind", "", "tcp, udp, icmp, sctp or ip")
+	ipProtocolFlag := fs.String("ip-protocol", "", "IP protocol number")
+	tcpFlagsFlag := fs.String("tcp-flags", "", "TCP flags")
+	fragmentSizeFlag := fs.Int("fragment-size", 0, "fragment payload size")
+	badChecksumFlag := fs.Bool("bad-checksum", false, "corrupt transport checksum")
+	ipLengthFlag := fs.Int("ip-length", 0, "override IP length field")
+	forgePayloadFlag := fs.String("forge-payload-hex", "", "raw research payload hex")
+	packetdFlag := fs.String("packetd", "", "packetd Unix socket for raw packet I/O")
 	stages := addStageFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -157,7 +177,7 @@ func runScan(args []string, out io.Writer) error {
 		return err
 	}
 
-	fc, err := config.ParseFile(*configFlag)
+	req, err := config.ParseFile(*configFlag)
 	if err != nil {
 		return err
 	}
@@ -165,64 +185,69 @@ func runScan(args []string, out io.Writer) error {
 		return errors.New("rates, workers and UDP retries must be nonnegative")
 	}
 
-	opts := config.Options{
-		Targets:      append(append([]string{}, fc.Targets...), fs.Args()...),
-		AllowTargets: append([]string{}, fc.AllowTargets...),
-		Profile:      first(*profileFlag, fc.Profile),
-		Ports:        first(*portsFlag, fc.Ports),
-		Protocols:    first(*protoFlag, fc.Protocols),
-		Timeout:      first(timeoutText(*timeoutFlag), fc.Timeout),
-		TCPMode:      first(*tcpModeFlag, fc.TCPMode),
-		Interface:    first(*interfaceFlag, fc.Interface),
-		SourceIP:     first(*sourceIPFlag, fc.SourceIP),
-		SourceMAC:    first(*sourceMACFlag, fc.SourceMAC),
-		NextHopMAC:   first(*nextHopMACFlag, fc.NextHopMAC),
-	}
+	// Flags overlay the configuration file; the merged Request then takes the
+	// same Resolve path as an API request.
+	req.Targets = append(append([]string{}, req.Targets...), fs.Args()...)
 	if *allowTargetsFlag != "" {
-		opts.AllowTargets = []string{*allowTargetsFlag}
+		req.AllowTargets = []string{*allowTargetsFlag}
 	}
-	opts.Rate = mergeInt(*rateFlag, fc.Rate)
-	opts.HostRate = mergeInt(*hostRateFlag, fc.HostRate)
-	opts.SubnetRate = mergeInt(*subnetRateFlag, fc.SubnetRate)
-	opts.InterfaceRate = mergeInt(*interfaceRateFlag, fc.InterfaceRate)
-	opts.Workers = mergeInt(*workersFlag, fc.Workers)
-	opts.UDPRetries = mergeInt(*udpRetriesFlag, fc.UDPRetries)
+	req.Profile = first(*profileFlag, req.Profile)
+	req.Ports = first(*portsFlag, req.Ports)
+	req.Protocols = first(*protoFlag, req.Protocols)
+	req.Timeout = first(timeoutText(*timeoutFlag), req.Timeout)
+	req.TCPMode = first(*tcpModeFlag, req.TCPMode)
+	req.Interface = first(*interfaceFlag, req.Interface)
+	req.SourceIP = first(*sourceIPFlag, req.SourceIP)
+	req.SourceMAC = first(*sourceMACFlag, req.SourceMAC)
+	req.NextHopMAC = first(*nextHopMACFlag, req.NextHopMAC)
+	req.Rate = mergeInt(*rateFlag, req.Rate)
+	req.HostRate = mergeInt(*hostRateFlag, req.HostRate)
+	req.SubnetRate = mergeInt(*subnetRateFlag, req.SubnetRate)
+	req.InterfaceRate = mergeInt(*interfaceRateFlag, req.InterfaceRate)
+	req.Workers = mergeInt(*workersFlag, req.Workers)
+	req.UDPRetries = mergeInt(*udpRetriesFlag, req.UDPRetries)
+	req.ResearchKind = first(*researchKindFlag, req.ResearchKind)
+	req.IPProtocol = first(*ipProtocolFlag, req.IPProtocol)
+	req.TCPFlags = first(*tcpFlagsFlag, req.TCPFlags)
+	if *fragmentSizeFlag != 0 {
+		req.FragmentSize = *fragmentSizeFlag
+	}
+	if *badChecksumFlag {
+		req.BadChecksum = true
+	}
+	if *ipLengthFlag != 0 {
+		req.IPLength = *ipLengthFlag
+	}
+	req.ForgePayloadHex = first(*forgePayloadFlag, req.ForgePayloadHex)
 
-	probeFile := *probeFlag
 	baseDir := ""
-	if probeFile == "" && fc.UDPProbeFile != "" {
-		probeFile = fc.UDPProbeFile
-		if *configFlag != "" {
-			baseDir = filepath.Dir(*configFlag)
-		}
+	if *probeFlag != "" || *hexFlag != "" || *base64Flag != "" || *fileFlag != "" {
+		// A payload flag replaces any payload named in the file.
+		req.UDPProbeFile, req.SendHex, req.SendBase64, req.PayloadFile = *probeFlag, *hexFlag, *base64Flag, *fileFlag
+	} else if req.UDPProbeFile != "" && *configFlag != "" {
+		baseDir = filepath.Dir(*configFlag)
 	}
-	opts.Payload = config.PayloadSource{
-		ProbeFile: probeFile, SendHex: *hexFlag, SendBase64: *base64Flag,
-		PayloadFile: *fileFlag, BaseDir: baseDir,
-	}
-
-	cfg, err := config.Build(opts)
-	if err != nil {
+	if err := stages.overlay(&req); err != nil {
 		return err
 	}
 
-	serviceOpts, err := stages.serviceOptions()
-	if err != nil {
-		return err
-	}
-	svc, err := config.BuildService(cfg, serviceOpts)
+	resolved, err := req.Resolve(config.ResolveOptions{BaseDir: baseDir})
 	if err != nil {
 		return err
 	}
 	if *dryRunFlag {
-		return emitStagePlan(out, cfg.Plan(), svc, stages, *jsonFlag)
+		return emitStagePlan(out, resolved, *stages.db, *jsonFlag)
 	}
-	if stages.usesPipeline(svc) {
-		return runPipeline(out, cfg, svc, stages, *jsonFlag)
+	var open packetio.Opener
+	if *packetdFlag != "" {
+		open = packetd.Opener(*packetdFlag)
+	}
+	if resolved.UsesPipeline() || *stages.db != "" {
+		return runPipeline(out, resolved, *stages.db, open, *jsonFlag)
 	}
 
 	encoder := json.NewEncoder(out)
-	return scan.Run(context.Background(), cfg, func(o scan.Observation) error {
+	return scan.RunWithIO(context.Background(), resolved.Config, func(o scan.Observation) error {
 		if *jsonFlag {
 			return encoder.Encode(o)
 		}
@@ -236,7 +261,7 @@ func runScan(args []string, out io.Writer) error {
 		}
 		_, err := fmt.Fprintf(out, "%s%s %-5s %-14s %3d%% %s\n", o.Target, port, o.Transport, o.State, o.Confidence, reason)
 		return err
-	})
+	}, open)
 }
 
 func emitPlan(out io.Writer, plan config.Plan, asJSON bool) error {
@@ -284,6 +309,18 @@ func emitPlan(out io.Writer, plan config.Plan, asJSON bool) error {
 	}
 	if plan.NextHopMAC != "" {
 		fmt.Fprintf(out, "next-hop    %s\n", plan.NextHopMAC)
+	}
+	if plan.Research != nil {
+		fmt.Fprintf(out, "research    %s, IP protocol %d, TCP flags 0x%02x, %d payload bytes\n", plan.Research.Kind, plan.Research.IPProtocol, plan.Research.TCPFlags, plan.Research.PayloadBytes)
+		if plan.Research.FragmentSize != 0 {
+			fmt.Fprintf(out, "fragment    %d bytes\n", plan.Research.FragmentSize)
+		}
+		if plan.Research.BadChecksum {
+			fmt.Fprintln(out, "checksum    deliberately invalid")
+		}
+		if plan.Research.IPLength != 0 {
+			fmt.Fprintf(out, "ip-length   %d (override)\n", plan.Research.IPLength)
+		}
 	}
 	if plan.UDPRetries > 0 {
 		fmt.Fprintf(out, "udp-retries %d\n", plan.UDPRetries)

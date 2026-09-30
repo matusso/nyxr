@@ -76,8 +76,8 @@ func TestCompletionScripts(t *testing.T) {
 					t.Fatalf("%s completion missing %q", shell, want)
 				}
 			}
-			if strings.Contains(s, "research") {
-				t.Fatalf("%s completion offers a planned profile", shell)
+			if !strings.Contains(s, "research") {
+				t.Fatalf("%s completion omits available research profile", shell)
 			}
 			check, ok := syntaxCheck[shell]
 			if !ok {

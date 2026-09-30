@@ -47,14 +47,26 @@ type task struct {
 // Run streams observations through a fixed worker pool. There is no goroutine
 // per target or probe, and the producer applies a global probe-rate limit.
 func Run(parent context.Context, cfg config.Config, emit func(Observation) error) error {
+	return RunWithIO(parent, cfg, emit, packetio.OpenLive)
+}
+
+// RunWithIO is Run with an explicit live Ethernet opener for SYN and ARP/NDP
+// modes, so an unprivileged process can scan through packetd.
+func RunWithIO(parent context.Context, cfg config.Config, emit func(Observation) error, open packetio.Opener) error {
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
+	if open == nil {
+		open = packetio.OpenLive
+	}
+	if cfg.Research != nil {
+		return runResearch(parent, cfg, emit, open)
+	}
 	if cfg.ARP || cfg.NDP {
-		return runNeighbor(parent, cfg, emit)
+		return runNeighbor(parent, cfg, emit, open)
 	}
 	if cfg.TCPMode == "syn" {
-		return runSYN(parent, cfg, emit, packetio.OpenLive)
+		return runSYN(parent, cfg, emit, open)
 	}
 	var udpProbes []probe.Probe
 	var icmpObserver *udpICMPObserver

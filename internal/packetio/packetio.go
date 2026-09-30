@@ -17,3 +17,7 @@ type PacketIO interface {
 	Stats() Stats
 	Close() error
 }
+
+// Opener opens live Ethernet I/O on a named interface. OpenLive is the local
+// privileged implementation; a packetd client is the unprivileged one.
+type Opener func(device string) (PacketIO, error)
