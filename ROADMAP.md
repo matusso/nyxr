@@ -8,14 +8,14 @@ This is the execution plan for the product described in [INSTRUCTIONS.md](INSTRU
 
 | Area | Status | Implemented now | Main gap |
 | --- | --- | --- | --- |
-| CLI and configuration | Done | `scan`, `profiles`, `decode`, `sniff`; shared `internal/config` contract (flag/file/profile merge with one validation path); full profile catalog with honest `planned` gating; named port sets (`top100`, `all`); `--dry-run` plan (text/JSON); target/CIDR/range and port parsing; JSON observations; bounded workers | Rate-scheduling hierarchy and target/policy enforcement (tracked in the safety row and Phases 4/9); the API/web consuming the same contract (Phase 6) |
+| CLI and configuration | Done | `scan`, `profiles`, `decode`, `sniff`, `history`; shared `internal/config` contract (flag/file/profile merge with one validation path); full profile catalog with honest `planned` gating; named port sets (`top100`, `all`); `--dry-run` plan (text/JSON); target/CIDR/range and port parsing; JSON observations; bounded workers | Rate-scheduling hierarchy and target/policy enforcement (tracked in the safety row and Phases 4/9); the API/web consuming the same contract (Phase 6) |
 | Portable scans | Partial | TCP connect and UDP socket scans on IPv4/IPv6; privileged IPv4/IPv6 ICMP echo, explicit ARP/NDP discovery and raw IPv4 TCP SYN mode | Other TCP flag modes, IPv6 raw SYN, SCTP and IP protocol scans; privileged live validation |
 | Packet path | Partial | Reused `gopacket.DecodingLayerParser` for Ethernet/VLAN IPv4/IPv6 TCP/UDP/ICMP and quoted IPv4 TCP; fixed-worker raw IPv4 TCP SYN scan with checksummed packet templates, token-validated SYN/ACK, RST/ACK and ICMP classification, bounded receive/decode/reply queues; AF_PACKET, BPF and Npcap live Ethernet backends | Privileged Linux and live macOS/Windows runtime gates, automatic neighbor/next-hop discovery, hardware multi-queue RX fanout and measured throughput/drops |
 | UDP intelligence | Partial | Embedded native DNS A/NS, NTP and SNMPv2c GET probes; custom YAML/binary payloads; token checks, bounded late-reply matching, retries, confidence and response samples | Raw ICMP correlation, adaptive retries, broader protocol coverage and calibrated confidence |
 | Safety and rate control | Partial | Global application-level probe rate, bounded concurrency, enforced read-only TCP-only `ot-safe` profile (rejects UDP/ICMP, custom payloads, unlimited or >5 rate, >4 workers, <3s timeout) | Per-host/subnet/interface limits, adaptive feedback, target allowlists/dry-run policy and research guardrails |
-| Evidence and storage | Partial | Observation JSON, classic Ethernet pcap *reading*, limited UDP response hex | Asynchronous pcapng writing, packet-to-observation links, durable asset database |
+| Evidence and storage | Partial | Versioned `nyxr/v1` record stream (host/port/service/packet-evidence/scan); asynchronous bounded pcapng capture with per-flow packet IDs; pcap and pcapng reading; SQLite store with migrations, assets, evidence bytes, packet index, queries and retention | Live capture runtime gates, plain discovery scans still on the legacy observation stream, PostgreSQL controller backend, object storage for large artifacts |
 | Build and release | Done | Tests/vet in CI, cgo-free builds and release archives/checksums for linux/windows/darwin on amd64/arm64, and a Linux amd64/arm64 GHCR image | Runtime smoke tests on all six binary targets and signed release provenance |
-| Deep services, UI and agents | Planned | Architectural intent in `INSTRUCTIONS.md` | Protocol probes, API, web UI, scripting and distributed execution |
+| Deep services, UI and agents | Partial | Bounded deep-probe queue fed by discovery: passive banner, SSH, TLS (chain, version, cipher, ALPN, service inside TLS), HTTP and DNS `version.bind`; every exchange kept as evidence; `service`, `deep`, `web` and `full` profiles | SMTP/FTP/SNMP/database/infrastructure probes, API, web UI, scripting and distributed execution |
 
 Cross-compilation confirms that a binary builds; it does **not** prove that live packet capture, raw sockets or every scan mode works on that operating system. A macOS BPF open/bind/timeout smoke test passed on `en0`; no received or transmitted frames were verified. Full BPF and Npcap live runtime gates remain open. Raw SYN currently requires an operator-supplied next-hop MAC and supports IPv4 TCP only. No packet-rate claim is established yet.
 
@@ -32,7 +32,7 @@ Cross-compilation confirms that a binary builds; it does **not** prove that live
 1. **Finish Phase 0 measurement and lab fixtures.** Establish reproducible packet and network behavior before tuning or adding more raw modes.
 2. **Finish the Phase 1 packet discovery path.** Run privileged AF_PACKET, BPF and Npcap smoke tests; add automatic neighbor/route resolution and multi-queue RX sharding, then fill IPv6 ICMP and neighbor discovery gaps. Keep connect as the default until live raw backends pass runtime tests.
 3. **Finish Phase 2 UDP classification.** Correlate raw ICMP errors with probes, expand safe native probes, and tune retry/confidence rules against controlled loss and firewall cases.
-4. **Introduce the observation/evidence contract before broad fingerprinting.** This gives deep probes, storage, API and UI one stable result shape.
+4. **Build on the Phase 3 observation/evidence contract.** Route every scan through the record pipeline, run the capture runtime gates, then add service probes in fixture-backed slices.
 
 ## Phase 0 — measurable test foundation · Partial
 
@@ -77,14 +77,17 @@ Cross-compilation confirms that a binary builds; it does **not** prove that live
 
 **Exit:** UDP results remain explainable under silence, ICMP filtering, delayed replies and protocol mismatch; each new probe has a fixture and safety classification.
 
-## Phase 3 — observations, evidence and service intelligence · Planned
+## Phase 3 — observations, evidence and service intelligence · Partial
 
-- [ ] Define versioned scan/asset/port/service/fingerprint/probe/packet-evidence records, including confidence and unknown-response retention.
-- [ ] Add asynchronous pcapng capture with result-to-packet references and bounded disk/queue behavior; keep file writes off RX workers.
-- [ ] Add SQLite standalone storage with migrations, retention controls and query tests; keep PostgreSQL as the controller backend when needed.
-- [ ] Build a deep-probe queue fed by discovery observations, with per-service timeouts and read-only handshakes.
-- [ ] Start with generic banners, TLS, HTTP, SSH and DNS; then add SMTP/FTP/SNMP and database/infrastructure protocols in fixture-backed slices.
-- [ ] Make TLS a shared subsystem for certificates, versions, ALPN and services behind TLS. Preserve unrecognized responses for future signatures.
+- [x] Define versioned scan/asset/port/service/fingerprint/probe/packet-evidence records, including confidence and unknown-response retention. `internal/observe` defines the `nyxr/v1` records. Service observations carry `fingerprint: matched|unknown` and per-probe evidence (request/response bytes, layer, matcher, error).
+- [x] Add asynchronous pcapng capture with result-to-packet references and bounded disk/queue behavior; keep file writes off RX workers. A separate capture handle feeds a bounded reader→writer queue, the file has a size budget, drops are counted, and `packet-evidence` records link target/transport/port to pcapng packet IDs. Live capture on AF_PACKET/BPF/Npcap still needs the privileged runtime gates.
+- [x] Add SQLite standalone storage with migrations, retention controls and query tests (cgo-free `modernc.org/sqlite`, `nyxr history`). PostgreSQL stays planned as the controller backend.
+- [x] Build a deep-probe queue fed by discovery observations, with per-service timeouts and read-only handshakes. Fixed workers, a bounded queue whose backpressure reaches the discovery consumer rather than packet RX, connection pacing, and per-probe budgets capped by `--service-timeout`.
+- [x] Start with generic banners, TLS, HTTP, SSH and DNS. Each has loopback fixtures, and the parsers are fuzzed.
+- [ ] Add SMTP/FTP/SNMP and database/infrastructure protocols in fixture-backed slices (the `database` profile stays planned until then).
+- [x] Make TLS a shared subsystem for certificates, versions, ALPN and services behind TLS. Preserve unrecognized responses for future signatures. Alternative ClientHello profiles and SNI for hostname targets are not implemented yet.
+- [ ] Route plain discovery scans through the record pipeline too, so every scan emits `nyxr/v1` records. Today the pipeline runs only when a service stage, `--pcapng` or `--db` is active.
+- [ ] Pass live capture runtime gates on Linux AF_PACKET, macOS BPF and Windows Npcap, and measure capture drops under load.
 
 **Exit:** One scan can discover, interrogate, store and explain a service without blocking the fast receive path. Each claimed service/version has supporting evidence.
 

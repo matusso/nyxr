@@ -56,6 +56,10 @@ nyxr scan --protocols tcp,udp,icmp --timeout 2s --rate 50 192.0.2.0/28
 nyxr scan --profile ot-safe 192.0.2.10
 nyxr scan --profile fast --ports top100 192.0.2.0/24
 nyxr scan --profile udp-deep --dry-run 192.0.2.0/28
+nyxr scan --profile service --db nyxr.db 192.0.2.0/28
+nyxr scan --profile web --json 192.0.2.10
+sudo nyxr scan --profile deep --interface eth0 --pcapng scan.pcapng 192.0.2.10
+nyxr history --db nyxr.db --assets
 nyxr profiles
 nyxr decode capture.pcap
 sudo nyxr sniff --interface eth0 --count 100
@@ -98,7 +102,11 @@ the roadmap phase they need, rather than silently downgrading to a weaker scan.
 | `udp-deep` | available | UDP probes including SNMP, one extra retry each |
 | `ot-safe` | available | Low-rate, read-only, TCP-only OT identification |
 | `custom` | available | Minimal profile; set protocols, ports and timeout explicitly |
-| `service`, `deep`, `web`, `database`, `full` | planned | Service/version detection (roadmap Phase 3+) |
+| `service` | available | Top 100 TCP ports, then banner/SSH/TLS/HTTP/DNS identification |
+| `deep` | available | As `service`, and tries TLS and HTTP on every silent open port |
+| `web` | available | Common web ports with TLS and HTTP identification |
+| `full` | available | All TCP ports plus deep service identification |
+| `database` | planned | Database protocol handshakes (a later Phase 3 slice) |
 | `iot` | planned | Device fingerprinting (roadmap Phase 4) |
 | `research` | planned | Packet-forge experiments (roadmap Phase 5) |
 
@@ -155,6 +163,79 @@ udp_probe_file: my-probe.yaml
 Pass it with `nyxr scan --config scan.yaml`; command-line options override
 matching file fields. Positional targets are added to file targets. A relative
 `udp_probe_file` path is resolved beside the scan configuration file.
+
+## Service identification, evidence and storage
+
+The `service`, `deep`, `web` and `full` profiles, or `--service` with any TCP
+profile, feed every open TCP port from discovery into a bounded deep-probe
+queue with a fixed worker pool. Each port gets a service observation:
+
+1. **banner**: connect and wait for the server to speak first. An RFC 4253
+   identification string is reported as `ssh` with product and version
+   (`OpenSSH` `9.6p1`); any other banner is kept as an unknown fingerprint.
+2. **port-hinted probes** for silent ports: `dns` (TCP/53, CHAOS
+   `version.bind`), `tls` then `http` on TLS ports such as 443/8443/993, and
+   `http` then `tls` on HTTP ports such as 80/8080.
+3. **fallback probes** on other silent ports (`--service-fallback`; `http`
+   for `service`, `tls,http` for `deep`, `web` and `full`, or `none`).
+
+TLS is one shared subsystem. It records the version, cipher suite, ALPN, OCSP
+stapling, SCT count and the presented certificate chain (subject, issuer,
+serial, SANs, validity, key algorithm and size, signature algorithm,
+self-signed flag, SHA-256), without verifying trust. It then identifies the
+service inside TLS: HTTP (`https`, re-asking for HTTP/1.1 when ALPN chose h2)
+or a server-first banner such as IMAPS. HTTP reports status, `Server`
+(parsed into product/version), title, content type, location and
+authentication headers.
+
+Every exchange is kept as evidence: probe, layer (`tcp` or `tls`), start time,
+duration, the bytes sent and received (4 KiB per direction by default, flagged
+when truncated), the matcher that recognized it, or the error. A service is
+claimed only from a matched response, never from the port number alone.
+Unrecognized or absent responses produce `fingerprint: "unknown"` with their
+raw bytes retained, so they can seed future signatures. All probes are
+unauthenticated, read-only handshakes; `ot-safe` refuses the stage until the
+Phase 4 OT safety review. `--service-probes`, `--service-timeout`,
+`--service-workers` and `--service-rate` override the profile. The stage
+consumes discovery results, not packets: when its queue is full it slows the
+discovery consumer, never the packet receive path.
+
+With a Phase 3 stage active, output uses the versioned record stream from
+`internal/observe`. Every JSON line carries `schema: "nyxr/v1"`, a `scan_id` and
+a `kind`: `host`, `port`, `service`, `packet-evidence`, and finally one `scan`
+summary. Plain discovery scans still print the original observation lines.
+
+`--pcapng file` (with `--interface`) opens a separate capture handle and
+records every frame to or from a target, including router ICMP errors that
+quote a probe. A reader goroutine copies matching frames into a bounded queue
+and a writer goroutine does the encoding and disk I/O, so scan RX workers never
+wait on the file. Frames carry direction flags, a packet ID and a one-line
+summary as a pcapng comment. At the end of the scan, `packet-evidence` records
+link each target/transport/port to its packet IDs. Queue overflow, the size
+budget (`--pcapng-max-mb`, default 1024) and backend drops are counted in the
+scan summary rather than silently lost. Timestamps are taken when user space
+receives a frame. UDP port-unreachable errors are indexed under the host's
+`icmp` flow because only TCP quotes are decoded today. `nyxr decode` reads
+these pcapng files as well as classic pcap.
+
+`--db file` stores the scan in SQLite through a cgo-free driver, so every
+release binary can open it. The schema is versioned with forward-only
+migrations, and a database from a newer nyxr is refused. It keeps scans,
+assets (address, first/last seen), observations with their full JSON record,
+evidence bytes in their own table, and the packet index. Writes are batched
+per transaction. Query and maintain it with `nyxr history`:
+
+```sh
+nyxr history --db nyxr.db                         # scans, newest first
+nyxr history --db nyxr.db --scan <scan-id>        # observations and packet evidence
+nyxr history --db nyxr.db --assets                # latest state and service per port
+nyxr history --db nyxr.db --unknown --json        # unknown fingerprints for signature work
+nyxr history --db nyxr.db --prune-older-than 720h # retention (or --keep 20)
+```
+
+Pruning deletes scans with their observations, evidence and packet index,
+then removes assets that no longer have any records. pcapng files are left on
+disk.
 
 ## Shell completion
 
