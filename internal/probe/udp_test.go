@@ -53,6 +53,35 @@ func TestBuiltinsAndTokens(t *testing.T) {
 	}
 }
 
+func TestBACnetWhoIsIdentity(t *testing.T) {
+	all, err := Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := ForPort(all, 47808)[0]
+	if p.Matcher != "bacnet" {
+		t.Fatalf("missing BACnet probe: %+v", p)
+	}
+	response := []byte{0x81, 0x0a, 0, 0, 1, 0, 0x10, 0, 0xc4, 0x02, 0, 0, 42,
+		0x22, 0x04, 0, 0x91, 3, 0x22, 1, 0x23}
+	response[3] = byte(len(response))
+	if !Match(p, p.Payload, response) {
+		t.Fatal("valid I-Am rejected")
+	}
+	response[1] = 0x0b // broadcast I-Am to the BACnet well-known port
+	if !Match(p, p.Payload, response) {
+		t.Fatal("valid broadcast I-Am rejected")
+	}
+	fields := Extract(p, response)
+	if fields["bacnet.device_id"] != "42" || fields["bacnet.vendor_id"] != "291" {
+		t.Fatalf("fields: %+v", fields)
+	}
+	response[9] = 0 // not a Device object
+	if Match(p, p.Payload, response) {
+		t.Fatal("accepted non-device response")
+	}
+}
+
 func TestNativeProbeValidation(t *testing.T) {
 	const valid = "name: custom\ntransport: udp\nports: [9999]\nsafety: safe\npayload:\n  encoding: base64\n  data: AQID\nmatch:\n  - type: any\n"
 	p, err := Parse(strings.NewReader(valid), "")

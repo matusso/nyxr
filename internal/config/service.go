@@ -84,10 +84,6 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 		}
 		return Service{}, nil
 	}
-	if profile.Enforce.ReadOnly {
-		// Phase 4 reviews which handshakes are safe for OT targets.
-		return Service{}, fmt.Errorf("%s profile does not allow deep service probes yet", cfg.Profile)
-	}
 	if !cfg.TCP {
 		return Service{}, errors.New("deep service probes require the TCP protocol")
 	}
@@ -111,10 +107,38 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 	}
 	s := Service{Enabled: true, Probes: probes, Fallback: fallback, Timeout: timeout,
 		Workers: valueOr(o.Workers, d.Workers), Rate: valueOr(o.Rate, d.Rate)}
-	if err := s.Engine().Validate(); err != nil {
+	if err := s.ValidateFor(cfg); err != nil {
 		return Service{}, err
 	}
 	return s, nil
+}
+
+// ValidateFor enforces scan policy even when a caller constructs a Service
+// directly rather than using BuildService (for example, a future API).
+func (s Service) ValidateFor(cfg Config) error {
+	if !s.Enabled {
+		return nil
+	}
+	if !cfg.TCP {
+		return errors.New("deep service probes require the TCP protocol")
+	}
+	if err := s.Engine().Validate(); err != nil {
+		return err
+	}
+	if cfg.Profile == "ot-safe" {
+		if len(s.Fallback) != 0 {
+			return errors.New("ot-safe does not allow fallback service probes")
+		}
+		for _, name := range s.Probes {
+			if name != service.ProbeModbus && name != service.ProbeEtherNetIP {
+				return fmt.Errorf("ot-safe does not allow service probe %q", name)
+			}
+		}
+		if s.Rate < 1 || s.Rate > cfg.Rate || s.Workers > cfg.Workers || s.Timeout < 3*time.Second {
+			return errors.New("ot-safe service rate, workers and timeout must stay within scan policy")
+		}
+	}
+	return nil
 }
 
 func serviceList(s string) ([]string, error) {

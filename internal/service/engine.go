@@ -18,22 +18,28 @@ import (
 
 // Probe names accepted by Config.Probes.
 const (
-	ProbeBanner = "banner" // passive read; the server speaks first
-	ProbeSSH    = "ssh"    // identification string from the banner
-	ProbeTLS    = "tls"    // handshake and certificate chain, then the service inside
-	ProbeHTTP   = "http"   // GET / over plain TCP or TLS
-	ProbeDNS    = "dns"    // CHAOS version.bind TXT over TCP
+	ProbeBanner     = "banner"     // passive read; the server speaks first
+	ProbeSSH        = "ssh"        // identification string from the banner
+	ProbeTLS        = "tls"        // handshake and certificate chain, then the service inside
+	ProbeHTTP       = "http"       // GET / over plain TCP or TLS
+	ProbeDNS        = "dns"        // CHAOS version.bind TXT over TCP
+	ProbeModbus     = "modbus"     // Read Device Identification (function 43/14)
+	ProbeEtherNetIP = "ethernetip" // ListIdentity encapsulation request
 )
 
 // Names lists every probe in the order they are documented.
-func Names() []string { return []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDNS} }
+func Names() []string {
+	return []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDNS, ProbeModbus, ProbeEtherNetIP}
+}
 
 // Per-probe time budgets. Config.Timeout caps each of them.
 var probeTimeouts = map[string]time.Duration{
-	ProbeBanner: 2 * time.Second,
-	ProbeTLS:    5 * time.Second,
-	ProbeHTTP:   5 * time.Second,
-	ProbeDNS:    3 * time.Second,
+	ProbeBanner:     2 * time.Second,
+	ProbeTLS:        5 * time.Second,
+	ProbeHTTP:       5 * time.Second,
+	ProbeDNS:        3 * time.Second,
+	ProbeModbus:     3 * time.Second,
+	ProbeEtherNetIP: 3 * time.Second,
 }
 
 // Config controls the deep-probe stage.
@@ -78,7 +84,7 @@ func (c Config) Validate() error {
 	for _, list := range [][]string{c.Probes, c.Fallback} {
 		for _, p := range list {
 			if !known[p] {
-				return fmt.Errorf("unknown service probe %q (known: banner, ssh, tls, http, dns)", p)
+				return fmt.Errorf("unknown service probe %q (known: banner, ssh, tls, http, dns, modbus, ethernetip)", p)
 			}
 		}
 	}

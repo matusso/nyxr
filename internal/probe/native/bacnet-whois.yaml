@@ -1,0 +1,16 @@
+schema: nyxr/udp/v1
+name: bacnet-whois
+transport: udp
+ports: [47808]
+tags: [bacnet]
+safety: safe
+payload:
+  encoding: hex
+  data: "810a000801001008"
+timeout: 2s
+retries: 0
+match:
+  - type: bacnet
+extract:
+  - bacnet.device_id
+  - bacnet.vendor_id

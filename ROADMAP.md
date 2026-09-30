@@ -11,11 +11,11 @@ This is the execution plan for the product described in [INSTRUCTIONS.md](INSTRU
 | CLI and configuration | Done | `scan`, `profiles`, `decode`, `sniff`, `history`; shared `internal/config` contract (flag/file/profile merge with one validation path); full profile catalog with honest `planned` gating; named port sets (`top100`, `all`); `--dry-run` plan (text/JSON); target/CIDR/range and port parsing; JSON observations; bounded workers | Rate-scheduling hierarchy and target/policy enforcement (tracked in the safety row and Phases 4/9); the API/web consuming the same contract (Phase 6) |
 | Portable scans | Partial | TCP connect and UDP socket scans on IPv4/IPv6; privileged IPv4/IPv6 ICMP echo, explicit ARP/NDP discovery and raw IPv4 TCP SYN mode | Other TCP flag modes, IPv6 raw SYN, SCTP and IP protocol scans; privileged live validation |
 | Packet path | Partial | Reused `gopacket.DecodingLayerParser` for Ethernet/VLAN IPv4/IPv6 TCP/UDP/ICMP and quoted IPv4 TCP; fixed-worker raw IPv4 TCP SYN scan with checksummed packet templates, token-validated SYN/ACK, RST/ACK and ICMP classification, bounded receive/decode/reply queues; AF_PACKET, BPF and Npcap live Ethernet backends | Privileged Linux and live macOS/Windows runtime gates, automatic neighbor/next-hop discovery, hardware multi-queue RX fanout and measured throughput/drops |
-| UDP intelligence | Partial | Raw ICMPv4/v6 quote correlation with socket fallback; DNS A/NS, NTP, SNMP, mDNS, LLMNR, TFTP, SSDP, STUN, SIP OPTIONS and CoAP GET probes; versioned YAML with extraction fields; bounded late-reply matching and feedback-based retries | Privileged live ICMP gates, IKE/IPMI/BACnet safety fixtures and wider calibration |
-| Safety and rate control | Partial | Global application-level probe rate, bounded concurrency, enforced read-only TCP-only `ot-safe` profile (rejects UDP/ICMP, custom payloads, unlimited or >5 rate, >4 workers, <3s timeout) | Per-host/subnet/interface limits, adaptive feedback, target allowlists/dry-run policy and research guardrails |
+| UDP intelligence | Partial | Raw ICMPv4/v6 quote correlation with socket fallback; DNS A/NS, NTP, SNMP, mDNS, LLMNR, TFTP, SSDP, STUN, SIP OPTIONS, CoAP GET and BACnet Who-Is probes; versioned YAML with extraction fields; bounded late-reply matching and feedback-based retries | Privileged live ICMP gates, IKE/IPMI fixtures, BACnet device gate and wider calibration |
+| Safety and rate control | Partial | Global and scoped application-level probe rates, bounded concurrency, allowlisted `ot-safe` TCP policy with approved ports and read-only identity probes | Live OT device validation, packet-level audit capture privileges and research guardrails |
 | Evidence and storage | Partial | Versioned `nyxr/v1` record stream (host/port/service/packet-evidence/scan); asynchronous bounded pcapng capture with per-flow packet IDs; pcap and pcapng reading; SQLite store with migrations, assets, evidence bytes, packet index, queries and retention | Live capture runtime gates, plain discovery scans still on the legacy observation stream, PostgreSQL controller backend, object storage for large artifacts |
 | Build and release | Done | Tests/vet in CI, cgo-free builds and release archives/checksums for linux/windows/darwin on amd64/arm64, and a Linux amd64/arm64 GHCR image | Runtime smoke tests on all six binary targets and signed release provenance |
-| Deep services, UI and agents | Partial | Bounded deep-probe queue fed by discovery: passive banner, SSH, TLS (chain, version, cipher, ALPN, service inside TLS), HTTP and DNS `version.bind`; every exchange kept as evidence; `service`, `deep`, `web` and `full` profiles | SMTP/FTP/SNMP/database/infrastructure probes, API, web UI, scripting and distributed execution |
+| Deep services, UI and agents | Partial | Bounded deep-probe queue fed by discovery: passive banner, SSH, TLS (chain, version, cipher, ALPN, service inside TLS), HTTP, DNS `version.bind`, Modbus and EtherNet/IP identity; every exchange kept as evidence; `service`, `deep`, `web`, `full`, `iot` and `ot-safe` profiles | SMTP/FTP/SNMP/database probes, API, web UI, scripting and distributed execution |
 
 Cross-compilation confirms that a binary builds; it does **not** prove that live packet capture, raw sockets or every scan mode works on that operating system. A macOS BPF open/bind/timeout smoke test passed on `en0`; no received or transmitted frames were verified. Full BPF and Npcap live runtime gates remain open. Raw SYN currently requires an operator-supplied next-hop MAC and supports IPv4 TCP only. No packet-rate claim is established yet.
 
@@ -72,7 +72,7 @@ Cross-compilation confirms that a binary builds; it does **not** prove that live
 - [x] Correlate raw ICMPv4/v6 quoted packets to the original UDP probe independent of socket-error behavior, with socket fallback when raw sockets are unavailable. Synthetic quote tests exist; live privileged gates remain.
 - [x] Add bounded socket-scoped fallback correlation for protocols without a transaction field; retain unmatched response evidence and test delayed, duplicate and mismatched replies.
 - [x] Add a safe fixture-backed group: mDNS/LLMNR, TFTP, SSDP/STUN, SIP OPTIONS and CoAP GET.
-- [ ] Add IKE/IPMI/BACnet only after read-only safety review and protocol fixtures; prioritize further probes by demand.
+- [ ] Add IKE/IPMI only after read-only safety review and protocol fixtures; BACnet unicast Who-Is has protocol fixtures, but needs a live device gate.
 - [x] Use packet-loss/ICMP-limit feedback for one adaptive retry and distinguish token-validated, protocol-shaped, unknown, ICMP and silent results by reason and confidence.
 - [ ] Calibrate confidence and retry behavior with privileged live loss, firewall and ICMP-limit cases on Linux, macOS and Windows.
 - [x] Add matcher-specific extraction fields and a versioned native probe schema (`nyxr/udp/v1`), accepting schema-less legacy definitions.
@@ -94,11 +94,13 @@ Cross-compilation confirms that a binary builds; it does **not** prove that live
 
 **Exit:** One scan can discover, interrogate, store and explain a service without blocking the fast receive path. Each claimed service/version has supporting evidence.
 
-## Phase 4 — IoT and OT safety · Planned
+## Phase 4 — IoT and OT safety · Partial
 
-- [ ] Turn `ot-safe` into an enforced policy for packet rate, permitted probe list, timeouts and read-only operations; add target allowlists and dry-run plans.
-- [ ] Add read-only Modbus, BACnet and EtherNet/IP identity probes first, then other OT protocols with simulator tests and explicit safety review.
-- [ ] Combine OUI, mDNS/SSDP, banners, TLS, SNMP and port patterns into device fingerprints with explainable confidence.
+- [x] Enforce `ot-safe` target allowlists, approved TCP ports and identity probes, rate/concurrency/timeout caps, and a dry-run plan. Run discovery and service stages sequentially to preserve the rate cap.
+- [x] Add read-only Modbus function 43/14, BACnet unicast Who-Is and EtherNet/IP ListIdentity probes with simulator tests and recorded exchanges. BACnet is available through an explicit UDP scan; `ot-safe` remains TCP-only.
+- [x] Emit device records from at least two independent service, UDP, MAC OUI or port signals with explainable confidence. OUI prefixes are evidence rather than vendor names.
+
+Live tests on representative OT equipment, a vendor OUI database, and a fuller set of industrial protocols from `INSTRUCTIONS.md` remain open. Packet-level auditing still requires `--pcapng` and capture privileges.
 
 **Exit:** OT scans can be audited for every transmitted probe, and device claims point to multiple independent observations.
 

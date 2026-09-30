@@ -22,6 +22,7 @@ import (
 // resolution and validation path.
 type Options struct {
 	Targets       []string
+	AllowTargets  []string
 	Profile       string
 	Ports         string
 	Protocols     string
@@ -204,9 +205,13 @@ func Build(o Options) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	allowTargets, err := ParseAllowTargets(o.AllowTargets)
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
-		Targets: targets, Ports: ports, TCP: tcp, UDP: udp, ICMP: icmp, ARP: arp, NDP: ndp,
+		Targets: targets, AllowTargets: allowTargets, Ports: ports, TCP: tcp, UDP: udp, ICMP: icmp, ARP: arp, NDP: ndp,
 		Timeout: timeout, Rate: rate, HostRate: valueOr(o.HostRate, 0), SubnetRate: valueOr(o.SubnetRate, 0),
 		InterfaceRate: valueOr(o.InterfaceRate, 0), Workers: workers, Profile: name,
 		UDPProbes: udpProbes, UDPRetries: retries,

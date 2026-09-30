@@ -14,6 +14,7 @@ import (
 
 	"github.com/matusso/nyxr/internal/capture"
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/device"
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/scan"
@@ -39,9 +40,10 @@ type CaptureOptions struct {
 
 // Options configure the stages around discovery.
 type Options struct {
-	Service config.Service
-	Capture *CaptureOptions
-	Sinks   []Sink
+	Service     config.Service
+	Fingerprint bool
+	Capture     *CaptureOptions
+	Sinks       []Sink
 
 	// Test hooks; nil selects the real implementation.
 	Discover    func(context.Context, config.Config, func(scan.Observation) error) error
@@ -56,6 +58,9 @@ type Options struct {
 // to every sink's Finish, including when the scan fails.
 func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan, error) {
 	if err := cfg.Validate(); err != nil {
+		return observe.Scan{}, err
+	}
+	if err := opts.Service.ValidateFor(cfg); err != nil {
 		return observe.Scan{}, err
 	}
 	discover := opts.Discover
@@ -77,6 +82,10 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 
 	var mu sync.Mutex
 	var sinkErr error
+	var devices *device.Collector
+	if opts.Fingerprint {
+		devices = device.New()
+	}
 	deliver := func(o observe.Observation) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -84,6 +93,9 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 			return
 		}
 		o.Stamp(summary.ID)
+		if devices != nil {
+			devices.Add(o)
+		}
 		for _, s := range opts.Sinks {
 			if err := s.Observation(o); err != nil {
 				sinkErr = err
@@ -107,7 +119,10 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 		}
 	}
 	var engine *service.Engine
-	if runErr == nil && opts.Service.Enabled {
+	startService := func() {
+		if runErr != nil || !opts.Service.Enabled {
+			return
+		}
 		ec := opts.Service.Engine()
 		ec.Dial = opts.ServiceDial
 		var err error
@@ -115,13 +130,22 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 			runErr = err
 		}
 	}
+	if cfg.Profile != "ot-safe" {
+		startService()
+	}
+	var otOpen []service.Target
 	if runErr == nil {
 		runErr = discover(ctx, cfg, func(so scan.Observation) error {
 			o := fromScan(so)
 			deliver(o)
-			if engine != nil && o.Transport == "tcp" && o.State == "open" {
-				if err := engine.Submit(ctx, service.Target{Addr: o.Target, Port: o.Port}); err != nil {
-					return err
+			if o.Transport == "tcp" && o.State == "open" {
+				t := service.Target{Addr: o.Target, Port: o.Port}
+				if cfg.Profile == "ot-safe" {
+					otOpen = append(otOpen, t)
+				} else if engine != nil {
+					if err := engine.Submit(ctx, t); err != nil {
+						return err
+					}
 				}
 			}
 			mu.Lock()
@@ -129,8 +153,24 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 			return sinkErr
 		})
 	}
+	if runErr == nil && cfg.Profile == "ot-safe" {
+		startService()
+		for _, t := range otOpen {
+			if runErr != nil {
+				break
+			}
+			if err := engine.Submit(ctx, t); err != nil {
+				runErr = err
+			}
+		}
+	}
 	if engine != nil {
 		engine.Close()
+	}
+	if devices != nil {
+		for _, result := range devices.Results() {
+			deliver(result)
+		}
 	}
 	if rec != nil {
 		grace := opts.CaptureGrace

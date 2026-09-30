@@ -40,7 +40,8 @@ complete -c nyxr -n '__fish_seen_subcommand_from scan' -l send-base64 -x -d 'Cus
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l payload-file -r -F -d 'Custom raw UDP payload file'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l config -r -F -d 'YAML scan configuration'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service -d 'Deep service probes on open TCP ports'
-complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-probes -x -a 'banner ssh tls http dns banner,ssh,tls,http,dns' -d 'Comma list of service probes'
+complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-probes -x -a 'banner ssh tls http dns modbus ethernetip banner,ssh,tls,http,dns modbus,ethernetip' -d 'Comma list of service probes'
+complete -c nyxr -n '__fish_seen_subcommand_from scan' -l allow-targets -x -d 'Approved IPs or CIDRs'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-fallback -x -a 'http tls,http none' -d 'Probes for unhinted silent ports, or none'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-timeout -x -d 'Upper bound for each service probe'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-workers -x -d 'Concurrent service probe workers'
@@ -50,6 +51,7 @@ complete -c nyxr -n '__fish_seen_subcommand_from scan' -l pcapng-max-mb -x -d 'P
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l db -r -F -d 'Store results in a SQLite database'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l json -d 'Newline-delimited JSON output'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l dry-run -d 'Print the plan without sending packets'
+complete -c nyxr -n '__fish_seen_subcommand_from scan' -l fingerprint -d 'Classify devices from independent observations'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l help -d 'Show scan help'
 
 # profiles

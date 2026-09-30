@@ -49,7 +49,7 @@ _nyxr() {
                     COMPREPLY=($(compgen -W "$(command ls /sys/class/net 2>/dev/null || ifconfig -l 2>/dev/null)" -- "$cur"))
                     return 0 ;;
                 --service-probes|-service-probes)
-                    COMPREPLY=($(compgen -W "banner ssh tls http dns banner,ssh,tls,http,dns" -- "$cur"))
+                    COMPREPLY=($(compgen -W "banner ssh tls http dns modbus ethernetip banner,ssh,tls,http,dns modbus,ethernetip" -- "$cur"))
                     return 0 ;;
                 --service-fallback|-service-fallback)
                     COMPREPLY=($(compgen -W "http tls,http none" -- "$cur"))
@@ -57,11 +57,11 @@ _nyxr() {
                 --payload|-payload|--config|-config|--payload-file|-payload-file|--pcapng|-pcapng|--db|-db)
                     COMPREPLY=($(compgen -f -- "$cur"))
                     return 0 ;;
-                --timeout|-timeout|--rate|-rate|--workers|-workers|--udp-retries|-udp-retries|--send-hex|-send-hex|--send-base64|-send-base64|--source-ip|-source-ip|--source-mac|-source-mac|--next-hop-mac|-next-hop-mac|--service-timeout|-service-timeout|--service-workers|-service-workers|--service-rate|-service-rate|--pcapng-max-mb|-pcapng-max-mb)
+                --timeout|-timeout|--rate|-rate|--workers|-workers|--udp-retries|-udp-retries|--send-hex|-send-hex|--send-base64|-send-base64|--source-ip|-source-ip|--source-mac|-source-mac|--next-hop-mac|-next-hop-mac|--allow-targets|-allow-targets|--service-timeout|-service-timeout|--service-workers|-service-workers|--service-rate|-service-rate|--pcapng-max-mb|-pcapng-max-mb)
                     return 0 ;;
             esac
             if [[ "$cur" == -* ]]; then
-                COMPREPLY=($(compgen -W "--profile --ports --protocols --timeout --rate --workers --udp-retries --tcp-mode --interface --source-ip --source-mac --next-hop-mac --payload --send-hex --send-base64 --payload-file --config --service --service-probes --service-fallback --service-timeout --service-workers --service-rate --pcapng --pcapng-max-mb --db --json --dry-run --help" -- "$cur"))
+                COMPREPLY=($(compgen -W "--profile --ports --protocols --timeout --rate --workers --udp-retries --tcp-mode --interface --source-ip --source-mac --next-hop-mac --allow-targets --payload --send-hex --send-base64 --payload-file --config --service --service-probes --service-fallback --service-timeout --service-workers --service-rate --pcapng --pcapng-max-mb --db --fingerprint --json --dry-run --help" -- "$cur"))
             fi
             ;;
         profiles)

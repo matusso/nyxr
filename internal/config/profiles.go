@@ -93,15 +93,16 @@ var profiles = []Profile{
 		Ports:        "53,123", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
 	},
 	{
-		Name: "udp-deep", Description: "Safe DNS, NTP, SNMP, TFTP, SSDP, STUN, SIP, mDNS, LLMNR and CoAP probes with retries",
+		Name: "udp-deep", Description: "Safe DNS, NTP, SNMP, TFTP, SSDP, STUN, SIP, mDNS, LLMNR, CoAP and BACnet probes with retries",
 		Availability: StatusAvailable,
-		Ports:        "53,69,123,161,1900,3478,5060,5353,5355,5683", Protocols: "udp", Timeout: "2s", Rate: 25, Workers: 16, UDPRetries: 1,
+		Ports:        "53,69,123,161,1900,3478,5060,5353,5355,5683,47808", Protocols: "udp", Timeout: "2s", Rate: 25, Workers: 16, UDPRetries: 1,
 	},
 	{
-		Name: "ot-safe", Description: "Low-rate, read-only, TCP-only OT identification",
+		Name: "ot-safe", Description: "Allowlisted, low-rate Modbus and EtherNet/IP identity reads",
 		Availability: StatusAvailable,
-		Ports:        "80,443,502", Protocols: "tcp", Timeout: "3s", Rate: 5, Workers: 4,
+		Ports:        "80,443,502,44818", Protocols: "tcp", Timeout: "3s", Rate: 5, Workers: 4,
 		Enforce: Enforcement{TCPOnly: true, ReadOnly: true, MaxRate: 5, MaxWorkers: 4, MinTimeout: 3 * time.Second},
+		Service: &ServiceDefaults{Probes: "modbus,ethernetip", Fallback: "none", Timeout: "3s", Workers: 4, Rate: 5},
 	},
 	{
 		Name: "custom", Description: "Minimal profile; supply protocols, ports and timeout explicitly",
@@ -139,8 +140,9 @@ var profiles = []Profile{
 	// Planned profiles depend on engines that later roadmap phases deliver.
 	{Name: "database", Description: "Database protocol handshakes (Redis, Mongo, SQL)",
 		Availability: StatusPlanned, Requires: "database protocol probes (a later ROADMAP Phase 3 slice)"},
-	{Name: "iot", Description: "Device fingerprinting from mDNS/SSDP/SNMP/banners",
-		Availability: StatusPlanned, Requires: "the device fingerprint engine (ROADMAP Phase 4)"},
+	{Name: "iot", Description: "Device fingerprinting from safe service and discovery signals",
+		Availability: StatusAvailable, Ports: "22,80,443,502,8080,8443,44818", Protocols: "tcp", Timeout: "2s", Rate: 20, Workers: 16,
+		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,modbus,ethernetip", Fallback: "none", Timeout: "4s", Workers: 8, Rate: 20}},
 	{Name: "research", Description: "Packet-forge experiments with malformed packets",
 		Availability: StatusPlanned, Requires: "the packet forge and research policy (ROADMAP Phase 5)"},
 }

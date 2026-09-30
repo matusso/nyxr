@@ -40,10 +40,10 @@ func TestServiceDryRunIncludesStage(t *testing.T) {
 
 func TestServiceFlagErrors(t *testing.T) {
 	for args, want := range map[string]string{
-		"--profile ot-safe --service":            "does not allow deep service probes",
-		"--profile tcp --service-probes ssh":     "require --service",
-		"--profile service --service-probes smb": "unknown service probe",
-		"--profile tcp --pcapng x.pcapng":        "requires --interface",
+		"--profile ot-safe --allow-targets 192.0.2.1 --service-probes http": "does not allow service probe",
+		"--profile tcp --service-probes ssh":                                "require --service",
+		"--profile service --service-probes smb":                            "unknown service probe",
+		"--profile tcp --pcapng x.pcapng":                                   "requires --interface",
 	} {
 		var out bytes.Buffer
 		err := run(append(append([]string{"scan"}, strings.Fields(args)...), "192.0.2.1"), &out)
