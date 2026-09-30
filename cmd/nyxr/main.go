@@ -44,6 +44,8 @@ func run(args []string, out io.Writer) error {
 		return runDecode(args[1:], out)
 	case "sniff":
 		return runSniff(args[1:], out)
+	case "completion":
+		return runCompletion(args[1:], out)
 	case "version":
 		_, err := fmt.Fprintln(out, version)
 		return err
@@ -62,6 +64,7 @@ Usage:
   nyxr profiles [--json]                 list scan profiles
   nyxr decode capture.pcap               decode an Ethernet pcap to JSON
   nyxr sniff --interface eth0 [flags]    capture and decode live frames
+  nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
   nyxr version                           print the version
   nyxr help                              show this help
 
