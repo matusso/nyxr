@@ -253,7 +253,20 @@ func Build(o Options) (Config, error) {
 		return Config{}, err
 	}
 
-	targets, err := ParseTargets(o.Targets)
+	var targets []netip.Addr
+	var targetStream *TargetStream
+	if mode == "syn" {
+		targetStream, err = ParseTargetStream(o.Targets)
+		if err != nil {
+			return Config{}, err
+		}
+		if targetStream.Count() <= MaxTargets {
+			targetStream = nil
+			targets, err = ParseTargets(o.Targets)
+		}
+	} else {
+		targets, err = ParseTargets(o.Targets)
+	}
 	if err != nil {
 		return Config{}, err
 	}
@@ -263,7 +276,7 @@ func Build(o Options) (Config, error) {
 	}
 
 	cfg := Config{
-		Targets: targets, AllowTargets: allowTargets, Ports: ports, TCP: tcp, UDP: udp, ICMP: icmp, ARP: arp, NDP: ndp,
+		Targets: targets, TargetStream: targetStream, AllowTargets: allowTargets, Ports: ports, TCP: tcp, UDP: udp, ICMP: icmp, ARP: arp, NDP: ndp,
 		Timeout: timeout, Rate: rate, HostRate: valueOr(o.HostRate, 0), SubnetRate: valueOr(o.SubnetRate, 0),
 		InterfaceRate: valueOr(o.InterfaceRate, 0), Workers: workers, Profile: name,
 		UDPProbes: udpProbes, UDPMode: udpMode, UDPRetries: retries, NmapUDPSource: o.NmapUDPProbes, NmapUDPSHA: nmapUDPSHA,

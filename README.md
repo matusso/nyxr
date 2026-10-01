@@ -73,8 +73,9 @@ nyxr decode capture.pcap
 sudo nyxr sniff --interface eth0 --count 100
 ```
 
-Targets may be IP addresses, hostnames, CIDRs, or inclusive IP ranges. A scan
-is limited to 65,536 unique addresses. Ports accept commas and inclusive ranges
+Targets may be IP addresses, hostnames, CIDRs, or inclusive IP ranges. Raw IPv4
+SYN scans stream larger ranges; other scan modes remain limited to 65,536 unique
+addresses. Ports accept commas and inclusive ranges
 (`80,443,8000-8100`) or a named set: `top100` for a curated list of common TCP
 ports, or `all` for `1-65535`. Use `--json` for newline-delimited observations.
 `--open` shows only open ports and responsive hosts, hiding closed and
@@ -538,10 +539,10 @@ this path on pcap files without `PacketSource`. The packet I/O interface accepts
 batches of raw Ethernet frames and keeps acquisition separate from decoding.
 
 TCP scanning uses portable connect mode by default. To send raw IPv4 SYNs,
-select an Ethernet interface. The scanner looks up the route on that interface
-and resolves the target or gateway MAC before sending a SYN. On macOS, an
-existing, valid gateway entry in the selected interface's ARP cache avoids an
-extra raw ARP exchange; otherwise the scanner sends its own ARP request:
+select an Ethernet interface. The scanner loads the routing table once, then
+resolves each distinct next-hop MAC before sending a SYN. On macOS, an existing
+valid entry in the selected interface's ARP cache avoids a raw ARP exchange;
+otherwise the scanner sends a padded ARP request and retries silent neighbors:
 
 ```sh
 sudo nyxr scan --tcp-mode syn --interface eth0 \
@@ -557,17 +558,19 @@ automatic route and neighbor resolution on any platform. Raw SYN mode requires
 TCP-only IPv4 targets;
 the `ot-safe` profile always uses connect mode. `--dry-run` includes the chosen
 mode and link details; route and neighbor discovery occurs only when the scan
-runs. If raw ARP gets no reply on macOS, the scanner checks the gateway's ARP
-cache once more. An unresolved next hop produces a `no-response` observation
-without sending a SYN. For an off-link target, `route -n get -ifscope en0
-TARGET_IP` identifies the gateway; `arp -n GATEWAY_IP` shows its cached MAC.
+runs. ARP uses a separate receive handle from SYN capture. An unresolved next
+hop produces a `no-response` observation without sending a SYN. On macOS,
+`netstat -rn -f inet` shows the route table and `arp -n GATEWAY_IP` shows a
+cached MAC.
 `--next-hop-mac` can use that MAC directly. An incorrect manual MAC can cause
 every probe to time out. A SYN/ACK is
 `open`, a matching RST/ACK is
 `closed`, and a matching ICMP destination-unreachable or timeout is `filtered`.
-Replies must match the target, ports and a per-probe sequence token. A single
-packet reader feeds bounded queues and reusable decoder workers; received
-buffers are pooled so receive work does not allocate a buffer per packet.
+Replies must match the target, ports and a per-probe sequence token. Raw SYN
+keeps up to 16,384 probes outstanding, expires silent probes from a bounded
+deadline queue, and batches transmit calls when the configured rate permits.
+A single SYN packet reader feeds bounded queues and reusable decoder workers;
+received buffers are pooled so receive work does not allocate a buffer per packet.
 
 Use `--protocols arp` for on-link IPv4 neighbors or `--protocols ndp` for
 on-link IPv6 neighbors. Both require `--interface` and raw packet privileges;

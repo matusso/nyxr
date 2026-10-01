@@ -2,16 +2,11 @@ package scan
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/rand"
-	"crypto/sha256"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"hash"
 	"net"
 	"net/netip"
-	"runtime"
 	"sync"
 	"time"
 
@@ -22,9 +17,8 @@ import (
 
 type liveOpener = packetio.Opener
 
-// runSYN uses fixed transmit workers with one outstanding probe each. An RX
-// worker owns its decoder and routes compact values by the probe source port.
-// No packet buffer escapes the RX worker and no goroutine is made per target.
+// runSYN keeps a bounded set of probes in flight. The receive workers own
+// their decoders; one sender owns the transmit handle and batches frames.
 func runSYN(parent context.Context, cfg config.Config, emit func(Observation) error, open liveOpener) error {
 	iface, lookupErr := net.InterfaceByName(cfg.Interface)
 	var source netip.Addr
@@ -57,11 +51,64 @@ func runSYN(parent context.Context, cfg config.Config, emit func(Observation) er
 	defer io.Close()
 	limiter := newScopedProbeLimiter(cfg)
 	if len(cfg.NextHopMAC) == 0 {
-		neighbors, err := resolveNextHops(parent, cfg, io, srcMAC, source, limiter)
+		// Neighbor resolution and SYN reception must not compete for reads
+		// on one BPF/AF_PACKET/packetd handle.
+		neighborIO, err := open(cfg.Interface)
+		if err != nil {
+			return fmt.Errorf("neighbor packet I/O on %s: %w", cfg.Interface, err)
+		}
+		defer neighborIO.Close()
+		lookup, err := loadIPv4Routes(cfg.Interface)
 		if err != nil {
 			return fmt.Errorf("resolve SYN next hops: %w", err)
 		}
-		return runSYNWithIOResolved(parent, cfg, emit, io, srcMAC, source, neighbors, limiter)
+		cache := snapshotCachedARPNeighbors(cfg.Interface)
+		resolve := func(ctx context.Context, targets []netip.Addr) (map[netip.Addr]net.HardwareAddr, error) {
+			chunk := cfg
+			chunk.Targets = targets
+			chunk.TargetStream = nil
+			resolved, err := resolveNextHopsWithLookup(ctx, chunk, neighborIO, srcMAC, source, limiter, lookup, func(_ string, hop netip.Addr) net.HardwareAddr {
+				return cache[hop]
+			})
+			if err != nil {
+				return nil, err
+			}
+			missing := false
+			for _, mac := range resolved {
+				if len(mac) == 0 {
+					missing = true
+					break
+				}
+			}
+			if missing {
+				fresh := snapshotCachedARPNeighbors(cfg.Interface)
+				for target, mac := range resolved {
+					if len(mac) != 0 {
+						continue
+					}
+					hop, err := lookup(target)
+					if err != nil {
+						return nil, err
+					}
+					if mac = fresh[hop]; len(mac) == 6 {
+						resolved[target] = mac
+						cache[hop] = mac
+					}
+				}
+			}
+			for target, mac := range resolved {
+				if len(mac) != 6 {
+					continue
+				}
+				hop, err := lookup(target)
+				if err != nil {
+					return nil, err
+				}
+				cache[hop] = mac
+			}
+			return resolved, nil
+		}
+		return runSYNAsync(parent, cfg, emit, io, srcMAC, source, nil, limiter, resolve)
 	}
 	return runSYNWithIOResolved(parent, cfg, emit, io, srcMAC, source, nil, limiter)
 }
@@ -103,136 +150,7 @@ func runSYNWithIO(parent context.Context, cfg config.Config, emit func(Observati
 }
 
 func runSYNWithIOResolved(parent context.Context, cfg config.Config, emit func(Observation) error, io packetio.PacketIO, srcMAC net.HardwareAddr, source netip.Addr, neighbors map[netip.Addr]net.HardwareAddr, limiter *probeLimiter) error {
-	var secret [32]byte
-	if _, err := rand.Read(secret[:]); err != nil {
-		return err
-	}
-	var portSeed [2]byte
-	if _, err := rand.Read(portSeed[:]); err != nil {
-		return err
-	}
-	basePort := uint16(49152 + int(binary.BigEndian.Uint16(portSeed[:]))%(16384-cfg.Workers))
-	ctx, cancel := context.WithCancel(parent)
-	defer cancel()
-	if limiter == nil {
-		limiter = newScopedProbeLimiter(cfg)
-	}
-	defer limiter.Close()
-	results := make(chan Observation, cfg.Workers*2)
-	queues := make([]chan task, cfg.Workers)
-	responses := make([]chan packet.Decoded, cfg.Workers)
-	var txMu sync.Mutex
-	var workers sync.WaitGroup
-	for i := range queues {
-		queues[i] = make(chan task, 2)
-		responses[i] = make(chan packet.Decoded, 16)
-		destination := cfg.NextHopMAC
-		if len(destination) == 0 {
-			destination = srcMAC
-		}
-		template, err := packet.NewSYNTemplate(srcMAC, destination, source, basePort+uint16(i))
-		if err != nil {
-			return err
-		}
-		workers.Add(1)
-		go func(i int, tmpl *packet.SYNTemplate) {
-			defer workers.Done()
-			h := hmac.New(sha256.New, secret[:])
-			var ordinal uint64
-			var frameBatch [1][]byte
-			for t := range queues[i] {
-				if neighbors != nil {
-					mac := neighbors[t.target]
-					if len(mac) == 0 {
-						o := base(t, "tcp-syn")
-						o.State, o.Confidence, o.Reason = "no-response", 80, "next-hop ARP unanswered; SYN not sent"
-						select {
-						case results <- o:
-						case <-ctx.Done():
-							return
-						}
-						continue
-					}
-					if err := tmpl.SetDestination(mac); err != nil {
-						o := base(t, "tcp-syn")
-						o.State, o.Reason = "error", err.Error()
-						select {
-						case results <- o:
-						case <-ctx.Done():
-							return
-						}
-						continue
-					}
-				}
-				if err := limiter.WaitFor(ctx, t.target); err != nil {
-					return
-				}
-				ordinal++
-				seq := synToken(h, t, basePort+uint16(i), ordinal)
-				start := time.Now()
-				o := base(t, "tcp-syn")
-				frameBatch[0] = tmpl.Frame(t.target, t.port, seq)
-				txMu.Lock()
-				n, sendErr := io.SendBatch(ctx, frameBatch[:])
-				txMu.Unlock()
-				if n > 0 {
-					o.PacketsTX = 1
-				}
-				if sendErr != nil || n != 1 {
-					o.State, o.Reason = "error", fmt.Sprintf("send SYN: sent %d/1 frames: %v", n, sendErr)
-				} else {
-					o = waitSYN(ctx, responses[i], t, source, basePort+uint16(i), seq, start, cfg.Timeout, o)
-				}
-				select {
-				case results <- o:
-				case <-ctx.Done():
-					return
-				}
-			}
-		}(i, template)
-	}
-	rxErr := make(chan error, 1)
-	decodeWorkers := min(cfg.Workers, runtime.GOMAXPROCS(0), 8)
-	go func() {
-		rxErr <- receiveSYN(ctx, io, responses, source, basePort, decodeWorkers)
-		cancel()
-	}()
-	go func() {
-		defer func() {
-			for _, q := range queues {
-				close(q)
-			}
-		}()
-		var next int
-		for _, target := range cfg.Targets {
-			for _, port := range cfg.Ports {
-				select {
-				case queues[next] <- task{target: target, port: port, transport: "tcp"}:
-					next = (next + 1) % len(queues)
-				case <-ctx.Done():
-					return
-				}
-			}
-		}
-	}()
-	go func() { workers.Wait(); close(results) }()
-	var firstErr error
-	for obs := range results {
-		if firstErr == nil {
-			if err := emit(obs); err != nil {
-				firstErr = err
-				cancel()
-			}
-		}
-	}
-	cancel()
-	if err := <-rxErr; err != nil && !errors.Is(err, context.Canceled) && firstErr == nil {
-		firstErr = err
-	}
-	if firstErr != nil {
-		return firstErr
-	}
-	return parent.Err()
+	return runSYNAsync(parent, cfg, emit, io, srcMAC, source, neighbors, limiter, nil)
 }
 
 func synToken(h hash.Hash, t task, sourcePort uint16, ordinal uint64) uint32 {

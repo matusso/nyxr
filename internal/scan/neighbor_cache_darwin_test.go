@@ -28,3 +28,13 @@ func TestParseDarwinARP(t *testing.T) {
 		})
 	}
 }
+
+func TestParseDarwinARPSnapshot(t *testing.T) {
+	output := "? (192.168.1.1) at 02:2a:6f:f6:62:9d on en0 ifscope [ethernet]\n" +
+		"? (192.168.1.2) at (incomplete) on en0 ifscope [ethernet]\n" +
+		"? (192.168.1.3) at 02:2a:6f:f6:62:9d on en1 ifscope [ethernet]\n"
+	neighbors := parseDarwinARPSnapshot(output, "en0")
+	if len(neighbors) != 1 || len(neighbors[netip.MustParseAddr("192.168.1.1")]) != 6 {
+		t.Fatalf("neighbors=%v", neighbors)
+	}
+}

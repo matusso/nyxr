@@ -4,7 +4,7 @@ Run `make benchmark` from the repository root. It saves the exact Go version,
 host details, three benchmark samples, and a CPU profile in
 `tests/performance/latest/`. Set a different output path with
 `bash tests/performance/baseline.sh <directory>`. The fixed synthetic scan
-uses 100 IPv4 SYN probes, four workers, a 3 ms timeout, and drops every tenth
+uses 100 IPv4 SYN probes, four decoder workers, a 3 ms timeout, and drops every tenth
 reply. `BenchmarkDecodeTCP` and `BenchmarkDecodeFixture` reuse one decoder.
 Run `go tool pprof -top <directory>/cpu.pprof` for sampled CPU work.
 
@@ -24,7 +24,8 @@ campaign allocated 3.22 MB and 924–931 allocations per run. The profile
 sampled 480 ms of CPU over 3.81 s wall time; runtime waits dominated because
 lost probes consume their full 3 ms timeout.
 
-These are decoder and fake-responder numbers; they do not measure NIC TX/RX
+This recorded baseline predates the asynchronous SYN engine. These are decoder
+and fake-responder numbers; they do not measure NIC TX/RX
 rate or kernel drops. On a privileged Linux host, run
 `sudo bash tests/lab/linux-netns.sh tests/performance/latest-linux`. After
 classification and discovery checks, the script runs a fixed 100 closed-port

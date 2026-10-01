@@ -24,6 +24,8 @@ type Options struct {
 	Interface string
 	// Targets restricts the capture to frames to or from these addresses.
 	Targets []netip.Addr
+	// TargetMatch permits compact large target sets without expanding a map.
+	TargetMatch func(netip.Addr) bool
 	// QueueFrames is the reader-to-writer queue depth (default 4096). A full
 	// queue drops the frame and counts it; the reader never blocks on disk.
 	QueueFrames int
@@ -116,7 +118,7 @@ func Start(parent context.Context, src packetio.PacketIO, opts Options) (*Record
 	if opts.Path == "" {
 		return nil, errors.New("capture path is required")
 	}
-	if len(opts.Targets) == 0 {
+	if len(opts.Targets) == 0 && opts.TargetMatch == nil {
 		return nil, errors.New("capture requires at least one target address")
 	}
 	f, err := os.OpenFile(opts.Path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
@@ -149,6 +151,16 @@ func Start(parent context.Context, src packetio.PacketIO, opts Options) (*Record
 	go r.read(ctx)
 	go r.write()
 	return r, nil
+}
+
+func (r *Recorder) isTarget(addr netip.Addr) bool {
+	if !addr.IsValid() {
+		return false
+	}
+	if _, ok := r.targets[addr.Unmap()]; ok {
+		return true
+	}
+	return r.opts.TargetMatch != nil && r.opts.TargetMatch(addr.Unmap())
 }
 
 func (r *Recorder) buffer() []byte {
@@ -240,10 +252,7 @@ func (r *Recorder) wanted(f []byte) bool {
 	default:
 		return false
 	}
-	_, s := r.targets[src]
-	_, d := r.targets[dst]
-	_, q := r.targets[quoted]
-	return s || d || q
+	return r.isTarget(src) || r.isTarget(dst) || r.isTarget(quoted)
 }
 
 func (r *Recorder) write() {
@@ -307,8 +316,8 @@ func (r *Recorder) classify(data []byte) (FlowKey, Direction, string) {
 		return FlowKey{}, DirectionUnknown, ""
 	}
 	src, dst := p.Source.Unmap(), p.Destination.Unmap()
-	_, dstTarget := r.targets[dst]
-	_, srcTarget := r.targets[src]
+	dstTarget := r.isTarget(dst)
+	srcTarget := r.isTarget(src)
 	dir, target, targetPort := DirectionUnknown, netip.Addr{}, uint16(0)
 	switch {
 	case !dstTarget && !srcTarget:
@@ -330,13 +339,13 @@ func (r *Recorder) classify(data []byte) (FlowKey, Direction, string) {
 		summary := fmt.Sprintf("%s %s > %s type=%d code=%d", p.Protocol, p.Source, p.Destination, p.ICMPType, p.ICMPCode)
 		if p.Quote.Valid {
 			quoted := p.Quote.Destination.Unmap()
-			if _, ok := r.targets[quoted]; ok {
+			if r.isTarget(quoted) {
 				return FlowKey{Target: quoted, Transport: "tcp", Port: p.Quote.DestPort}, DirectionRX, summary + fmt.Sprintf(" quoting tcp %s:%d", quoted, p.Quote.DestPort)
 			}
 		}
 		if p.UDPQuote.Valid {
 			quoted := p.UDPQuote.Destination.Unmap()
-			if _, ok := r.targets[quoted]; ok {
+			if r.isTarget(quoted) {
 				return FlowKey{Target: quoted, Transport: "udp", Port: p.UDPQuote.DestPort}, DirectionRX, summary + fmt.Sprintf(" quoting udp %s:%d", quoted, p.UDPQuote.DestPort)
 			}
 		}

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
 )
@@ -54,7 +55,7 @@ type ResearchPlan struct {
 func (c Config) Plan() Plan {
 	p := Plan{
 		Profile:     c.Profile,
-		Targets:     len(c.Targets),
+		Targets:     c.TargetCount(),
 		Ports:       len(c.Ports),
 		PortSummary: summarizePorts(c.Ports),
 		Protocols:   c.protocolList(),
@@ -82,12 +83,13 @@ func (c Config) Plan() Plan {
 		p.Research = &ResearchPlan{Kind: r.Kind, IPProtocol: r.IPProtocol, TCPFlags: r.TCPFlags, FragmentSize: r.FragmentSize, BadChecksum: r.BadChecksum, IPLength: r.IPLength, PayloadBytes: len(r.Payload)}
 		p.Protocols = []string{r.Kind}
 	}
-	for i, t := range c.Targets {
-		if i == 5 {
-			break
+	c.EachTarget(func(t netip.Addr) bool {
+		if len(p.SampleTargets) == 5 {
+			return false
 		}
 		p.SampleTargets = append(p.SampleTargets, t.String())
-	}
+		return true
+	})
 	for _, prefix := range c.AllowTargets {
 		p.AllowTargets = append(p.AllowTargets, prefix.String())
 	}
@@ -104,12 +106,12 @@ func (c Config) Plan() Plan {
 	if c.ICMP {
 		perTarget++
 	}
-	p.Tasks = perTarget * len(c.Targets)
+	p.Tasks = perTarget * c.TargetCount()
 	if c.ARP || c.NDP {
-		p.Tasks = len(c.Targets)
+		p.Tasks = c.TargetCount()
 	}
 	if c.Research != nil {
-		p.Tasks = len(c.Targets)
+		p.Tasks = c.TargetCount()
 		if c.Research.Kind == "tcp" || c.Research.Kind == "udp" || c.Research.Kind == "sctp" {
 			p.Tasks *= len(c.Ports)
 		}
