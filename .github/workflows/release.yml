@@ -54,6 +54,20 @@ jobs:
             gh release create "$TAG" dist/*.tar.gz dist/*.zip dist/SHA256SUMS \
               --title "$TAG" --generate-notes --verify-tag $prerelease
           fi
+      - name: Update Homebrew formula
+        if: ${{ !contains(env.TAG, '-') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch origin main
+          git checkout -B formula origin/main
+          scripts/homebrew-formula.sh "$TAG" dist/SHA256SUMS > Formula/nyxr.rb
+          if git diff --quiet -- Formula/nyxr.rb; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "brew: nyxr ${TAG#v}" -- Formula/nyxr.rb
+          git push origin HEAD:main
+          git checkout --detach "$TAG"
       - name: Set image tags
         id: image
         run: |
