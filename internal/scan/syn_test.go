@@ -20,6 +20,7 @@ type fakePacketIO struct {
 	stale        bool
 	mu           sync.Mutex
 	sent         int
+	maxBatch     int
 	destinations []net.HardwareAddr
 	arpReplies   map[netip.Addr]net.HardwareAddr
 }
@@ -36,11 +37,45 @@ func (f *fakePacketIO) ReceiveBatch(ctx context.Context, buffers [][]byte) (int,
 }
 func (f *fakePacketIO) SendBatch(ctx context.Context, frames [][]byte) (int, error) {
 	f.mu.Lock()
-	f.sent++
-	f.destinations = append(f.destinations, append(net.HardwareAddr(nil), frames[0][:6]...))
+	if len(frames) > f.maxBatch {
+		f.maxBatch = len(frames)
+	}
 	f.mu.Unlock()
-	if len(frames[0]) >= 42 && binary.BigEndian.Uint16(frames[0][12:14]) == 0x0806 && f.arpReplies != nil {
-		request := frames[0]
+	for _, frame := range frames {
+		f.sendFrame(frame)
+	}
+	return len(frames), nil
+}
+
+func TestRawSYNHasManyProbesInFlight(t *testing.T) {
+	ports := make([]uint16, 100)
+	for i := range ports {
+		ports[i] = uint16(20000 + i)
+	}
+	fake := &fakePacketIO{frames: make(chan []byte)}
+	cfg := config.Config{Targets: []netip.Addr{netip.MustParseAddr("198.51.100.20")}, Ports: ports,
+		TCP: true, TCPMode: "syn", Timeout: 100 * time.Millisecond, Workers: 1,
+		NextHopMAC: net.HardwareAddr{6, 5, 4, 3, 2, 1}}
+	start := time.Now()
+	var count int
+	err := runSYNWithIO(context.Background(), cfg, func(o Observation) error {
+		count++
+		if o.State != "filtered" || o.PacketsTX != 1 {
+			t.Errorf("observation: %+v", o)
+		}
+		return nil
+	}, fake, net.HardwareAddr{1, 2, 3, 4, 5, 6}, netip.MustParseAddr("192.0.2.10"))
+	if err != nil || count != 100 || fake.sent != 100 || fake.maxBatch < 2 || time.Since(start) > 500*time.Millisecond {
+		t.Fatalf("count=%d sent=%d batch=%d elapsed=%s err=%v", count, fake.sent, fake.maxBatch, time.Since(start), err)
+	}
+}
+func (f *fakePacketIO) sendFrame(frame []byte) {
+	f.mu.Lock()
+	f.sent++
+	f.destinations = append(f.destinations, append(net.HardwareAddr(nil), frame[:6]...))
+	f.mu.Unlock()
+	if len(frame) >= 42 && binary.BigEndian.Uint16(frame[12:14]) == 0x0806 && f.arpReplies != nil {
+		request := frame
 		hop := netip.AddrFrom4([4]byte(request[38:42]))
 		if mac := f.arpReplies[hop]; len(mac) == 6 {
 			reply := append([]byte(nil), request...)
@@ -55,7 +90,7 @@ func (f *fakePacketIO) SendBatch(ctx context.Context, frames [][]byte) (int, err
 		}
 	}
 	if f.flags != 0 {
-		request := frames[0]
+		request := frame
 		reply := make([]byte, len(request))
 		copy(reply, request)
 		copy(reply[:6], request[6:12])
@@ -73,7 +108,6 @@ func (f *fakePacketIO) SendBatch(ctx context.Context, frames [][]byte) (int, err
 		}
 		f.frames <- reply
 	}
-	return len(frames), nil
 }
 func (f *fakePacketIO) Stats() packetio.Stats { return packetio.Stats{} }
 func (f *fakePacketIO) Close() error          { return nil }
@@ -131,6 +165,33 @@ func TestRawSYNUsesResolvedMACPerTarget(t *testing.T) {
 	if err != nil || len(got) != 2 || len(fake.destinations) != 2 ||
 		string(fake.destinations[0]) != string(mac1) || string(fake.destinations[1]) != string(mac2) {
 		t.Fatalf("resolved destinations: %+v, %+v, %v", got, fake.destinations, err)
+	}
+}
+
+func TestRawSYNAfterARPResolution(t *testing.T) {
+	target := netip.MustParseAddr("192.0.2.20")
+	source := netip.MustParseAddr("192.0.2.10")
+	sourceMAC := net.HardwareAddr{2, 1, 2, 3, 4, 5}
+	targetMAC := net.HardwareAddr{2, 6, 7, 8, 9, 10}
+	fake := &fakePacketIO{frames: make(chan []byte, 8), flags: 0x12}
+	arpFake := &fakePacketIO{frames: make(chan []byte, 8),
+		arpReplies: map[netip.Addr]net.HardwareAddr{target: targetMAC}}
+	cfg := config.Config{Targets: []netip.Addr{target}, Ports: []uint16{80}, TCP: true,
+		TCPMode: "syn", Timeout: time.Second, Workers: 1}
+	limiter := newProbeLimiter(0)
+	resolve := func(ctx context.Context, targets []netip.Addr) (map[netip.Addr]net.HardwareAddr, error) {
+		chunk := cfg
+		chunk.Targets = targets
+		return resolveNextHopsWithLookup(ctx, chunk, arpFake, sourceMAC, source, limiter,
+			func(a netip.Addr) (netip.Addr, error) { return a, nil },
+			func(string, netip.Addr) net.HardwareAddr { return nil })
+	}
+	var got []Observation
+	err := runSYNAsync(context.Background(), cfg, func(o Observation) error { got = append(got, o); return nil },
+		fake, sourceMAC, source, nil, limiter, resolve)
+	if err != nil || len(got) != 1 || got[0].State != "open" || got[0].PacketsTX != 1 ||
+		arpFake.sent != 1 || fake.sent != 1 || string(fake.destinations[0]) != string(targetMAC) {
+		t.Fatalf("ARP then SYN: observations=%+v arp=%d syn=%d destinations=%v err=%v", got, arpFake.sent, fake.sent, fake.destinations, err)
 	}
 }
 

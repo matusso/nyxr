@@ -13,7 +13,7 @@ func TestARPRequestAndReplyValidation(t *testing.T) {
 	localMAC := net.HardwareAddr{2, 1, 2, 3, 4, 5}
 	neighborMAC := net.HardwareAddr{2, 6, 7, 8, 9, 10}
 	request, err := ARPRequest(localMAC, local, neighbor)
-	if err != nil || len(request) != 42 || request[0] != 0xff || binary.BigEndian.Uint16(request[20:22]) != 1 {
+	if err != nil || len(request) != 60 || request[0] != 0xff || binary.BigEndian.Uint16(request[20:22]) != 1 {
 		t.Fatalf("ARP request: %x, %v", request, err)
 	}
 	if _, ok := ARPReplyMAC(request, neighbor, local); ok {

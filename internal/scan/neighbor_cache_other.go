@@ -7,4 +7,5 @@ import (
 	"net/netip"
 )
 
-func cachedARPNeighbor(string, netip.Addr) net.HardwareAddr { return nil }
+func cachedARPNeighbor(string, netip.Addr) net.HardwareAddr             { return nil }
+func snapshotCachedARPNeighbors(string) map[netip.Addr]net.HardwareAddr { return nil }

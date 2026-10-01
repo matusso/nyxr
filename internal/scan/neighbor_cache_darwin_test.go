@@ -14,6 +14,7 @@ func TestParseDarwinARP(t *testing.T) {
 		want               bool
 	}{
 		{"valid", "? (192.168.1.1) at 02:2a:6f:f6:62:9d on en0 ifscope [ethernet]", "en0", true},
+		{"unpadded octets", "? (192.168.1.1) at 0:1b:2:f6:62:9d on en0 ifscope [ethernet]", "en0", true},
 		{"wrong interface", "? (192.168.1.1) at 02:2a:6f:f6:62:9d on en1 ifscope [ethernet]", "en0", false},
 		{"wrong IP", "? (192.168.1.2) at 02:2a:6f:f6:62:9d on en0 ifscope [ethernet]", "en0", false},
 		{"incomplete", "? (192.168.1.1) at (incomplete) on en0 ifscope [ethernet]", "en0", false},
@@ -26,5 +27,15 @@ func TestParseDarwinARP(t *testing.T) {
 				t.Fatalf("MAC = %v, want valid=%t", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestParseDarwinARPSnapshot(t *testing.T) {
+	output := "? (192.168.1.1) at 02:2a:6f:f6:62:9d on en0 ifscope [ethernet]\n" +
+		"? (192.168.1.2) at (incomplete) on en0 ifscope [ethernet]\n" +
+		"? (192.168.1.3) at 02:2a:6f:f6:62:9d on en1 ifscope [ethernet]\n"
+	neighbors := parseDarwinARPSnapshot(output, "en0")
+	if len(neighbors) != 1 || len(neighbors[netip.MustParseAddr("192.168.1.1")]) != 6 {
+		t.Fatalf("neighbors=%v", neighbors)
 	}
 }

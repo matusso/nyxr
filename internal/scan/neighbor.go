@@ -30,7 +30,6 @@ func resolveNextHops(ctx context.Context, cfg config.Config, io packetio.PacketI
 func resolveNextHopsWithLookup(ctx context.Context, cfg config.Config, io packetio.PacketIO, sourceMAC net.HardwareAddr, sourceIP netip.Addr, limiter *probeLimiter, lookup func(netip.Addr) (netip.Addr, error), cache func(string, netip.Addr) net.HardwareAddr) (map[netip.Addr]net.HardwareAddr, error) {
 	byHop := make(map[netip.Addr]net.HardwareAddr)
 	targetHops := make(map[netip.Addr]netip.Addr, len(cfg.Targets))
-	gatewayHops := make(map[netip.Addr]bool)
 	var hops []netip.Addr
 	byTarget := make(map[netip.Addr]net.HardwareAddr, len(cfg.Targets))
 	for _, target := range cfg.Targets {
@@ -46,19 +45,15 @@ func resolveNextHopsWithLookup(ctx context.Context, cfg config.Config, io packet
 			hops = append(hops, hop)
 		}
 		targetHops[target] = hop
-		if hop != target {
-			gatewayHops[hop] = true
-		}
 	}
 	// The OS may already know the gateway's MAC. Reusing a valid entry also
 	// avoids waiting for a raw ARP reply on BPF adapters that do not capture it.
-	// Only query gateways: spawning one cache lookup per on-link host would make
-	// a large local scan slower than sending ARP in bounded batches.
+	// A directly attached target may already be in the OS neighbor cache too.
+	// In particular, the default gateway itself is reached through an on-link
+	// route, so treating cached entries as gateways only suppresses its SYN.
 	var unresolved []netip.Addr
 	for _, hop := range hops {
-		if gatewayHops[hop] {
-			byHop[hop] = cache(cfg.Interface, hop)
-		}
+		byHop[hop] = cache(cfg.Interface, hop)
 		if len(byHop[hop]) == 0 {
 			unresolved = append(unresolved, hop)
 		}
@@ -74,9 +69,9 @@ func resolveNextHopsWithLookup(ctx context.Context, cfg config.Config, io packet
 		}
 	}
 	// The kernel can populate its cache even when our BPF reader misses an ARP
-	// reply. Check unresolved gateways once more before suppressing SYN sends.
+	// reply. Check every unresolved next hop before suppressing SYN sends.
 	for _, hop := range unresolved {
-		if gatewayHops[hop] && len(byHop[hop]) == 0 {
+		if len(byHop[hop]) == 0 {
 			byHop[hop] = cache(cfg.Interface, hop)
 		}
 	}
@@ -151,16 +146,49 @@ func resolveARPBatch(parent context.Context, io packetio.PacketIO, sourceMAC net
 			return nil, fmt.Errorf("send ARP %s: %d/1 frames: %v", hop, n, err)
 		}
 	}
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
 	var readErr error
 	readerFinished := false
-	select {
-	case <-all:
-	case readErr = <-done:
-		readerFinished = true
-	case <-timer.C:
-	case <-parent.Done():
+	wait := func(duration time.Duration) bool {
+		timer := time.NewTimer(duration)
+		defer timer.Stop()
+		select {
+		case <-all:
+			return true
+		case readErr = <-done:
+			readerFinished = true
+		case <-timer.C:
+		case <-parent.Done():
+		}
+		return false
+	}
+	if !wait(timeout/2) && !readerFinished && parent.Err() == nil {
+		// ARP is lossy, and a single missed reply used to suppress every SYN
+		// routed through that hop. Retry only neighbors still unresolved.
+		mu.Lock()
+		retry := make([]netip.Addr, 0, len(pending))
+		for hop := range pending {
+			retry = append(retry, hop)
+		}
+		mu.Unlock()
+		for _, hop := range retry {
+			if err := limiter.WaitFor(ctx, hop); err != nil {
+				cancel()
+				<-done
+				return nil, err
+			}
+			frame, err := packet.ARPRequest(sourceMAC, sourceIP, hop)
+			if err != nil {
+				cancel()
+				<-done
+				return nil, err
+			}
+			if n, err := io.SendBatch(ctx, [][]byte{frame}); err != nil || n != 1 {
+				cancel()
+				<-done
+				return nil, fmt.Errorf("retry ARP %s: %d/1 frames: %v", hop, n, err)
+			}
+		}
+		wait(timeout / 2)
 	}
 	cancel()
 	if !readerFinished {

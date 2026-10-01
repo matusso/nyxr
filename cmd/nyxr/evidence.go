@@ -128,11 +128,11 @@ func emitStagePlan(out io.Writer, r config.Resolved, db string, asJSON bool, sty
 }
 
 // runPipeline uses pipeline.FromResolved, the mapping the API also uses.
-func runPipeline(out io.Writer, r config.Resolved, db string, open packetio.Opener, asJSON, openOnly bool, style *ui.Styler, bar *ui.Progress) error {
+func runPipeline(out io.Writer, r config.Resolved, db string, open packetio.Opener, asJSON, openOnly bool, style *ui.Styler, tally *scanTally) error {
 	ctx := context.Background()
 	opts := pipeline.FromResolved(r)
 	opts.OpenLive = open
-	opts.Sinks = append(opts.Sinks, progressSink{bar})
+	opts.Sinks = append(opts.Sinks, progressSink{tally})
 	if f := r.Service.NmapProbesFile; f != "" {
 		nm, err := nmapdb.LoadFile(f)
 		if err != nil {
@@ -348,9 +348,9 @@ func dash(s string) string {
 	return s
 }
 
-// progressSink advances the progress bar once per discovery result; service
-// and device records are follow-up work on results already counted.
-type progressSink struct{ bar *ui.Progress }
+// progressSink counts one task per discovery result; service and device
+// records are follow-up work on results already counted.
+type progressSink struct{ tally *scanTally }
 
 func (s progressSink) Begin(observe.Scan) error                    { return nil }
 func (s progressSink) PacketEvidence(observe.PacketEvidence) error { return nil }
@@ -358,7 +358,7 @@ func (s progressSink) Finish(observe.Scan) error                   { return nil 
 
 func (s progressSink) Observation(o observe.Observation) error {
 	if o.Kind == observe.KindHost || o.Kind == observe.KindPort {
-		s.bar.Step(o.State == "open" || o.State == "responsive")
+		s.tally.Step(o.State == "open" || o.State == "responsive")
 	}
 	return nil
 }

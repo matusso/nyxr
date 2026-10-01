@@ -12,7 +12,9 @@ func ARPRequest(sourceMAC net.HardwareAddr, sourceIP, neighbor netip.Addr) ([]by
 	if len(sourceMAC) != 6 || sourceMAC[0]&1 != 0 || !sourceIP.Is4() || !neighbor.Is4() {
 		return nil, errors.New("ARP requires a unicast source MAC and IPv4 addresses")
 	}
-	frame := make([]byte, 42)
+	// Ethernet requires at least 60 bytes before the NIC appends its FCS.
+	// BPF transmit paths do not consistently pad short user frames.
+	frame := make([]byte, 60)
 	for i := 0; i < 6; i++ {
 		frame[i] = 0xff
 	}

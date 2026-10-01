@@ -17,6 +17,7 @@ import (
 // validated object without inheriting command-line parsing behavior.
 type Config struct {
 	Targets       []netip.Addr
+	TargetStream  *TargetStream  // compact IPv4 ranges for large SYN scans
 	AllowTargets  []netip.Prefix // explicit CIDR/IP authorization for target policy
 	Ports         []uint16
 	TCP           bool
@@ -73,7 +74,7 @@ func (c Config) Validate() error {
 	if c.Research != nil {
 		return c.validateResearch()
 	}
-	if len(c.Targets) == 0 || (!c.TCP && !c.UDP && !c.ICMP && !c.ARP && !c.NDP) {
+	if c.TargetCount() == 0 || (!c.TCP && !c.UDP && !c.ICMP && !c.ARP && !c.NDP) {
 		return errors.New("at least one target and protocol are required")
 	}
 	if c.UDPMode != "" && c.UDPMode != UDPBasic && c.UDPMode != UDPCommon && c.UDPMode != UDPDeep {
@@ -84,6 +85,9 @@ func (c Config) Validate() error {
 	}
 	if c.Profile == "ot-safe" && len(c.AllowTargets) == 0 {
 		return errors.New("ot-safe requires --allow-targets")
+	}
+	if err := c.TargetStream.validateAllowed(c.AllowTargets); err != nil {
+		return err
 	}
 	for _, target := range c.Targets {
 		if len(c.AllowTargets) == 0 {

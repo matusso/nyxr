@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"sync"
 	"time"
 
@@ -95,7 +96,7 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 	now := time.Now()
 	summary := observe.Scan{
 		Schema: observe.SchemaVersion, Kind: observe.KindScan, ID: observe.NewScanID(now), Profile: cfg.Profile,
-		Started: now.UTC(), Status: "running", Targets: len(cfg.Targets),
+		Started: now.UTC(), Status: "running", Targets: cfg.TargetCount(),
 	}
 	for _, s := range opts.Sinks {
 		if err := s.Begin(summary); err != nil {
@@ -265,7 +266,11 @@ func startCapture(ctx context.Context, cfg config.Config, o CaptureOptions, open
 	if err != nil {
 		return nil, fmt.Errorf("packet capture on %s: %w", iface, err)
 	}
-	rec, err := capture.Start(ctx, src, capture.Options{Path: o.Path, Interface: iface, Targets: cfg.Targets, MaxBytes: o.MaxBytes})
+	var match func(netip.Addr) bool
+	if cfg.TargetStream != nil {
+		match = cfg.TargetStream.Contains
+	}
+	rec, err := capture.Start(ctx, src, capture.Options{Path: o.Path, Interface: iface, Targets: cfg.Targets, TargetMatch: match, MaxBytes: o.MaxBytes})
 	if err != nil {
 		_ = src.Close()
 		return nil, err

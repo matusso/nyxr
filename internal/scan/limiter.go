@@ -10,7 +10,7 @@ import (
 )
 
 // probeLimiter reserves one send slot across the configured scopes. State is
-// bounded by the configured targets and their subnet prefixes.
+// pruned after their reserved slots expire during streamed scans.
 type probeLimiter struct {
 	mu                                              sync.Mutex
 	globalRate, hostRate, subnetRate, interfaceRate int
@@ -95,3 +95,18 @@ func rateInterval(rate int) time.Duration {
 }
 
 func (l *probeLimiter) Close() {}
+
+func (l *probeLimiter) PruneExpired(now time.Time) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for target, next := range l.nextHost {
+		if !next.After(now) {
+			delete(l.nextHost, target)
+		}
+	}
+	for subnet, next := range l.nextSubnet {
+		if !next.After(now) {
+			delete(l.nextSubnet, subnet)
+		}
+	}
+}

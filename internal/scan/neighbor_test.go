@@ -72,7 +72,7 @@ func TestARPBatchCorrelatesRepliesAndSilence(t *testing.T) {
 	fake := &fakePacketIO{frames: make(chan []byte, 4), arpReplies: map[netip.Addr]net.HardwareAddr{first: mac}}
 	got, err := resolveARPBatch(context.Background(), fake, net.HardwareAddr{2, 1, 2, 3, 4, 5}, local,
 		[]netip.Addr{first, silent}, 200*time.Millisecond, newProbeLimiter(0))
-	if err != nil || fake.sent != 2 || string(got[first]) != string(mac) || len(got[silent]) != 0 {
+	if err != nil || fake.sent != 3 || string(got[first]) != string(mac) || len(got[silent]) != 0 {
 		t.Fatalf("ARP batch: %+v, sent %d, %v", got, fake.sent, err)
 	}
 }
@@ -101,6 +101,20 @@ func TestResolvedGatewayCacheSkipsARP(t *testing.T) {
 		if string(got[target]) != string(mac) {
 			t.Fatalf("target %s resolved to %v", target, got[target])
 		}
+	}
+}
+
+func TestCachedOnLinkNeighborSkipsARP(t *testing.T) {
+	local := netip.MustParseAddr("192.0.2.10")
+	target := netip.MustParseAddr("192.0.2.1")
+	mac := net.HardwareAddr{2, 6, 7, 8, 9, 10}
+	fake := &fakePacketIO{frames: make(chan []byte)}
+	got, err := resolveNextHopsWithLookup(context.Background(), config.Config{Interface: "en0", Targets: []netip.Addr{target}, Timeout: time.Second}, fake,
+		net.HardwareAddr{2, 1, 2, 3, 4, 5}, local, newProbeLimiter(0),
+		func(a netip.Addr) (netip.Addr, error) { return a, nil },
+		func(string, netip.Addr) net.HardwareAddr { return mac })
+	if err != nil || fake.sent != 0 || string(got[target]) != string(mac) {
+		t.Fatalf("cached direct neighbor: resolved=%v sent=%d err=%v", got[target], fake.sent, err)
 	}
 }
 
@@ -136,7 +150,7 @@ func TestGatewayCacheRecheckedAfterUnansweredARP(t *testing.T) {
 			}
 			return nil
 		})
-	if err != nil || fake.sent != 1 || calls != 2 || string(got[target]) != string(mac) {
+	if err != nil || fake.sent != 2 || calls != 2 || string(got[target]) != string(mac) {
 		t.Fatalf("cache recheck: resolved=%v sent=%d calls=%d err=%v", got[target], fake.sent, calls, err)
 	}
 }
