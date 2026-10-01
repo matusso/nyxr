@@ -27,7 +27,7 @@ func TestScanCustomUDPPayload(t *testing.T) {
 	}()
 	port := server.LocalAddr().(*net.UDPAddr).Port
 	var output bytes.Buffer
-	err = runScan([]string{"--protocols", "udp", "--ports", fmt.Sprint(port), "--send-hex", "01", "--rate", "0", "--json", "127.0.0.1"}, &output, ui.Plain(), progressOptions{})
+	err = runScan([]string{"--no-db", "--protocols", "udp", "--ports", fmt.Sprint(port), "--send-hex", "01", "--rate", "0", "--json", "127.0.0.1"}, &output, ui.Plain(), progressOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestScanUDPBasicSendsEmptyDatagram(t *testing.T) {
 		}
 	}()
 	var output bytes.Buffer
-	err = runScan([]string{"--profile", "udp-basic", "--ports", fmt.Sprint(server.LocalAddr().(*net.UDPAddr).Port),
+	err = runScan([]string{"--no-db", "--profile", "udp-basic", "--ports", fmt.Sprint(server.LocalAddr().(*net.UDPAddr).Port),
 		"--timeout", "200ms", "--rate", "0", "--json", "127.0.0.1"}, &output, ui.Plain(), progressOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -100,7 +100,7 @@ func TestScanImportedUDPPayload(t *testing.T) {
 		}
 	}()
 	var output bytes.Buffer
-	err = runScan([]string{"--profile", "udp-deep", "--ports", fmt.Sprint(port),
+	err = runScan([]string{"--no-db", "--profile", "udp-deep", "--ports", fmt.Sprint(port),
 		"--timeout", "100ms", "--udp-retries", "0", "--nmap-udp-probes", path, "--rate", "0", "--json", "127.0.0.1"}, &output, ui.Plain(), progressOptions{})
 	if err != nil {
 		t.Fatal(err)

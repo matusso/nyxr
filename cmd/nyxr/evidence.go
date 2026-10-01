@@ -54,7 +54,7 @@ type stageFlags struct {
 	nmapProbes      *string
 	pcapng          *string
 	pcapngMaxMB     *int
-	db              *string
+	db              dbFlags
 	fingerprint     *bool
 }
 
@@ -69,7 +69,10 @@ func addStageFlags(fs *flag.FlagSet) *stageFlags {
 	s.nmapProbes = fs.String("nmap-service-probes", "", "import this nmap-service-probes file for banner matching")
 	s.pcapng = fs.String("pcapng", "", "write packet evidence to this pcapng file")
 	s.pcapngMaxMB = fs.Int("pcapng-max-mb", -1, "pcapng size budget in MiB (default 1024)")
-	s.db = fs.String("db", "", "store results in this SQLite database")
+	s.db = dbFlags{
+		path: fs.String("db", "", "store results in this SQLite database (default ~/.nyxr/nyxr.db)"),
+		off:  fs.Bool("no-db", false, "do not store results"),
+	}
 	s.fingerprint = fs.Bool("fingerprint", false, "classify devices from independent observations")
 	return s
 }
@@ -149,7 +152,7 @@ func runPipeline(out io.Writer, r config.Resolved, db string, open packetio.Open
 	}
 	opts.Sinks = append(opts.Sinks, display)
 	if db != "" {
-		store, err := storage.Open(ctx, db)
+		store, err := openStore(ctx, db)
 		if err != nil {
 			return err
 		}
@@ -161,12 +164,12 @@ func runPipeline(out io.Writer, r config.Resolved, db string, open packetio.Open
 }
 
 func historyUsage(out io.Writer) {
-	fmt.Fprint(out, `Usage: nyxr history --db file [flags]
+	fmt.Fprint(out, `Usage: nyxr history [--db file] [flags]
 
 Without a selector, list stored scans (newest first).
 
 Flags:
-  --db file            SQLite database written by nyxr scan --db
+  --db file            SQLite database written by nyxr scan (default ~/.nyxr/nyxr.db)
   --scan id            print the observations and packet evidence of one scan
   --assets             print every address with the latest state of each port
   --unknown            print service observations with an unknown fingerprint
@@ -182,7 +185,7 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 	fs := flag.NewFlagSet("history", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.Usage = func() { historyUsage(out) }
-	dbFlag := fs.String("db", "", "SQLite database")
+	dbFlag := dbFlags{path: fs.String("db", "", "SQLite database")}
 	scanFlag := fs.String("scan", "", "scan ID")
 	assetsFlag := fs.Bool("assets", false, "list assets")
 	unknownFlag := fs.Bool("unknown", false, "list unknown fingerprints")
@@ -197,8 +200,12 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 		}
 		return err
 	}
-	if *dbFlag == "" || fs.NArg() != 0 {
-		return errors.New("history requires --db and no positional arguments")
+	if fs.NArg() != 0 {
+		return errors.New("history takes no positional arguments")
+	}
+	dbPath, err := dbFlag.resolve()
+	if err != nil {
+		return err
 	}
 	var addr netip.Addr
 	if *addressFlag != "" {
@@ -208,7 +215,7 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 		}
 	}
 	ctx := context.Background()
-	store, err := storage.Open(ctx, *dbFlag)
+	store, err := openStore(ctx, dbPath)
 	if err != nil {
 		return err
 	}

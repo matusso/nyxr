@@ -75,7 +75,8 @@ _nyxr() {
                         '--nmap-service-probes=[import an nmap-service-probes file for banner matching]:probes file:_files' \
                         '--pcapng=[write packet evidence to a pcapng file]:pcapng file:_files -g "*.pcapng"' \
                         '--pcapng-max-mb=[pcapng size budget in MiB]:MiB:' \
-                        '--db=[store results in a SQLite database]:database file:_files' \
+                        '--db=[SQLite database (default ~/.nyxr/nyxr.db)]:database file:_files' \
+                        '--no-db[do not store the scan]' \
                         '--json[newline-delimited JSON output]' \
                         '--dry-run[resolve and print the plan without sending packets]' \
                         '--fingerprint[classify devices from independent observations]' \
@@ -97,7 +98,7 @@ _nyxr() {
                     ;;
                 history)
                     _arguments \
-                        '--db=[SQLite database written by nyxr scan --db]:database file:_files' \
+                        '--db=[SQLite database written by nyxr scan]:database file:_files' \
                         '--scan=[print the observations and packet evidence of one scan]:scan id:' \
                         '--assets[print every address with the latest state of each port]' \
                         '--unknown[print service observations with an unknown fingerprint]' \

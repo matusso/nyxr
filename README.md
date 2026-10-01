@@ -64,10 +64,11 @@ nyxr scan --profile udp --ports 47808 --fingerprint --json 192.0.2.10
 nyxr scan --profile fast --ports top100 192.0.2.0/24
 nyxr scan --profile fast --ports top100 --open 192.0.2.0/24
 nyxr scan --profile udp-deep --dry-run 192.0.2.0/28
-nyxr scan --profile service --db nyxr.db 192.0.2.0/28
+nyxr scan --profile service 192.0.2.0/28
+nyxr scan --profile fast --no-db 192.0.2.0/24
 nyxr scan --profile web --json 192.0.2.10
 sudo nyxr scan --profile deep --interface eth0 --pcapng scan.pcapng 192.0.2.10
-nyxr history --db nyxr.db --assets
+nyxr history --assets
 nyxr profiles
 nyxr decode capture.pcap
 sudo nyxr sniff --interface eth0 --count 100
@@ -79,7 +80,7 @@ addresses. Ports accept commas and inclusive ranges
 (`80,443,8000-8100`) or a named set: `top100` for a curated list of common TCP
 ports, or `all` for `1-65535`. Use `--json` for newline-delimited observations.
 `--open` shows only open ports and responsive hosts, hiding closed and
-filtered results from text and JSON output; `--db` still stores everything.
+filtered results from text and JSON output; the database still stores everything.
 `--dry-run` resolves the configuration and prints the plan — profile, target
 count, ports, protocols, pacing and scheduled task count — without sending any
 packet; add `--json` for the machine-readable plan. UDP has three levels:
@@ -404,19 +405,21 @@ requires a local file and cannot be combined with a custom UDP payload.
 `ot-safe` never permits these UDP probes. Remote API requests may not name a
 server-side probes file.
 
-`--db file` stores the scan in SQLite through a cgo-free driver, so every
-release binary can open it. The schema is versioned with forward-only
-migrations, and a database from a newer nyxr is refused. It keeps scans,
-assets (address, first/last seen), observations with their full JSON record,
-evidence bytes in their own table, and the packet index. Writes are batched
-per transaction. Query and maintain it with `nyxr history`:
+Every scan is stored in SQLite at `~/.nyxr/nyxr.db` (the directory is created
+on first use; under `sudo` it belongs to the invoking user). `--db file` picks
+another database and `--no-db` stores nothing; `history` and `serve` use the
+same default. The cgo-free driver lets every release binary open it. The
+schema is versioned with forward-only migrations, and a database from a newer
+nyxr is refused. It keeps scans, assets (address, first/last seen),
+observations with their full JSON record, evidence bytes in their own table,
+and the packet index. Writes are batched per transaction. Query and maintain it with `nyxr history`:
 
 ```sh
-nyxr history --db nyxr.db                         # scans, newest first
-nyxr history --db nyxr.db --scan <scan-id>        # observations and packet evidence
-nyxr history --db nyxr.db --assets                # latest state and service per port
-nyxr history --db nyxr.db --unknown --json        # unknown fingerprints for signature work
-nyxr history --db nyxr.db --prune-older-than 720h # retention (or --keep 20)
+nyxr history                                      # scans, newest first
+nyxr history --scan <scan-id>                     # observations and packet evidence
+nyxr history --assets                             # latest state and service per port
+nyxr history --unknown --json                     # unknown fingerprints for signature work
+nyxr history --db lab.db --prune-older-than 720h  # retention (or --keep 20)
 ```
 
 Pruning deletes scans with their observations, evidence and packet index,
@@ -431,8 +434,8 @@ results, assets, services, profiles, live packet watching, packet editing and
 resending, packet evidence and pcapng download):
 
 ```sh
-nyxr serve --db nyxr.db                      # http://127.0.0.1:8484
-NYXR_API_TOKEN=$(openssl rand -hex 16) nyxr serve --db nyxr.db --listen 0.0.0.0:8484
+nyxr serve                                   # http://127.0.0.1:8484
+NYXR_API_TOKEN=$(openssl rand -hex 16) nyxr serve --listen 0.0.0.0:8484
 ```
 
 | Method and path | Purpose |

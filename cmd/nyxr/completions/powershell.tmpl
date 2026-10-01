@@ -59,7 +59,7 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
             if ($wordToComplete.StartsWith('-')) {
                 & $emit @('--profile', '--ports', '--protocols', '--timeout', '--rate', '--workers', '--udp-retries', '--tcp-mode', '--interface', '--source-ip', '--source-mac', '--next-hop-mac',
                     '--payload', '--send-hex', '--send-base64', '--payload-file', '--nmap-udp-probes', '--config',
-                    '--service', '--service-probes', '--service-fallback', '--service-timeout', '--service-workers', '--service-rate', '--nmap-service-probes', '--pcapng', '--pcapng-max-mb', '--db', '--allow-targets',
+                    '--service', '--service-probes', '--service-fallback', '--service-timeout', '--service-workers', '--service-rate', '--nmap-service-probes', '--pcapng', '--pcapng-max-mb', '--db', '--no-db', '--allow-targets',
                     '--fingerprint', '--packetd', '--json', '--dry-run', '--help') 'ParameterName'
             }
         }

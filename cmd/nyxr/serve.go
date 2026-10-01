@@ -16,18 +16,17 @@ import (
 
 	"github.com/matusso/nyxr/internal/api"
 	"github.com/matusso/nyxr/internal/packetd"
-	"github.com/matusso/nyxr/internal/storage"
 )
 
 func serveUsage(out io.Writer) {
-	fmt.Fprint(out, `Usage: nyxr serve --db file [flags]
+	fmt.Fprint(out, `Usage: nyxr serve [--db file] [flags]
 
 Serve the REST API, live scan events and the web UI. The server runs
 unprivileged; raw SYN, ARP/NDP and pcapng capture go through nyxr-packetd.
 
 Flags:
   --listen addr        listen address (default 127.0.0.1:8484)
-  --db file            SQLite database for scans and results (required)
+  --db file            SQLite database for scans and results (default ~/.nyxr/nyxr.db)
   --packetd socket     nyxr-packetd Unix socket for raw packet I/O
   --evidence-dir dir   directory for pcapng captures requested through the API
   --token-file file    require this bearer token (or set NYXR_API_TOKEN)
@@ -44,7 +43,7 @@ func runServe(args []string, out io.Writer) error {
 	fs.SetOutput(io.Discard)
 	fs.Usage = func() { serveUsage(out) }
 	listen := fs.String("listen", "127.0.0.1:8484", "listen address")
-	db := fs.String("db", "", "SQLite database")
+	dbFlag := dbFlags{path: fs.String("db", "", "SQLite database")}
 	packetdSocket := fs.String("packetd", "", "packetd socket")
 	evidenceDir := fs.String("evidence-dir", "", "pcapng directory")
 	tokenFile := fs.String("token-file", "", "bearer token file")
@@ -57,8 +56,12 @@ func runServe(args []string, out io.Writer) error {
 		}
 		return err
 	}
-	if *db == "" || fs.NArg() != 0 {
-		return errors.New("serve requires --db and no positional arguments")
+	if fs.NArg() != 0 {
+		return errors.New("serve takes no positional arguments")
+	}
+	db, err := dbFlag.resolve()
+	if err != nil {
+		return err
 	}
 	if *maxScans < 1 {
 		return errors.New("--max-scans must be at least 1")
@@ -96,7 +99,7 @@ func runServe(args []string, out io.Writer) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	store, err := storage.Open(ctx, *db)
+	store, err := openStore(ctx, db)
 	if err != nil {
 		return err
 	}

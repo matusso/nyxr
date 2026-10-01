@@ -160,7 +160,7 @@ func TestCLIAndAPIProduceEquivalentObservations(t *testing.T) {
 func TestServeRefusesUnsafeConfigurations(t *testing.T) {
 	db := filepath.Join(t.TempDir(), "x.db")
 	for name, args := range map[string][]string{
-		"no db":            {"serve"},
+		"positional":       {"serve", "extra"},
 		"remote, no token": {"serve", "--db", db, "--listen", "0.0.0.0:0"},
 		"short token file": {"serve", "--db", db, "--token-file", writeTemp(t, "short")},
 	} {
