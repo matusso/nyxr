@@ -15,7 +15,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/matusso/nyxr/internal/capture"
 	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/netmon"
 	"github.com/matusso/nyxr/internal/packet"
@@ -50,7 +49,7 @@ func run(args []string, out io.Writer) error {
 	case "profiles":
 		return runProfiles(args[1:], out, style)
 	case "decode":
-		return runDecode(args[1:], out)
+		return runDecode(args[1:], out, style)
 	case "sniff":
 		return runSniff(args[1:], out)
 	case "completion":
@@ -96,7 +95,7 @@ func usage(out io.Writer) error {
 Usage:
   nyxr scan [flags] target [target...]   run a scan
   nyxr profiles [--json]                 list scan profiles
-  nyxr decode capture.pcap[ng]           decode an Ethernet pcap or pcapng to JSON
+  nyxr decode [--tui] capture.pcap[ng]   summarize hosts and open ports, or browse packets
   nyxr sniff --interface eth0 [flags]    capture and decode live frames
   nyxr history [--db file] [flags]       list or query stored scans, assets and evidence
   nyxr probe import file [--json]        import and summarize an nmap-service-probes file
@@ -632,37 +631,6 @@ func timeoutText(d time.Duration) string {
 		return ""
 	}
 	return d.String()
-}
-
-func runDecode(args []string, out io.Writer) error {
-	if len(args) != 1 {
-		return errors.New("decode requires one pcap or pcapng file")
-	}
-	f, err := os.Open(args[0])
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	r, err := capture.NewReader(f)
-	if err != nil {
-		return err
-	}
-	decoder := packet.NewDecoder()
-	encoder := json.NewEncoder(out)
-	for {
-		data, err := r.Next()
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if decoded, ok := decoder.Decode(data); ok {
-			if err := encoder.Encode(decoded); err != nil {
-				return err
-			}
-		}
-	}
 }
 
 func runSniff(args []string, out io.Writer) error {

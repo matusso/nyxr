@@ -72,7 +72,8 @@ nyxr scan --profile web --json 192.0.2.10
 sudo nyxr scan --profile deep --interface eth0 --pcapng scan.pcapng 192.0.2.10
 nyxr history --assets
 nyxr profiles
-nyxr decode capture.pcap
+nyxr decode capture.pcapng          # hosts and open ports; --all, --packets, --json
+nyxr decode --tui capture.pcapng    # browse packets and their decoded headers
 sudo nyxr sniff --interface eth0 --count 100
 ```
 
@@ -389,7 +390,24 @@ budget (`--pcapng-max-mb`, default 1024) and backend drops are counted in the
 scan summary rather than silently lost. Timestamps are taken when user space
 receives a frame. ICMP errors with complete quoted UDP headers are indexed
 under the UDP target and port flow. `nyxr decode` reads
-these pcapng files as well as classic pcap.
+these pcapng files as well as classic pcap and prints the hosts and ports the
+replies prove open (SYN-ACK, UDP responses); `--all` adds closed (RST to a SYN,
+ICMP port unreachable) and filtered ports, `--packets` lists every decoded
+packet, and `--json` keeps the one-object-per-packet output.
+
+`nyxr decode --tui` opens an interactive packet browser in the terminal:
+the packet list on top, the selected packet's layers below (Frame, Ethernet,
+VLAN, ARP, IPv4/IPv6, TCP with its options, UDP, ICMP/ICMPv6 including the
+quoted header of errors, NDP and DNS), and a hex dump. Every field shows its
+value and a short note on what it means: a TTL hints at the sender's OS and
+hop distance, TCP flags say whether a reply means open or closed, an ICMP code
+tells closed from filtered. Selecting a field highlights its bytes in the hex
+dump. On nyxr's own pcapng files the browser also shows each frame's
+direction, evidence packet ID and comment. `/` filters by words that must all
+match (address, port, protocol, flag; `!word` excludes), Tab switches panes,
+Enter folds a layer, `n`/`p` step through packets, `x` toggles the hex dump
+and `?` lists every key. `--no-color` and `NO_COLOR` keep it monochrome, with
+reverse video for the selection.
 
 ### Nmap service-probe interoperability
 

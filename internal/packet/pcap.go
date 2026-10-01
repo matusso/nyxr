@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 )
 
 // PCAPReader supports classic Ethernet pcap in either byte order and both
@@ -12,6 +13,7 @@ import (
 type PCAPReader struct {
 	r     io.Reader
 	order binary.ByteOrder
+	nanos bool
 }
 
 func NewPCAPReader(r io.Reader) (*PCAPReader, error) {
@@ -34,25 +36,38 @@ func NewPCAPReader(r io.Reader) (*PCAPReader, error) {
 	if order.Uint32(header[20:24]) != 1 {
 		return nil, errors.New("pcap must contain Ethernet frames")
 	}
-	return &PCAPReader{r: r, order: order}, nil
+	nanos := header[1] == 0x3c || header[2] == 0x3c
+	return &PCAPReader{r: r, order: order, nanos: nanos}, nil
 }
 
 func (p *PCAPReader) Next() ([]byte, error) {
+	data, _, _, err := p.NextRecord()
+	return data, err
+}
+
+// NextRecord returns the next frame with its capture timestamp and original
+// (untruncated) length.
+func (p *PCAPReader) NextRecord() ([]byte, time.Time, int, error) {
 	var header [16]byte
 	n, err := io.ReadFull(p.r, header[:])
 	if err == io.EOF && n == 0 {
-		return nil, io.EOF
+		return nil, time.Time{}, 0, io.EOF
 	}
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, 0, err
 	}
 	length := p.order.Uint32(header[8:12])
 	if length > 16<<20 {
-		return nil, fmt.Errorf("pcap packet too large: %d bytes", length)
+		return nil, time.Time{}, 0, fmt.Errorf("pcap packet too large: %d bytes", length)
 	}
 	data := make([]byte, length)
 	if _, err := io.ReadFull(p.r, data); err != nil {
-		return nil, err
+		return nil, time.Time{}, 0, err
 	}
-	return data, nil
+	frac := int64(p.order.Uint32(header[4:8]))
+	if !p.nanos {
+		frac *= 1000
+	}
+	ts := time.Unix(int64(p.order.Uint32(header[0:4])), frac)
+	return data, ts, int(p.order.Uint32(header[12:16])), nil
 }
