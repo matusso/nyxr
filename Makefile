@@ -6,12 +6,14 @@ DIST    := dist
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
 GO      ?= go
+PREFIX  ?= /usr/local
+BINDIR  ?= $(PREFIX)/bin
 LDFLAGS := -s -w -X main.version=$(VERSION)
 PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 
 export CGO_ENABLED := 0
 
-.PHONY: all build test vet check fuzz benchmark cross package checksums clean help
+.PHONY: all build install uninstall test vet check fuzz benchmark cross package checksums clean help
 
 all: check build
 
@@ -19,6 +21,18 @@ all: check build
 build:
 	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) $(PKG)
 	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(PACKETD) $(PACKETD_PKG)
+
+## install: copy built binaries into $(DESTDIR)$(BINDIR) (run `make build` first)
+install:
+	@for f in $(BINARY) $(PACKETD); do \
+		[ -f $$f ] || { echo "$$f not built; run 'make build' first" >&2; exit 1; }; \
+	done
+	install -d $(DESTDIR)$(BINDIR)
+	install -m 0755 $(BINARY) $(PACKETD) $(DESTDIR)$(BINDIR)/
+
+## uninstall: remove installed binaries from $(DESTDIR)$(BINDIR)
+uninstall:
+	rm -f $(DESTDIR)$(BINDIR)/$(BINARY) $(DESTDIR)$(BINDIR)/$(PACKETD)
 
 ## test: run unit tests
 test:
