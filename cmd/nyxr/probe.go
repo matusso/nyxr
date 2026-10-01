@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/matusso/nyxr/internal/nmapdb"
+	"github.com/matusso/nyxr/internal/ui"
 )
 
 func probeUsage(out io.Writer) {
@@ -41,14 +42,14 @@ type probeSummary struct {
 	Warnings   []string `json:"warnings,omitempty"`
 }
 
-func runProbe(args []string, out io.Writer) error {
+func runProbe(args []string, out io.Writer, style *ui.Styler) error {
 	if len(args) == 0 {
 		probeUsage(out)
 		return errors.New("probe requires a subcommand (import)")
 	}
 	switch args[0] {
 	case "import":
-		return runProbeImport(args[1:], out)
+		return runProbeImport(args[1:], out, style)
 	case "help", "-h", "--help":
 		probeUsage(out)
 		return nil
@@ -57,7 +58,7 @@ func runProbe(args []string, out io.Writer) error {
 	}
 }
 
-func runProbeImport(args []string, out io.Writer) error {
+func runProbeImport(args []string, out io.Writer, style *ui.Styler) error {
 	fs := flag.NewFlagSet("probe import", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.Usage = func() { probeUsage(out) }
@@ -91,27 +92,28 @@ func runProbeImport(args []string, out io.Writer) error {
 	if *jsonFlag {
 		return json.NewEncoder(out).Encode(sum)
 	}
-	fmt.Fprintf(out, "source       %s\n", sum.Source)
-	fmt.Fprintf(out, "sha256       %s\n", sum.SHA256)
-	fmt.Fprintf(out, "probes       %d\n", sum.Probes)
-	fmt.Fprintf(out, "match rules  %d (%d softmatch)\n", sum.MatchRules, sum.SoftMatch)
-	fmt.Fprintf(out, "usable       %d\n", sum.Usable)
-	fmt.Fprintf(out, "skipped      %d (patterns RE2 cannot compile)\n", sum.Skipped)
-	fmt.Fprintf(out, "banner rules %d (NULL probe, used for --nmap-service-probes)\n", sum.NullRules)
-	fmt.Fprintf(out, "exclusions   %d\n", sum.Exclusions)
+	key := func(k string) string { return style.Key(fmt.Sprintf("%-12s", k)) + " " }
+	fmt.Fprintf(out, "%s%s\n", key("source"), sum.Source)
+	fmt.Fprintf(out, "%s%s\n", key("sha256"), style.Dim(sum.SHA256))
+	fmt.Fprintf(out, "%s%s\n", key("probes"), style.Bold(fmt.Sprintf("%d", sum.Probes)))
+	fmt.Fprintf(out, "%s%s %s\n", key("match rules"), style.Bold(fmt.Sprintf("%d", sum.MatchRules)), style.Dim(fmt.Sprintf("(%d softmatch)", sum.SoftMatch)))
+	fmt.Fprintf(out, "%s%s\n", key("usable"), style.Bold(fmt.Sprintf("%d", sum.Usable)))
+	fmt.Fprintf(out, "%s%s %s\n", key("skipped"), style.Bold(fmt.Sprintf("%d", sum.Skipped)), style.Dim("(patterns RE2 cannot compile)"))
+	fmt.Fprintf(out, "%s%s %s\n", key("banner rules"), style.Bold(fmt.Sprintf("%d", sum.NullRules)), style.Dim("(NULL probe, used for --nmap-service-probes)"))
+	fmt.Fprintf(out, "%s%d\n", key("exclusions"), sum.Exclusions)
 	if n := len(sum.Warnings); n > 0 {
 		shown := sum.Warnings
 		if n > 10 {
 			shown = shown[:10]
 		}
-		fmt.Fprintf(out, "warnings     %d\n", n)
+		fmt.Fprintf(out, "%s%s\n", key("warnings"), style.Yellow(fmt.Sprintf("%d", n)))
 		for _, w := range shown {
-			fmt.Fprintf(out, "  - %s\n", w)
+			fmt.Fprintf(out, "  %s %s\n", style.Yellow("-"), style.Dim(w))
 		}
 		if n > len(shown) {
-			fmt.Fprintf(out, "  ... and %d more\n", n-len(shown))
+			fmt.Fprintf(out, "  %s\n", style.Dim(fmt.Sprintf("... and %d more", n-len(shown))))
 		}
 	}
-	fmt.Fprintf(out, "\n%s\n", sum.License)
+	fmt.Fprintf(out, "\n%s\n", style.Dim(sum.License))
 	return nil
 }

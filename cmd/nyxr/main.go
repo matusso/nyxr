@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/matusso/nyxr/internal/capture"
@@ -19,6 +18,7 @@ import (
 	"github.com/matusso/nyxr/internal/packetd"
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/scan"
+	"github.com/matusso/nyxr/internal/ui"
 )
 
 var version = "dev"
@@ -34,14 +34,16 @@ func main() {
 }
 
 func run(args []string, out io.Writer) error {
+	args, noColor := extractNoColor(args)
+	style := ui.New(out, noColor)
 	if len(args) == 0 {
 		return usage(out)
 	}
 	switch args[0] {
 	case "scan":
-		return runScan(args[1:], out)
+		return runScan(args[1:], out, style, stderrProgress(out, noColor))
 	case "profiles":
-		return runProfiles(args[1:], out)
+		return runProfiles(args[1:], out, style)
 	case "decode":
 		return runDecode(args[1:], out)
 	case "sniff":
@@ -51,9 +53,9 @@ func run(args []string, out io.Writer) error {
 	case "serve":
 		return runServe(args[1:], out)
 	case "history":
-		return runHistory(args[1:], out)
+		return runHistory(args[1:], out, style)
 	case "probe":
-		return runProbe(args[1:], out)
+		return runProbe(args[1:], out, style)
 	case "version":
 		_, err := fmt.Fprintln(out, version)
 		return err
@@ -62,6 +64,25 @@ func run(args []string, out io.Writer) error {
 	default:
 		return fmt.Errorf("unknown command %q (try nyxr help)", args[0])
 	}
+}
+
+// extractNoColor pulls the global --no-color flag out of args, wherever it
+// appears, so every subcommand honors it without registering it on each
+// FlagSet. It returns the remaining args and whether color was disabled.
+func extractNoColor(args []string) ([]string, bool) {
+	disabled := false
+	kept := args[:0:0]
+	for _, a := range args {
+		switch a {
+		case "--no-color", "-no-color", "--no-color=true", "-no-color=true":
+			disabled = true
+			continue
+		case "--no-color=false", "-no-color=false":
+			continue
+		}
+		kept = append(kept, a)
+	}
+	return kept, disabled
 }
 
 func usage(out io.Writer) error {
@@ -78,6 +99,10 @@ Usage:
   nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
   nyxr version                           print the version
   nyxr help                              show this help
+
+Global flags:
+  --no-color    disable ANSI color (also honored: the NO_COLOR environment
+                variable; color is off automatically when output is not a tty)
 
 Targets may be IP addresses, hostnames, CIDRs, or inclusive A-B ranges.
 Run "nyxr scan -h" for scan flags, or "nyxr profiles" for profiles.
@@ -112,6 +137,7 @@ Flags:
   --config file         YAML scan configuration (flags override its fields)
   --json                newline-delimited JSON output
   --dry-run             resolve and print the plan without sending packets
+  --no-progress         hide the progress bar (shown on stderr when it is a tty)
   --allow-targets list  approved IP/CIDR targets (required for ot-safe)
   --research-kind name  tcp, udp, icmp, sctp or ip (research profile only)
   --ip-protocol n      IP protocol number for research IP scans
@@ -135,11 +161,34 @@ Service identification, evidence and storage:
   --pcapng-max-mb int   pcapng size budget (default 1024)
   --db file             store the scan, observations and evidence in SQLite
 
+Global:
+  --no-color            disable ANSI color (see also the NO_COLOR variable)
+
 Explicit flags override profile defaults and configuration-file fields.
 `)
 }
 
-func runScan(args []string, out io.Writer) error {
+// progressOptions say where a scan may draw its progress bar. The zero value
+// draws none, which is what tests and embedded callers get.
+type progressOptions struct {
+	w       io.Writer
+	noColor bool
+}
+
+// stderrProgress draws the bar on stderr, but only when the CLI writes its
+// results to a real file or terminal, never to a caller's buffer.
+func stderrProgress(out io.Writer, noColor bool) progressOptions {
+	if _, ok := out.(*os.File); !ok {
+		return progressOptions{}
+	}
+	return progressOptions{w: os.Stderr, noColor: noColor}
+}
+
+func (o progressOptions) start(tasks int, disabled bool) *ui.Progress {
+	return ui.NewProgress(o.w, tasks, o.w != nil && !disabled, ui.New(o.w, o.noColor))
+}
+
+func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOptions) error {
 	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.Usage = func() { scanUsage(out) }
@@ -166,6 +215,7 @@ func runScan(args []string, out io.Writer) error {
 	nmapUDPFlag := fs.String("nmap-udp-probes", "", "add UDP payloads from this nmap-service-probes file")
 	jsonFlag := fs.Bool("json", false, "newline-delimited JSON output")
 	dryRunFlag := fs.Bool("dry-run", false, "resolve and print the plan without scanning")
+	noProgressFlag := fs.Bool("no-progress", false, "hide the progress bar")
 	allowTargetsFlag := fs.String("allow-targets", "", "comma-separated approved IPs or CIDRs")
 	researchKindFlag := fs.String("research-kind", "", "tcp, udp, icmp, sctp or ip")
 	ipProtocolFlag := fs.String("ip-protocol", "", "IP protocol number")
@@ -243,106 +293,116 @@ func runScan(args []string, out io.Writer) error {
 		return err
 	}
 	if *dryRunFlag {
-		return emitStagePlan(out, resolved, *stages.db, *jsonFlag)
+		return emitStagePlan(out, resolved, *stages.db, *jsonFlag, style)
 	}
 	var open packetio.Opener
 	if *packetdFlag != "" {
 		open = packetd.Opener(*packetdFlag)
 	}
+	bar := progress.start(resolved.Config.Plan().Tasks, *noProgressFlag)
+	defer bar.Done()
+	out = bar.Wrap(out)
 	if resolved.UsesPipeline() || *stages.db != "" {
-		return runPipeline(out, resolved, *stages.db, open, *jsonFlag)
+		return runPipeline(out, resolved, *stages.db, open, *jsonFlag, style, bar)
 	}
 
 	encoder := json.NewEncoder(out)
 	return scan.RunWithIO(context.Background(), resolved.Config, func(o scan.Observation) error {
+		bar.Step(o.State == "open" || o.State == "responsive")
 		if *jsonFlag {
 			return encoder.Encode(o)
-		}
-		port := ""
-		if o.Port != 0 {
-			port = fmt.Sprintf(":%d", o.Port)
 		}
 		reason := o.Reason
 		if o.MAC != "" {
 			reason += " (MAC " + o.MAC + ")"
 		}
-		_, err := fmt.Fprintf(out, "%s%s %-5s %-14s %3d%% %s\n", o.Target, port, o.Transport, o.State, o.Confidence, reason)
+		_, err := fmt.Fprintln(out, style.Discovery(o.Target.String(), o.Port, o.Transport, o.State, o.Confidence, reason))
 		return err
 	}, open)
 }
 
-func emitPlan(out io.Writer, plan config.Plan, asJSON bool) error {
+func emitPlan(out io.Writer, plan config.Plan, asJSON bool, style *ui.Styler) error {
 	if asJSON {
 		return json.NewEncoder(out).Encode(plan)
 	}
-	fmt.Fprintf(out, "profile     %s\n", plan.Profile)
-	fmt.Fprintf(out, "targets     %d", plan.Targets)
+	// key colors an 11-wide label; a trailing space makes the 12-column gutter
+	// the original layout used, so plain output is unchanged.
+	key := func(k string) string { return style.Key(fmt.Sprintf("%-11s", k)) + " " }
+	row := func(k, format string, a ...any) {
+		fmt.Fprintf(out, "%s%s\n", key(k), fmt.Sprintf(format, a...))
+	}
+	row("profile", "%s", style.Bold(plan.Profile))
+	fmt.Fprintf(out, "%s%d", key("targets"), plan.Targets)
 	if len(plan.SampleTargets) > 0 {
-		fmt.Fprintf(out, " (%s", strings.Join(plan.SampleTargets, ", "))
-		if plan.Targets > len(plan.SampleTargets) {
-			fmt.Fprint(out, ", ...")
-		}
-		fmt.Fprint(out, ")")
+		fmt.Fprintf(out, " %s", style.Dim("("+strings.Join(plan.SampleTargets, ", ")+ellipsis(plan.Targets > len(plan.SampleTargets))+")"))
 	}
 	fmt.Fprintln(out)
 	if len(plan.AllowTargets) > 0 {
-		fmt.Fprintf(out, "allow       %s\n", strings.Join(plan.AllowTargets, ", "))
+		row("allow", "%s", strings.Join(plan.AllowTargets, ", "))
 	}
-	fmt.Fprintf(out, "protocols   %s\n", strings.Join(plan.Protocols, ", "))
+	row("protocols", "%s", strings.Join(plan.Protocols, ", "))
 	if plan.Ports > 0 {
-		fmt.Fprintf(out, "ports       %s\n", plan.PortSummary)
+		row("ports", "%s", plan.PortSummary)
 	}
-	fmt.Fprintf(out, "timeout     %s\n", plan.Timeout)
-	fmt.Fprintf(out, "rate        %s\n", rateText(plan.Rate))
+	row("timeout", "%s", plan.Timeout)
+	row("rate", "%s", rateText(plan.Rate))
 	if plan.HostRate > 0 {
-		fmt.Fprintf(out, "host-rate   %s\n", rateText(plan.HostRate))
+		row("host-rate", "%s", rateText(plan.HostRate))
 	}
 	if plan.SubnetRate > 0 {
-		fmt.Fprintf(out, "subnet-rate %s\n", rateText(plan.SubnetRate))
+		row("subnet-rate", "%s", rateText(plan.SubnetRate))
 	}
 	if plan.InterfaceRate > 0 {
-		fmt.Fprintf(out, "interface-rate %s\n", rateText(plan.InterfaceRate))
+		row("interface-rate", "%s", rateText(plan.InterfaceRate))
 	}
-	fmt.Fprintf(out, "workers     %d\n", plan.Workers)
-	fmt.Fprintf(out, "tcp-mode    %s\n", plan.TCPMode)
+	row("workers", "%d", plan.Workers)
+	row("tcp-mode", "%s", plan.TCPMode)
 	if plan.Interface != "" {
-		fmt.Fprintf(out, "interface   %s\n", plan.Interface)
+		row("interface", "%s", plan.Interface)
 	}
 	if plan.SourceIP != "" {
-		fmt.Fprintf(out, "source-ip   %s\n", plan.SourceIP)
+		row("source-ip", "%s", plan.SourceIP)
 	}
 	if plan.SourceMAC != "" {
-		fmt.Fprintf(out, "source-mac  %s\n", plan.SourceMAC)
+		row("source-mac", "%s", plan.SourceMAC)
 	}
 	if plan.NextHopMAC != "" {
-		fmt.Fprintf(out, "next-hop    %s\n", plan.NextHopMAC)
+		row("next-hop", "%s", plan.NextHopMAC)
 	}
 	if plan.Research != nil {
-		fmt.Fprintf(out, "research    %s, IP protocol %d, TCP flags 0x%02x, %d payload bytes\n", plan.Research.Kind, plan.Research.IPProtocol, plan.Research.TCPFlags, plan.Research.PayloadBytes)
+		row("research", "%s, IP protocol %d, TCP flags 0x%02x, %d payload bytes", plan.Research.Kind, plan.Research.IPProtocol, plan.Research.TCPFlags, plan.Research.PayloadBytes)
 		if plan.Research.FragmentSize != 0 {
-			fmt.Fprintf(out, "fragment    %d bytes\n", plan.Research.FragmentSize)
+			row("fragment", "%d bytes", plan.Research.FragmentSize)
 		}
 		if plan.Research.BadChecksum {
-			fmt.Fprintln(out, "checksum    deliberately invalid")
+			row("checksum", "%s", style.Yellow("deliberately invalid"))
 		}
 		if plan.Research.IPLength != 0 {
-			fmt.Fprintf(out, "ip-length   %d (override)\n", plan.Research.IPLength)
+			row("ip-length", "%d (override)", plan.Research.IPLength)
 		}
 	}
 	if plan.UDPRetries > 0 {
-		fmt.Fprintf(out, "udp-retries %d\n", plan.UDPRetries)
+		row("udp-retries", "%d", plan.UDPRetries)
 	}
 	if plan.UDPMode != "" {
-		fmt.Fprintf(out, "udp-mode    %s\n", plan.UDPMode)
+		row("udp-mode", "%s", plan.UDPMode)
 	}
 	if len(plan.UDPProbes) > 0 {
-		fmt.Fprintf(out, "udp-probes  %s\n", strings.Join(plan.UDPProbes, ", "))
+		row("udp-probes", "%s", strings.Join(plan.UDPProbes, ", "))
 	}
 	if plan.NmapUDPSource != "" {
-		fmt.Fprintf(out, "udp-db      %s (SHA-256 %s)\n", plan.NmapUDPSource, plan.NmapUDPSHA)
+		row("udp-db", "%s %s", plan.NmapUDPSource, style.Dim("(SHA-256 "+plan.NmapUDPSHA+")"))
 	}
-	fmt.Fprintf(out, "tasks       %d\n", plan.Tasks)
+	row("tasks", "%s", style.Bold(fmt.Sprintf("%d", plan.Tasks)))
 	return nil
+}
+
+// ellipsis returns ", ..." when there are more targets than the sample shows.
+func ellipsis(more bool) string {
+	if more {
+		return ", ..."
+	}
+	return ""
 }
 
 func rateText(rate int) string {
@@ -352,7 +412,7 @@ func rateText(rate int) string {
 	return fmt.Sprintf("%d/s", rate)
 }
 
-func runProfiles(args []string, out io.Writer) error {
+func runProfiles(args []string, out io.Writer, style *ui.Styler) error {
 	fs := flag.NewFlagSet("profiles", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	jsonFlag := fs.Bool("json", false, "JSON output")
@@ -363,16 +423,28 @@ func runProfiles(args []string, out io.Writer) error {
 	if *jsonFlag {
 		return json.NewEncoder(out).Encode(profiles)
 	}
-	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "PROFILE\tSTATUS\tDESCRIPTION")
+	rows := [][]string{{style.Header("PROFILE"), style.Header("STATUS"), style.Header("DESCRIPTION")}}
 	for _, p := range profiles {
 		desc := p.Description
 		if p.Availability == config.StatusPlanned {
 			desc = "planned: needs " + p.Requires
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\n", p.Name, p.Availability, desc)
+		rows = append(rows, []string{style.Bold(p.Name), availabilityText(style, string(p.Availability)), style.Dim(desc)})
 	}
-	return w.Flush()
+	return style.Table(out, rows)
+}
+
+// availabilityText colors a profile's availability: green when available,
+// yellow when planned.
+func availabilityText(style *ui.Styler, availability string) string {
+	switch availability {
+	case string(config.StatusAvailable):
+		return style.Green(availability)
+	case string(config.StatusPlanned):
+		return style.Yellow(availability)
+	default:
+		return availability
+	}
 }
 
 func first(values ...string) string {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/storage"
+	"github.com/matusso/nyxr/internal/ui"
 )
 
 // JSONSink writes newline-delimited records. The final line is the scan
@@ -22,28 +23,40 @@ func (s *JSONSink) Observation(o observe.Observation) error       { return s.enc
 func (s *JSONSink) PacketEvidence(p observe.PacketEvidence) error { return s.enc.Encode(p) }
 func (s *JSONSink) Finish(sc observe.Scan) error                  { return s.enc.Encode(sc) }
 
-// TextSink writes one line per record for terminals.
-type TextSink struct{ w io.Writer }
+// TextSink writes one line per record for terminals. When its Styler is
+// enabled it colors and aligns output; otherwise it emits nyxr's original
+// plain layout, so piped and stored output is byte-for-byte unchanged.
+type TextSink struct {
+	w     io.Writer
+	style *ui.Styler
+}
 
-func NewTextSink(w io.Writer) *TextSink { return &TextSink{w: w} }
+// NewTextSink writes plain text. Call WithStyle to enable color on a terminal.
+func NewTextSink(w io.Writer) *TextSink { return &TextSink{w: w, style: ui.Plain()} }
+
+// WithStyle sets the Styler used for coloring and returns the sink.
+func (s *TextSink) WithStyle(style *ui.Styler) *TextSink {
+	if style != nil {
+		s.style = style
+	}
+	return s
+}
 
 func (s *TextSink) Begin(observe.Scan) error { return nil }
 
 func (s *TextSink) Observation(o observe.Observation) error {
 	if o.Kind == observe.KindDevice {
-		_, err := fmt.Fprintf(s.w, "%s device %-20s %3d%% %d signals\n", o.Target, o.Attributes["device.class"], o.Confidence, len(o.Signals))
+		line := s.style.Device(o.Target.String(), o.Attributes["device.class"], o.Confidence, len(o.Signals))
+		_, err := fmt.Fprintln(s.w, line)
 		return err
-	}
-	port := ""
-	if o.Port != 0 {
-		port = fmt.Sprintf(":%d", o.Port)
 	}
 	if o.Kind != observe.KindService {
 		reason := o.Reason
 		if o.MAC != "" {
 			reason += " (MAC " + o.MAC + ")"
 		}
-		_, err := fmt.Fprintf(s.w, "%s%s %-5s %-14s %3d%% %s\n", o.Target, port, o.Transport, o.State, o.Confidence, reason)
+		line := s.style.Discovery(o.Target.String(), o.Port, o.Transport, o.State, o.Confidence, reason)
+		_, err := fmt.Fprintln(s.w, line)
 		return err
 	}
 	name := o.Service
@@ -73,36 +86,30 @@ func (s *TextSink) Observation(o observe.Observation) error {
 		details = append(details, fmt.Sprintf("title %q", title))
 	}
 	details = append(details, o.Reason)
-	_, err := fmt.Fprintf(s.w, "%s%s %-5s %-14s %3d%% %s\n", o.Target, port, o.Transport, "svc "+name, o.Confidence, strings.Join(details, " | "))
+	head := s.style.ServiceHead(o.Target.String(), o.Port, o.Transport, name, o.Confidence)
+	_, err := fmt.Fprintf(s.w, "%s %s\n", head, s.style.JoinDetails(details))
 	return err
 }
 
 func (s *TextSink) PacketEvidence(p observe.PacketEvidence) error {
-	port := ""
-	if p.Port != 0 {
-		port = fmt.Sprintf(":%d", p.Port)
-	}
 	ids := make([]string, 0, len(p.Packets))
 	for _, pkt := range p.Packets {
 		ids = append(ids, fmt.Sprint(pkt.ID))
 	}
-	more := ""
-	if p.Truncated {
-		more = " (index truncated)"
-	}
-	_, err := fmt.Fprintf(s.w, "%s%s %-5s evidence       %d packets in %s: %s%s\n", p.Target, port, p.Transport, len(p.Packets), p.Capture, strings.Join(ids, ","), more)
+	line := s.style.Evidence(p.Target.String(), p.Port, p.Transport, len(p.Packets), p.Capture, strings.Join(ids, ","), p.Truncated)
+	_, err := fmt.Fprintln(s.w, line)
 	return err
 }
 
 func (s *TextSink) Finish(sc observe.Scan) error {
-	line := fmt.Sprintf("scan %s %s: %d observations, %d services identified", sc.ID, sc.Status, sc.Observations, sc.Services)
+	tail := ""
 	if c := sc.Capture; c != nil {
-		line += fmt.Sprintf("; captured %d packets to %s", c.Written, c.Path)
+		tail = fmt.Sprintf("; captured %d packets to %s", c.Written, c.Path)
 		if drops := c.DroppedQueue + c.DroppedLimit + c.BackendDrops; drops > 0 {
-			line += fmt.Sprintf(" (%d dropped)", drops)
+			tail += fmt.Sprintf(" (%d dropped)", drops)
 		}
 	}
-	_, err := fmt.Fprintln(s.w, line)
+	_, err := fmt.Fprintln(s.w, s.style.ScanSummary(sc.ID, sc.Status, sc.Observations, sc.Services, tail))
 	return err
 }
 
