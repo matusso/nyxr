@@ -5,6 +5,7 @@ go 1.27.1
 require (
 	github.com/gopacket/gopacket v1.7.3
 	github.com/mattn/go-isatty v0.0.24
+	golang.org/x/term v0.46.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.60.1
 )
