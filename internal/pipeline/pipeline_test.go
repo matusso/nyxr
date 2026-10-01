@@ -21,6 +21,7 @@ import (
 	"github.com/gopacket/gopacket/layers"
 
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/nmapdb"
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/scan"
@@ -87,8 +88,12 @@ func TestNmapServiceProbesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	db, err := nmapdb.LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var out bytes.Buffer
-	summary, err := Run(context.Background(), cfg, Options{Service: svc, Sinks: []Sink{NewJSONSink(&out)}})
+	summary, err := Run(context.Background(), cfg, Options{Service: svc, Nmap: db, Sinks: []Sink{NewJSONSink(&out)}})
 	if err != nil {
 		t.Fatal(err)
 	}

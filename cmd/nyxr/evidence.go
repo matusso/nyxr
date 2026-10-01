@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/nmapdb"
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/pipeline"
@@ -130,6 +131,13 @@ func runPipeline(out io.Writer, r config.Resolved, db string, open packetio.Open
 	ctx := context.Background()
 	opts := pipeline.FromResolved(r)
 	opts.OpenLive = open
+	if f := r.Service.NmapProbesFile; f != "" {
+		nm, err := nmapdb.LoadFile(f)
+		if err != nil {
+			return fmt.Errorf("nmap-service-probes: %w", err)
+		}
+		opts.Nmap = nm
+	}
 	if asJSON {
 		opts.Sinks = append(opts.Sinks, pipeline.NewJSONSink(out))
 	} else {

@@ -39,9 +39,9 @@ type Service struct {
 	Timeout  time.Duration
 	Workers  int
 	Rate     int
-	// NmapProbesFile is an optional nmap-service-probes file. The pipeline
-	// compiles it and hands the database to the engine; it is empty unless the
-	// nmap probe is in use. Remote requests may not set it.
+	// NmapProbesFile is an optional nmap-service-probes file. The local CLI
+	// compiles it into pipeline.Options.Nmap; it is empty unless the nmap
+	// probe is in use. Remote requests may not set it.
 	NmapProbesFile string
 }
 
