@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/matusso/nyxr/internal/capture"
@@ -142,6 +143,7 @@ Flags:
   --json                newline-delimited JSON output
   --dry-run             resolve and print the plan without sending packets
   --no-progress         hide the progress bar (shown on stderr when it is a tty)
+  --no-summary          hide the closing statistics (time, tasks, rate, workers, packets) on stderr
   --open                show only open ports and responsive hosts (--db still stores all)
   --allow-targets list  approved IP/CIDR targets (required for ot-safe)
   --research-kind name  tcp, udp, icmp, sctp or ip (research profile only)
@@ -193,22 +195,86 @@ func (o progressOptions) start(tasks int, disabled bool) *ui.Progress {
 	return ui.NewProgress(o.w, tasks, o.w != nil && !disabled, ui.New(o.w, o.noColor))
 }
 
-// monitorTraffic shows interface traffic under the bar: the scan's raw
-// interface when one is set, loopback when every target is local, and
-// otherwise the sum over every interface that is up.
+// trafficDevice picks the interface whose traffic a scan reports: the scan's
+// raw interface when one is set, loopback when every target is local, and
+// otherwise "" for the sum over every interface that is up. label names it.
+func trafficDevice(cfg config.Config) (device, label string) {
+	device = cfg.Interface
+	if device == "" && allLoopback(cfg.Targets) {
+		device = loopbackInterface()
+	}
+	label = device
+	if label == "" {
+		label = "all interfaces"
+	}
+	return device, label
+}
+
+// monitorTraffic shows the traffic of trafficDevice under the bar.
 func monitorTraffic(bar *ui.Progress, cfg config.Config) {
 	if !bar.Enabled() {
 		return
 	}
-	device := cfg.Interface
-	if device == "" && allLoopback(cfg.Targets) {
-		device = loopbackInterface()
-	}
-	label := device
-	if label == "" {
-		label = "all interfaces"
-	}
+	device, label := trafficDevice(cfg)
 	bar.Monitor(label, func() (netmon.Counters, error) { return netmon.Read(device) })
+}
+
+// scanTally counts finished tasks for the closing summary and advances the
+// progress bar, which keeps no counts while it is disabled.
+type scanTally struct {
+	bar         *ui.Progress
+	done, found atomic.Int64
+}
+
+func (t *scanTally) Step(found bool) {
+	t.done.Add(1)
+	if found {
+		t.found.Add(1)
+	}
+	t.bar.Step(found)
+}
+
+// scanSummary measures a scan from start to the call of its print method.
+type scanSummary struct {
+	w       io.Writer
+	style   *ui.Styler
+	tally   *scanTally
+	cfg     config.Config
+	planned int
+	start   time.Time
+	device  string
+	label   string
+	before  netmon.Counters
+	netOK   bool
+}
+
+func startSummary(w io.Writer, style *ui.Styler, tally *scanTally, cfg config.Config, planned int) *scanSummary {
+	s := &scanSummary{w: w, style: style, tally: tally, cfg: cfg, planned: planned, start: time.Now()}
+	s.device, s.label = trafficDevice(cfg)
+	c, err := netmon.Read(s.device)
+	s.before, s.netOK = c, err == nil
+	return s
+}
+
+func (s *scanSummary) print(failed bool) {
+	if s == nil || s.w == nil {
+		return
+	}
+	st := ui.RunStats{
+		Elapsed: time.Since(s.start), Tasks: int(s.tally.done.Load()), Planned: s.planned,
+		Found: int(s.tally.found.Load()), Workers: s.cfg.Workers, Failed: failed, Interface: s.label,
+	}
+	if s.netOK {
+		if after, err := netmon.Read(s.device); err == nil && after.TxPackets >= s.before.TxPackets && after.RxPackets >= s.before.RxPackets &&
+			after.TxBytes >= s.before.TxBytes && after.RxBytes >= s.before.RxBytes {
+			st.Traffic = netmon.Counters{
+				TxPackets: after.TxPackets - s.before.TxPackets, RxPackets: after.RxPackets - s.before.RxPackets,
+				TxBytes: after.TxBytes - s.before.TxBytes, RxBytes: after.RxBytes - s.before.RxBytes,
+			}
+			st.HasTraffic = true
+		}
+	}
+	fmt.Fprint(s.w, s.style.RunSummary(st))
 }
 
 func allLoopback(targets []netip.Addr) bool {
@@ -258,6 +324,7 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	jsonFlag := fs.Bool("json", false, "newline-delimited JSON output")
 	dryRunFlag := fs.Bool("dry-run", false, "resolve and print the plan without scanning")
 	noProgressFlag := fs.Bool("no-progress", false, "hide the progress bar")
+	noSummaryFlag := fs.Bool("no-summary", false, "hide the closing scan statistics")
 	openFlag := fs.Bool("open", false, "show only open ports and responsive hosts")
 	allowTargetsFlag := fs.String("allow-targets", "", "comma-separated approved IPs or CIDRs")
 	researchKindFlag := fs.String("research-kind", "", "tcp, udp, icmp, sctp or ip")
@@ -342,21 +409,32 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	if *packetdFlag != "" {
 		open = packetd.Opener(*packetdFlag)
 	}
-	bar := progress.start(resolved.Config.Plan().Tasks, *noProgressFlag)
-	defer bar.Done()
+	planned := resolved.Config.Plan().Tasks
+	bar := progress.start(planned, *noProgressFlag)
 	monitorTraffic(bar, resolved.Config)
-	out = bar.Wrap(out)
-	if resolved.UsesPipeline() || *stages.db != "" {
-		return runPipeline(out, resolved, *stages.db, open, *jsonFlag, *openFlag, style, bar)
+	tally := &scanTally{bar: bar}
+	var summary *scanSummary
+	if progress.w != nil && !*noSummaryFlag {
+		summary = startSummary(progress.w, ui.New(progress.w, progress.noColor), tally, resolved.Config, planned)
+	}
+	err = runResolved(bar.Wrap(out), resolved, *stages.db, open, *jsonFlag, *openFlag, style, tally)
+	bar.Done()
+	summary.print(err != nil)
+	return err
+}
+
+func runResolved(out io.Writer, resolved config.Resolved, db string, open packetio.Opener, asJSON, openOnly bool, style *ui.Styler, tally *scanTally) error {
+	if resolved.UsesPipeline() || db != "" {
+		return runPipeline(out, resolved, db, open, asJSON, openOnly, style, tally)
 	}
 
 	encoder := json.NewEncoder(out)
 	return scan.RunWithIO(context.Background(), resolved.Config, func(o scan.Observation) error {
-		bar.Step(o.State == "open" || o.State == "responsive")
-		if *openFlag && !pipeline.IsOpen(o.State) {
+		tally.Step(o.State == "open" || o.State == "responsive")
+		if openOnly && !pipeline.IsOpen(o.State) {
 			return nil
 		}
-		if *jsonFlag {
+		if asJSON {
 			return encoder.Encode(o)
 		}
 		reason := o.Reason
