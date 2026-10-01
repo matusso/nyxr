@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/matusso/nyxr/internal/nmapdb"
 	"github.com/matusso/nyxr/internal/probe"
 )
 
@@ -33,6 +34,7 @@ type Options struct {
 	InterfaceRate *int
 	Workers       *int
 	UDPRetries    *int
+	NmapUDPProbes string // local nmap-service-probes file for port-directed UDP requests
 	Payload       PayloadSource
 	TCPMode       string
 	Interface     string
@@ -191,6 +193,26 @@ func Build(o Options) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	var nmapUDPSHA string
+	if o.NmapUDPProbes != "" {
+		if !udp || len(udpProbes) != 0 {
+			return Config{}, errors.New("Nmap UDP probes require UDP scanning without a custom payload")
+		}
+		db, err := nmapdb.LoadFile(o.NmapUDPProbes)
+		if err != nil {
+			return Config{}, fmt.Errorf("nmap UDP probes: %w", err)
+		}
+		nmapUDPSHA = db.SHA256
+		udpProbes, err = probe.Builtins()
+		if err != nil {
+			return Config{}, err
+		}
+		imported, err := probe.FromNmapUDP(db, ports)
+		if err != nil {
+			return Config{}, err
+		}
+		udpProbes = append(udpProbes, imported...)
+	}
 	mode := first(o.TCPMode, "connect")
 	var sourceIP netip.Addr
 	if o.SourceIP != "" {
@@ -231,7 +253,7 @@ func Build(o Options) (Config, error) {
 		Targets: targets, AllowTargets: allowTargets, Ports: ports, TCP: tcp, UDP: udp, ICMP: icmp, ARP: arp, NDP: ndp,
 		Timeout: timeout, Rate: rate, HostRate: valueOr(o.HostRate, 0), SubnetRate: valueOr(o.SubnetRate, 0),
 		InterfaceRate: valueOr(o.InterfaceRate, 0), Workers: workers, Profile: name,
-		UDPProbes: udpProbes, UDPRetries: retries,
+		UDPProbes: udpProbes, UDPRetries: retries, NmapUDPSource: o.NmapUDPProbes, NmapUDPSHA: nmapUDPSHA,
 		TCPMode: mode, Interface: o.Interface, SourceIP: sourceIP, SourceMAC: sourceMAC, NextHopMAC: nextHopMAC,
 	}
 	if err := cfg.Validate(); err != nil {

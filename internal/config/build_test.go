@@ -140,6 +140,17 @@ func TestBuildPayloadRequiresUDP(t *testing.T) {
 	}
 }
 
+func TestBuildNmapUDPRequiresUDPAndNoCustomPayload(t *testing.T) {
+	for _, o := range []Options{
+		{Targets: []string{"192.0.2.1"}, Profile: "tcp", NmapUDPProbes: "unused"},
+		{Targets: []string{"192.0.2.1"}, Profile: "udp", NmapUDPProbes: "unused", Payload: PayloadSource{SendHex: "01"}},
+	} {
+		if _, err := Build(o); err == nil || !strings.Contains(err.Error(), "Nmap UDP probes require UDP") {
+			t.Fatalf("invalid Nmap UDP options accepted: %v", err)
+		}
+	}
+}
+
 func TestBuildPayloadOneSource(t *testing.T) {
 	_, err := Build(Options{
 		Targets: []string{"192.0.2.1"}, Profile: "udp",

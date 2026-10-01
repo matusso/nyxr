@@ -108,6 +108,7 @@ Flags:
   --send-hex string     custom UDP payload as hex
   --send-base64 string  custom UDP payload as base64
   --payload-file file   custom raw UDP payload file
+  --nmap-udp-probes f   add port-directed UDP payloads from a local Nmap probe file
   --config file         YAML scan configuration (flags override its fields)
   --json                newline-delimited JSON output
   --dry-run             resolve and print the plan without sending packets
@@ -162,6 +163,7 @@ func runScan(args []string, out io.Writer) error {
 	hexFlag := fs.String("send-hex", "", "custom UDP payload in hex")
 	base64Flag := fs.String("send-base64", "", "custom UDP payload in base64")
 	fileFlag := fs.String("payload-file", "", "custom raw UDP payload file")
+	nmapUDPFlag := fs.String("nmap-udp-probes", "", "add port-directed UDP payloads from this nmap-service-probes file")
 	jsonFlag := fs.Bool("json", false, "newline-delimited JSON output")
 	dryRunFlag := fs.Bool("dry-run", false, "resolve and print the plan without scanning")
 	allowTargetsFlag := fs.String("allow-targets", "", "comma-separated approved IPs or CIDRs")
@@ -210,6 +212,7 @@ func runScan(args []string, out io.Writer) error {
 	req.InterfaceRate = mergeInt(*interfaceRateFlag, req.InterfaceRate)
 	req.Workers = mergeInt(*workersFlag, req.Workers)
 	req.UDPRetries = mergeInt(*udpRetriesFlag, req.UDPRetries)
+	req.NmapUDPProbes = first(*nmapUDPFlag, req.NmapUDPProbes)
 	req.ResearchKind = first(*researchKindFlag, req.ResearchKind)
 	req.IPProtocol = first(*ipProtocolFlag, req.IPProtocol)
 	req.TCPFlags = first(*tcpFlagsFlag, req.TCPFlags)
@@ -331,6 +334,9 @@ func emitPlan(out io.Writer, plan config.Plan, asJSON bool) error {
 	}
 	if len(plan.UDPProbes) > 0 {
 		fmt.Fprintf(out, "udp-probes  %s\n", strings.Join(plan.UDPProbes, ", "))
+	}
+	if plan.NmapUDPSource != "" {
+		fmt.Fprintf(out, "udp-db      %s (SHA-256 %s)\n", plan.NmapUDPSource, plan.NmapUDPSHA)
 	}
 	fmt.Fprintf(out, "tasks       %d\n", plan.Tasks)
 	return nil

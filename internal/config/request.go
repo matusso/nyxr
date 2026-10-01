@@ -28,6 +28,7 @@ type Request struct {
 	Workers         *int     `yaml:"workers" json:"workers,omitempty"`
 	Profile         string   `yaml:"profile" json:"profile,omitempty"`
 	UDPRetries      *int     `yaml:"udp_retries" json:"udp_retries,omitempty"`
+	NmapUDPProbes   string   `yaml:"nmap_udp_probes" json:"nmap_udp_probes,omitempty"`
 	UDPProbeFile    string   `yaml:"udp_probe_file" json:"udp_probe_file,omitempty"`
 	SendHex         string   `yaml:"send_hex" json:"send_hex,omitempty"`
 	SendBase64      string   `yaml:"send_base64" json:"send_base64,omitempty"`
@@ -134,7 +135,7 @@ func (r Request) Resolve(o ResolveOptions) (Resolved, error) {
 		if r.Profile == "research" {
 			return Resolved{}, errors.New("research packet experiments require a local CLI request")
 		}
-		if r.UDPProbeFile != "" || r.PayloadFile != "" {
+		if r.UDPProbeFile != "" || r.PayloadFile != "" || r.NmapUDPProbes != "" {
 			return Resolved{}, errors.New("remote requests cannot read server files; use send_hex or send_base64")
 		}
 		if r.NmapServiceProbes != "" {
@@ -153,7 +154,7 @@ func (r Request) Resolve(o ResolveOptions) (Resolved, error) {
 	cfg, err := Build(Options{
 		Targets: r.Targets, AllowTargets: r.AllowTargets, Profile: r.Profile, Ports: r.Ports, Protocols: r.Protocols,
 		Timeout: r.Timeout, Rate: r.Rate, HostRate: r.HostRate, SubnetRate: r.SubnetRate, InterfaceRate: r.InterfaceRate,
-		Workers: r.Workers, UDPRetries: r.UDPRetries,
+		Workers: r.Workers, UDPRetries: r.UDPRetries, NmapUDPProbes: r.NmapUDPProbes,
 		Payload: PayloadSource{ProbeFile: r.UDPProbeFile, SendHex: r.SendHex, SendBase64: r.SendBase64,
 			PayloadFile: r.PayloadFile, BaseDir: o.BaseDir},
 		TCPMode: r.TCPMode, Interface: r.Interface, SourceIP: r.SourceIP, SourceMAC: r.SourceMAC, NextHopMAC: r.NextHopMAC,

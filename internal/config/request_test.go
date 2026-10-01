@@ -47,6 +47,7 @@ func TestRemoteRequestCannotNameServerFiles(t *testing.T) {
 	for name, mutate := range map[string]func(*Request){
 		"probe file":   func(r *Request) { r.UDPProbeFile = "/etc/passwd" },
 		"payload file": func(r *Request) { r.PayloadFile = "/etc/shadow" },
+		"UDP probe DB": func(r *Request) { r.NmapUDPProbes = "/etc/nmap-service-probes" },
 		"pcapng path":  func(r *Request) { r.PCAPNG = "../../tmp/x.pcapng" },
 		"pcapng abs":   func(r *Request) { r.PCAPNG = "/tmp/x.pcapng" },
 		"pcapng dot":   func(r *Request) { r.PCAPNG = ".x.pcapng" },

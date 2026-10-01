@@ -33,6 +33,8 @@ type Config struct {
 	Profile       string
 	UDPProbes     []probe.Probe
 	UDPRetries    int
+	NmapUDPSource string // local source path for imported UDP payloads
+	NmapUDPSHA    string // SHA-256 of the imported file
 	TCPMode       string // connect (default) or syn
 	Interface     string // required for raw Ethernet SYN scans
 	SourceIP      netip.Addr
