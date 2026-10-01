@@ -61,7 +61,7 @@ type stageFlags struct {
 func addStageFlags(fs *flag.FlagSet) *stageFlags {
 	s := &stageFlags{}
 	fs.Var(&s.service, "service", "run deep service probes on open TCP ports")
-	s.serviceProbes = fs.String("service-probes", "", "comma list of banner, ssh, tls, http, dns, modbus, ethernetip")
+	s.serviceProbes = fs.String("service-probes", "", "comma list of banner, ssh, tls, http, dns, socks, modbus, ethernetip")
 	s.serviceFallback = fs.String("service-fallback", "", "probes for unhinted silent ports, or none")
 	s.serviceTimeout = fs.Duration("service-timeout", 0, "upper bound for each service probe")
 	s.serviceWorkers = fs.Int("service-workers", -1, "concurrent service probe workers")

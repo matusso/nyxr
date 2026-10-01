@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: ike-main-mode
+transport: udp
+ports: [500]
+tags: [ike, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "1122334455667788000000000000000001100200000000000000004c00000030000000010000000100000024010100010000001c0101000080010007800200028003000180040002800e0080"
+timeout: 1s
+match:
+  - type: ike

@@ -104,7 +104,7 @@ func (d Definition) Compile(baseDir string) (Probe, error) {
 	if matcher != "dns" && matcher != "ntp" && matcher != "snmp" && matcher != "snmpv3" && matcher != "any" &&
 		matcher != "stun" && matcher != "tftp" && matcher != "ssdp" && matcher != "sip" && matcher != "coap" &&
 		matcher != "bacnet" && matcher != "bacnet-read" && matcher != "bacnet-fdt" &&
-		matcher != "rpc" && matcher != "memcached" {
+		matcher != "rpc" && matcher != "memcached" && !extraMatcher(matcher) {
 		return Probe{}, fmt.Errorf("unsupported matcher %q", matcher)
 	}
 	var payload []byte
@@ -133,17 +133,20 @@ func (d Definition) Compile(baseDir string) (Probe, error) {
 	if err != nil {
 		return Probe{}, err
 	}
-	if len(payload) == 0 || len(payload) > maxPayload {
-		return Probe{}, fmt.Errorf("payload must contain 1..%d bytes", maxPayload)
+	if (len(payload) == 0 && matcher != "any") || len(payload) > maxPayload {
+		return Probe{}, fmt.Errorf("payload must contain 1..%d bytes (except a NULL probe)", maxPayload)
 	}
 	if matcher == "dns" && (len(payload) < 12 || payload[2]&0xf8 != 0 || binary.BigEndian.Uint16(payload[4:6]) == 0) {
 		return Probe{}, errors.New("DNS matcher requires a standard query with a question")
 	}
-	if matcher == "ntp" && (len(payload) < 48 || payload[0]&7 != 3) {
+	if matcher == "ntp" && (len(payload) < 48 || payload[0]&7 != 3 || payload[0]>>3&7 < 2 || payload[0]>>3&7 > 4) {
 		return Probe{}, errors.New("NTP matcher requires a client-mode request")
 	}
-	if matcher == "snmp" && (len(payload) < 21 || payload[0] != 0x30 || payload[13] != 0xa0 || payload[15] != 0x02 || payload[16] != 0x04) {
-		return Probe{}, errors.New("SNMP matcher requires a v2c GET template with a four-byte request ID")
+	if matcher == "snmp" {
+		_, _, ok := snmpRequestIDOffset(payload, 1)
+		if !ok {
+			return Probe{}, errors.New("SNMP matcher requires a v2c GET template with a four-byte request ID")
+		}
 	}
 	if matcher == "snmpv3" && !bytes.Equal(payload, snmpV3DiscoveryTemplate) {
 		return Probe{}, errors.New("SNMPv3 matcher requires a noAuthNoPriv engine discovery template")
@@ -182,7 +185,10 @@ func (d Definition) Compile(baseDir string) (Probe, error) {
 	if matcher == "memcached" && !bytes.Equal(payload, []byte("\x00\x00\x00\x00\x00\x01\x00\x00version\r\n")) {
 		return Probe{}, errors.New("memcached matcher requires a UDP version request")
 	}
-	allowed := map[string]string{"dns.rcode": "dns", "ntp.stratum": "ntp", "stun.message_type": "stun",
+	if err := validateExtra(matcher, payload); err != nil {
+		return Probe{}, err
+	}
+	allowed := map[string]string{"dns.rcode": "dns", "dns.txt": "dns", "cldap.attributes": "cldap", "ntp.stratum": "ntp", "stun.message_type": "stun",
 		"tftp.error_code": "tftp", "ssdp.server": "ssdp", "sip.status": "sip", "coap.code": "coap",
 		"bacnet.device_id": "bacnet", "bacnet.vendor_id": "bacnet", "bacnet.fdt_entries": "bacnet-fdt",
 		"snmp.engine_id": "snmpv3"}
@@ -236,7 +242,12 @@ func Builtins() ([]Probe, error) {
 // ForPort selects requests associated with a port for the common UDP profile.
 func ForPort(all []Probe, port uint16) []Probe {
 	selected := make([]Probe, 0, 2)
+	var nullProbe Probe
 	for _, p := range all {
+		if p.Matcher == "any" && len(p.Payload) == 0 {
+			nullProbe = p
+			continue
+		}
 		if len(p.Ports) == 0 {
 			if !p.PortsDeclared {
 				selected = append(selected, p)
@@ -251,6 +262,9 @@ func ForPort(all []Probe, port uint16) []Probe {
 		}
 	}
 	if len(selected) == 0 {
+		if nullProbe.Name != "" {
+			return []Probe{nullProbe}
+		}
 		return []Probe{{Name: "udp-empty", Matcher: "any"}}
 	}
 	return selected
@@ -264,7 +278,13 @@ func ForEveryPort(all []Probe, port uint16) []Probe {
 	}
 	selected := make([]Probe, 0, len(all))
 	var portless, other []Probe
+	var nullProbe *Probe
 	for _, p := range all {
+		if p.Matcher == "any" && len(p.Payload) == 0 {
+			copy := p
+			nullProbe = &copy
+			continue
+		}
 		if len(p.Ports) == 0 {
 			portless = append(portless, p)
 			continue
@@ -282,7 +302,11 @@ func ForEveryPort(all []Probe, port uint16) []Probe {
 			other = append(other, p)
 		}
 	}
-	return append(append(selected, portless...), other...)
+	selected = append(append(selected, portless...), other...)
+	if nullProbe != nil {
+		selected = append(selected, *nullProbe)
+	}
+	return selected
 }
 
 // Token derives a stateless validation value for protocol fields. The secret
@@ -306,7 +330,9 @@ func Prepare(p Probe, token uint64) []byte {
 	case "ntp":
 		binary.BigEndian.PutUint64(payload[40:48], token)
 	case "snmp":
-		binary.BigEndian.PutUint32(payload[17:21], uint32(token)&0x7fffffff)
+		if offset, _, ok := snmpRequestIDOffset(payload, 1); ok {
+			binary.BigEndian.PutUint32(payload[offset:offset+4], uint32(token)&0x7fffffff)
+		}
 	case "snmpv3":
 		binary.BigEndian.PutUint16(payload[9:11], uint16(token)&0x7fff)
 		binary.BigEndian.PutUint16(payload[50:52], uint16(token>>16)&0x7fff)
@@ -323,6 +349,8 @@ func Prepare(p Probe, token uint64) []byte {
 		binary.BigEndian.PutUint32(payload[:4], uint32(token))
 	case "memcached":
 		binary.BigEndian.PutUint16(payload[:2], uint16(token))
+	default:
+		prepareExtra(p.Matcher, payload, token)
 	}
 	return payload
 }
@@ -335,7 +363,7 @@ func Match(p Probe, request, response []byte) bool {
 	case "dns":
 		return len(request) >= 12 && len(response) >= 12 && response[2]&0x80 != 0 && bytes.Equal(request[:2], response[:2])
 	case "ntp":
-		return len(request) >= 48 && len(response) >= 48 && response[0]&7 == 4 && bytes.Equal(request[40:48], response[24:32])
+		return len(request) >= 48 && len(response) >= 48 && response[0]&7 == 4 && response[0]>>3&7 == request[0]>>3&7 && bytes.Equal(request[40:48], response[24:32])
 	case "snmp":
 		return matchSNMP(request, response)
 	case "snmpv3":
@@ -371,7 +399,7 @@ func Match(p Probe, request, response []byte) bool {
 	case "any":
 		return true
 	default:
-		return false
+		return matchExtra(p.Matcher, request, response)
 	}
 }
 
@@ -398,7 +426,7 @@ func hasHeaderValue(response []byte, header, value string) bool {
 }
 
 // Extract returns only fields explicitly requested by the probe definition.
-// Values are bounded by the scan engine's 4 KiB response buffer.
+// Values are bounded by the UDP response buffer and each extractor's limits.
 func Extract(p Probe, response []byte) map[string]string {
 	if len(p.ExtractFields) == 0 {
 		return nil
@@ -409,6 +437,14 @@ func Extract(p Probe, response []byte) map[string]string {
 		case "dns.rcode":
 			if len(response) >= 4 {
 				fields[field] = strconv.Itoa(int(response[3] & 15))
+			}
+		case "dns.txt":
+			if value, ok := dnsTXT(response); ok {
+				fields[field] = value
+			}
+		case "cldap.attributes":
+			for name, value := range cldapAttributes(response) {
+				fields[name] = value
 			}
 		case "ntp.stratum":
 			if len(response) >= 2 {
@@ -568,7 +604,37 @@ func matchRPC(request, response []byte) bool {
 }
 
 func matchSNMP(request, response []byte) bool {
-	if len(request) < 21 {
+	return matchSNMPVersion(request, response, 1)
+}
+
+func snmpRequestIDOffset(request []byte, expectedVersion int) (int, []byte, bool) {
+	var outer asn1.RawValue
+	rest, err := asn1.Unmarshal(request, &outer)
+	if err != nil || len(rest) != 0 || outer.Class != 0 || outer.Tag != 16 {
+		return 0, nil, false
+	}
+	var version int
+	body, err := asn1.Unmarshal(outer.Bytes, &version)
+	if err != nil || version != expectedVersion {
+		return 0, nil, false
+	}
+	var community []byte
+	body, err = asn1.Unmarshal(body, &community)
+	if err != nil || len(community) == 0 {
+		return 0, nil, false
+	}
+	var pdu asn1.RawValue
+	rest, err = asn1.Unmarshal(body, &pdu)
+	if err != nil || len(rest) != 0 || pdu.Class != 2 || pdu.Tag != 0 ||
+		len(pdu.Bytes) < 6 || pdu.Bytes[0] != 2 || pdu.Bytes[1] != 4 {
+		return 0, nil, false
+	}
+	return len(request) - len(pdu.Bytes) + 2, community, true
+}
+
+func matchSNMPVersion(request, response []byte, expectedVersion int) bool {
+	offset, requestedCommunity, ok := snmpRequestIDOffset(request, expectedVersion)
+	if !ok {
 		return false
 	}
 	var outer asn1.RawValue
@@ -578,12 +644,12 @@ func matchSNMP(request, response []byte) bool {
 	}
 	var version int
 	body, err := asn1.Unmarshal(outer.Bytes, &version)
-	if err != nil || version != 1 {
+	if err != nil || version != expectedVersion {
 		return false
 	}
 	var community []byte
 	body, err = asn1.Unmarshal(body, &community)
-	if err != nil || len(community) == 0 {
+	if err != nil || !bytes.Equal(community, requestedCommunity) {
 		return false
 	}
 	var pdu asn1.RawValue
@@ -593,5 +659,5 @@ func matchSNMP(request, response []byte) bool {
 	}
 	var requestID int
 	_, err = asn1.Unmarshal(pdu.Bytes, &requestID)
-	return err == nil && requestID >= 0 && uint32(requestID) == binary.BigEndian.Uint32(request[17:21])
+	return err == nil && requestID >= 0 && uint32(requestID) == binary.BigEndian.Uint32(request[offset:offset+4])
 }

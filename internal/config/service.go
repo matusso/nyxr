@@ -71,7 +71,7 @@ func (s Service) Engine() service.Config {
 
 // defaultService applies when a profile without its own service settings is
 // combined with an explicit request to enable the stage.
-var defaultService = ServiceDefaults{Probes: "banner,ssh,tls,http,dns", Fallback: "http", Timeout: "5s", Workers: 16, Rate: 50}
+var defaultService = ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks", Fallback: "http", Timeout: "5s", Workers: 16, Rate: 50}
 
 // BuildService resolves the deep-probe stage for an already validated
 // discovery Config, using the same profile.

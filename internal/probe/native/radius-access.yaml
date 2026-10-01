@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: radius-access
+transport: udp
+ports: [1812]
+tags: [radius, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "0100001400000000000000000000000000000000"
+timeout: 1s
+match:
+  - type: radius

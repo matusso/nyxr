@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: l2tp-sccrq
+transport: udp
+ports: [1701]
+tags: [l2tp, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "c8020038000000000000000080080000000000018008000000020100800a0000000300000003800a000000076e7978728008000000090001"
+timeout: 1s
+match:
+  - type: l2tp

@@ -151,7 +151,7 @@ Flags:
 
 Service identification, evidence and storage:
   --service             deep probes on open TCP ports (on for service, deep, web, full)
-  --service-probes list banner, ssh, tls, http, dns, modbus, ethernetip, nmap
+  --service-probes list banner, ssh, tls, http, dns, socks, modbus, ethernetip, nmap
   --service-fallback l  probes for silent ports without a port hint, or none
   --service-timeout d   upper bound for each service probe
   --service-workers int concurrent service probe workers

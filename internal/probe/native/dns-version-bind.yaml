@@ -1,0 +1,13 @@
+schema: nyxr/udp/v1
+name: dns-version-bind
+transport: udp
+ports: [53]
+tags: [dns, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "0000010000010000000000000776657273696f6e0462696e640000100003"
+timeout: 1s
+match:
+  - type: dns
+extract: [dns.txt]

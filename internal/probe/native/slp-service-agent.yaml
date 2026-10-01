@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: slp-service-agent
+transport: udp
+ports: [427]
+tags: [slp, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "0201000036000000000000010002656e00000015736572766963653a736572766963652d6167656e74000744454641554c5400000000"
+timeout: 1s
+match:
+  - type: slp

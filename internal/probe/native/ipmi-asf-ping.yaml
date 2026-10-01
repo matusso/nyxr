@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: ipmi-asf-ping
+transport: udp
+ports: [623]
+tags: [ipmi, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "0600ff06000011be80000000"
+timeout: 1s
+match:
+  - type: ipmi

@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: udp-null
+transport: udp
+ports: []
+tags: [generic]
+safety: safe
+payload:
+  encoding: hex
+  data: ""
+timeout: 1s
+match:
+  - type: any

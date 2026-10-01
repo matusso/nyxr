@@ -79,7 +79,11 @@ func TestUDPBasicAndCommonFallbackSendEmptyDatagram(t *testing.T) {
 			port := uint16(server.LocalAddr().(*net.UDPAddr).Port)
 			got := probeUDPCampaignWithICMPMode(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: port, transport: "udp"},
 				100*time.Millisecond, all, 0, []byte("secret"), newProbeLimiter(0), nil, mode)
-			if got.State != "open" || got.PacketsTX != 1 || got.Probe != "udp-empty" {
+			wantProbe := "udp-empty"
+			if mode == config.UDPCommon {
+				wantProbe = "udp-null"
+			}
+			if got.State != "open" || got.PacketsTX != 1 || got.Probe != wantProbe {
 				t.Fatalf("%s sent unexpected probes: %+v", mode, got)
 			}
 		})
