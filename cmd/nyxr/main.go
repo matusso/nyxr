@@ -98,9 +98,9 @@ Usage:
   nyxr profiles [--json]                 list scan profiles
   nyxr decode capture.pcap[ng]           decode an Ethernet pcap or pcapng to JSON
   nyxr sniff --interface eth0 [flags]    capture and decode live frames
-  nyxr history --db file [flags]         list or query stored scans, assets and evidence
+  nyxr history [--db file] [flags]       list or query stored scans, assets and evidence
   nyxr probe import file [--json]        import and summarize an nmap-service-probes file
-  nyxr serve --db file [flags]           serve the REST API and web UI (unprivileged)
+  nyxr serve [--db file] [flags]         serve the REST API and web UI (unprivileged)
   nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
   nyxr version                           print the version
   nyxr help                              show this help
@@ -166,7 +166,9 @@ Service identification, evidence and storage:
   --nmap-service-probes f  import an nmap-service-probes file to match banners
   --pcapng file         capture scan traffic on --interface as pcapng evidence
   --pcapng-max-mb int   pcapng size budget (default 1024)
-  --db file             store the scan, observations and evidence in SQLite
+  --db file             SQLite database for the scan, observations and evidence
+                        (default ~/.nyxr/nyxr.db)
+  --no-db               do not store the scan
 
 Global:
   --no-color            disable ANSI color (see also the NO_COLOR variable)
@@ -397,13 +399,17 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	if err := stages.overlay(&req); err != nil {
 		return err
 	}
+	db, err := stages.db.resolve()
+	if err != nil {
+		return err
+	}
 
 	resolved, err := req.Resolve(config.ResolveOptions{BaseDir: baseDir})
 	if err != nil {
 		return err
 	}
 	if *dryRunFlag {
-		return emitStagePlan(out, resolved, *stages.db, *jsonFlag, style)
+		return emitStagePlan(out, resolved, db, *jsonFlag, style)
 	}
 	var open packetio.Opener
 	if *packetdFlag != "" {
@@ -417,7 +423,7 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	if progress.w != nil && !*noSummaryFlag {
 		summary = startSummary(progress.w, ui.New(progress.w, progress.noColor), tally, resolved.Config, planned)
 	}
-	err = runResolved(bar.Wrap(out), resolved, *stages.db, open, *jsonFlag, *openFlag, style, tally)
+	err = runResolved(bar.Wrap(out), resolved, db, open, *jsonFlag, *openFlag, style, tally)
 	bar.Done()
 	summary.print(err != nil)
 	return err

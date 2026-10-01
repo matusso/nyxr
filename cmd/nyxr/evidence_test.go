@@ -115,7 +115,7 @@ func TestServiceScanStoresAndHistoryQueries(t *testing.T) {
 	if err := run([]string{"history", "--db", db, "--keep", "1", "--json"}, &out); err != nil || !strings.Contains(out.String(), `"deleted_scans":0`) {
 		t.Fatalf("history prune: %v\n%s", err, out.String())
 	}
-	if err := run([]string{"history"}, &out); err == nil {
-		t.Fatal("history without --db accepted")
+	if err := run([]string{"history", "extra"}, &out); err == nil {
+		t.Fatal("history with a positional argument accepted")
 	}
 }
