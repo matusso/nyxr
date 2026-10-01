@@ -10,6 +10,15 @@ import (
 // top100 is a curated list of commonly open TCP ports; it is not derived from a
 // measured frequency ranking and is documented as such.
 var portSets = map[string][]uint16{
+	// Common native and HTTP database endpoints. Port membership schedules an
+	// identity exchange; it is never evidence of a database by itself.
+	"database": {
+		1433, 1521, 2379, 2380, 26257, 27017, 27018, 27019, 28015, 29015,
+		3000, 3306, 33060, 4000, 4200, 5000, 5432, 5433, 5984, 6379, 6380,
+		7000, 7474, 7473, 7687, 8000, 8001, 8086, 8123, 8529, 9042, 9000,
+		9092, 9200, 9300, 11210, 11211, 1234, 14240, 2480, 2484, 50000,
+		5555, 6333, 6334, 19530, 19531, 7700, 8108, 8888, 10000, 10100,
+	},
 	"top100": {
 		7, 20, 21, 22, 23, 25, 37, 53, 79, 80, 81, 88, 106, 110, 111,
 		113, 119, 123, 135, 137, 139, 143, 144, 161, 179, 199, 389, 427,

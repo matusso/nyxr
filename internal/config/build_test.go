@@ -74,11 +74,21 @@ func TestBuildUnknownProfile(t *testing.T) {
 	}
 }
 
-func TestBuildPlannedProfileRejected(t *testing.T) {
-	for _, name := range []string{"database"} {
-		_, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: name})
-		if err == nil || !strings.Contains(err.Error(), "planned") {
-			t.Fatalf("profile %q should be rejected as planned, got %v", name, err)
+func TestBuildDatabaseProfile(t *testing.T) {
+	cfg, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: "database"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.TCP || cfg.UDP || len(cfg.Ports) < 40 {
+		t.Fatalf("database profile must scan the TCP catalog: %+v", cfg)
+	}
+	for _, want := range []uint16{1433, 3306, 5432, 6379, 7687, 9042, 9200, 11211, 27017} {
+		found := false
+		for _, p := range cfg.Ports {
+			found = found || p == want
+		}
+		if !found {
+			t.Fatalf("database profile missing %d", want)
 		}
 	}
 }

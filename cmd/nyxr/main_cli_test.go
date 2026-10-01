@@ -16,7 +16,7 @@ func TestProfilesCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := out.String()
-	for _, want := range []string{"discovery", "ot-safe", "available", "planned"} {
+	for _, want := range []string{"discovery", "ot-safe", "available", "database"} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("profiles output missing %q:\n%s", want, s)
 		}
@@ -42,11 +42,11 @@ func TestScanDryRunJSON(t *testing.T) {
 	}
 }
 
-func TestScanPlannedProfileError(t *testing.T) {
+func TestScanDatabaseProfileDryRun(t *testing.T) {
 	var out bytes.Buffer
-	err := run([]string{"scan", "--profile", "database", "192.0.2.1"}, &out)
-	if err == nil || !strings.Contains(err.Error(), "planned") {
-		t.Fatalf("expected planned-profile error, got %v", err)
+	err := run([]string{"scan", "--profile", "database", "--dry-run", "--json", "192.0.2.1"}, &out)
+	if err != nil || !strings.Contains(out.String(), `"profile":"database"`) || !strings.Contains(out.String(), `"probes":["database"]`) {
+		t.Fatalf("expected database profile plan, got %v: %s", err, out.String())
 	}
 }
 

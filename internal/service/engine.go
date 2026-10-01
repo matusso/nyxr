@@ -28,11 +28,12 @@ const (
 	ProbeModbus     = "modbus"     // Read Device Identification (function 43/14)
 	ProbeEtherNetIP = "ethernetip" // ListIdentity encapsulation request
 	ProbeNmap       = "nmap"       // match a connect banner against an imported nmap-service-probes database
+	ProbeDatabase   = "database"   // read-only SQL/NoSQL/graph/cache identity exchanges
 )
 
 // Names lists every probe in the order they are documented.
 func Names() []string {
-	return []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDNS, ProbeSOCKS, ProbeModbus, ProbeEtherNetIP, ProbeNmap}
+	return []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDNS, ProbeSOCKS, ProbeModbus, ProbeEtherNetIP, ProbeNmap, ProbeDatabase}
 }
 
 // Per-probe time budgets. Config.Timeout caps each of them.
@@ -44,6 +45,7 @@ var probeTimeouts = map[string]time.Duration{
 	ProbeSOCKS:      3 * time.Second,
 	ProbeModbus:     3 * time.Second,
 	ProbeEtherNetIP: 3 * time.Second,
+	ProbeDatabase:   4 * time.Second,
 }
 
 // Config controls the deep-probe stage.
@@ -93,7 +95,7 @@ func (c Config) Validate() error {
 	for _, list := range [][]string{c.Probes, c.Fallback} {
 		for _, p := range list {
 			if !known[p] {
-				return fmt.Errorf("unknown service probe %q (known: banner, ssh, tls, http, dns, socks, modbus, ethernetip, nmap)", p)
+				return fmt.Errorf("unknown service probe %q (known: banner, ssh, tls, http, dns, socks, modbus, ethernetip, nmap, database)", p)
 			}
 		}
 	}

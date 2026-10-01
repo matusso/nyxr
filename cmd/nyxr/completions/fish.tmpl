@@ -43,7 +43,7 @@ complete -c nyxr -n '__fish_seen_subcommand_from scan' -l payload-file -r -F -d 
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l nmap-udp-probes -r -F -d 'Add UDP payloads from Nmap probe file'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l config -r -F -d 'YAML scan configuration'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service -d 'Deep service probes on open TCP ports'
-complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-probes -x -a 'banner ssh tls http dns socks modbus ethernetip nmap banner,ssh,tls,http,dns,socks modbus,ethernetip' -d 'Comma list of service probes'
+complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-probes -x -a 'banner ssh tls http dns socks modbus ethernetip nmap database banner,ssh,tls,http,dns,socks modbus,ethernetip' -d 'Comma list of service probes'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l allow-targets -x -d 'Approved IPs or CIDRs'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-fallback -x -a 'http tls,http none' -d 'Probes for unhinted silent ports, or none'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-timeout -x -d 'Upper bound for each service probe'
