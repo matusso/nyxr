@@ -79,10 +79,11 @@ count, ports, protocols, pacing and scheduled task count — without sending any
 packet; add `--json` for the machine-readable plan. UDP/53 attempts DNS A then
 DNS NS, UDP/123 sends an NTP client request, and UDP/161 sends a read-only
 SNMPv2c `sysDescr.0` GET. Ports without a native probe receive a single byte. The
-`udp-deep` profile also scans ports 69, 1900, 3478, 5060, 5353, 5355, 5683
-and 47808 using read-only TFTP, SSDP, STUN, SIP OPTIONS, mDNS, LLMNR, CoAP GET
-and BACnet Who-Is
-probes, and retries each probe once. `--rate` limits application-level probe
+`udp-deep` profile also scans ports 69, 111, 1900, 2049, 3478, 5060, 5353,
+5355, 5683, 11211 and 47808 using read-only TFTP, RPC NULL, SSDP, STUN, SIP
+OPTIONS, mDNS, LLMNR, CoAP GET, memcached version, and BACnet Who-Is, Device
+ReadProperty, and Foreign Device Table reads. It retries each probe once.
+`--rate` limits application-level probe
 sends, including UDP retries. A matching DNS transaction ID, NTP originate
 timestamp, SNMP request ID, STUN transaction ID, SIP Call-ID or CoAP token
 raises confidence;
@@ -113,7 +114,7 @@ the roadmap phase they need, rather than silently downgrading to a weaker scan.
 | `fast` | available | Top 100 TCP ports at higher concurrency |
 | `tcp` | available | TCP connect scan of common ports |
 | `udp` | available | Protocol-aware UDP probes (DNS, NTP) |
-| `udp-deep` | available | Safe protocol probes on eleven common UDP ports, one extra retry each |
+| `udp-deep` | available | Protocol probes on fourteen common UDP ports, one extra retry each |
 | `ot-safe` | available | Allowlisted TCP connect scan plus Modbus/EtherNet/IP identity reads |
 | `custom` | available | Minimal profile; set protocols, ports and timeout explicitly |
 | `service` | available | Top 100 TCP ports, then banner/SSH/TLS/HTTP/DNS identification |
@@ -179,11 +180,14 @@ the request/response bytes of each identity read.
 Modbus uses function 43/14 (basic Read Device Identification) on TCP/502;
 EtherNet/IP uses ListIdentity on TCP/44818. Both are read-only requests and
 return product/version fields with raw exchange evidence. BACnet uses a unicast
-Who-Is request on UDP/47808 in an explicit UDP scan or `udp-deep`, and parses
-unicast or broadcast I-Am device and vendor IDs. The scanner binds local
-UDP/47808 for this IPv4 probe, so that port must be free. A BACnet I-Am has no transaction token, so its
-confidence is lower than token-validated UDP replies. These probes have local
-simulator fixtures; behavior on real OT equipment remains to be validated.
+Who-Is request on UDP/47808 in an explicit UDP scan or `udp-deep`, followed by
+a read-only Device object-identifier query and a BBMD Foreign Device Table read
+when earlier probes are silent. It parses unicast or broadcast I-Am device and
+vendor IDs. The scanner prefers local UDP/47808 for these IPv4 probes and uses
+an ephemeral source port if that port is busy. I-Am and FDT responses have no
+transaction token, so their confidence is lower than token-validated replies.
+These probes have local simulator fixtures; behavior on real OT equipment
+remains to be validated.
 
 `--fingerprint` combines matched service/UDP identities, MAC OUI prefixes and
 open port patterns into a `device` record when at least two independent signals
@@ -220,10 +224,12 @@ match:
 
 Supported payload encodings are `ascii`, `hex`, `base64`, and `raw_file`
 (relative to the YAML file). Matchers are `any`, `dns`, `ntp`, `snmp`, `stun`,
-`tftp`, `ssdp`, `sip`, and `coap`. The optional `schema` defaults to
+`tftp`, `ssdp`, `sip`, `coap`, `bacnet`, `bacnet-read`, `bacnet-fdt`, `rpc`,
+and `memcached`. The optional `schema` defaults to
 `nyxr/udp/v1` for older definitions; unknown versions are rejected. The
 `extract` list can request `dns.rcode`, `ntp.stratum`, `stun.message_type`,
-`tftp.error_code`, `ssdp.server`, `sip.status`, or `coap.code`; values appear
+`tftp.error_code`, `ssdp.server`, `sip.status`, `coap.code`,
+`bacnet.device_id`, `bacnet.vendor_id`, or `bacnet.fdt_entries`; values appear
 in the observation's `fields` map. Only `safety: safe` is accepted. A probe
 with no applicable port falls back to the generic byte. TFTP and SSDP replies
 have lower confidence because they lack a transaction token.
@@ -323,6 +329,8 @@ nyxr probe import /usr/share/nmap/nmap-service-probes            # summarize a d
 nyxr probe import /usr/share/nmap/nmap-service-probes --json     # machine-readable
 nyxr scan --service --nmap-service-probes /usr/share/nmap/nmap-service-probes \
   --ports 21,25,80,110,143 192.0.2.10
+nyxr scan --profile udp-deep --nmap-udp-probes /usr/share/nmap/nmap-service-probes \
+  --ports 111,2049,47808 192.0.2.10
 ```
 
 `probe import` reports how many probes and match rules were read, how many
@@ -339,9 +347,15 @@ product and version. A hard match is reported at 90% confidence and a softmatch
 at 75%, each with the matching probe and rule line kept in the observation's
 `nmap.*` attributes and the banner retained as evidence. This sends no traffic
 beyond the banner the deep-probe stage already reads; the built-in matchers
-(SSH, TLS, HTTP, DNS) still take precedence. Sending Nmap's active probe
-payloads is not implemented yet, and `ot-safe` never permits the `nmap` probe.
-Remote API requests may not name a server-side probes file.
+(SSH, TLS, HTTP, DNS) still take precedence. `--nmap-udp-probes` separately
+adds UDP payloads from the same kind of file for the ports named by each probe's
+`ports` directive. Built-in UDP probes run first. An imported request is limited
+to 1400 bytes; portless probes and excluded ports are skipped. Any datagram
+returned to an imported request confirms an open UDP port, but without a
+protocol-specific matcher its service identity is unconfirmed. This option
+requires a local file and cannot be combined with a custom UDP payload.
+`ot-safe` never permits these UDP probes. Remote API requests may not name a
+server-side probes file.
 
 `--db file` stores the scan in SQLite through a cgo-free driver, so every
 release binary can open it. The schema is versioned with forward-only
