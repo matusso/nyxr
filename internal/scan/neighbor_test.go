@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/packet"
 )
 
@@ -73,6 +74,70 @@ func TestARPBatchCorrelatesRepliesAndSilence(t *testing.T) {
 		[]netip.Addr{first, silent}, 200*time.Millisecond, newProbeLimiter(0))
 	if err != nil || fake.sent != 2 || string(got[first]) != string(mac) || len(got[silent]) != 0 {
 		t.Fatalf("ARP batch: %+v, sent %d, %v", got, fake.sent, err)
+	}
+}
+
+func TestResolvedGatewayCacheSkipsARP(t *testing.T) {
+	local := netip.MustParseAddr("192.0.2.10")
+	gateway := netip.MustParseAddr("192.0.2.1")
+	targets := []netip.Addr{netip.MustParseAddr("198.51.100.20"), netip.MustParseAddr("198.51.100.21")}
+	mac := net.HardwareAddr{2, 6, 7, 8, 9, 10}
+	fake := &fakePacketIO{frames: make(chan []byte, 2)}
+	calls := 0
+	got, err := resolveNextHopsWithLookup(context.Background(), config.Config{Interface: "en0", Targets: targets, Timeout: time.Second}, fake,
+		net.HardwareAddr{2, 1, 2, 3, 4, 5}, local, newProbeLimiter(0),
+		func(netip.Addr) (netip.Addr, error) { return gateway, nil },
+		func(device string, hop netip.Addr) net.HardwareAddr {
+			calls++
+			if device != "en0" || hop != gateway {
+				t.Fatalf("wrong cache lookup: %s %s", device, hop)
+			}
+			return mac
+		})
+	if err != nil || calls != 1 || fake.sent != 0 {
+		t.Fatalf("gateway cache: calls=%d sent=%d err=%v", calls, fake.sent, err)
+	}
+	for _, target := range targets {
+		if string(got[target]) != string(mac) {
+			t.Fatalf("target %s resolved to %v", target, got[target])
+		}
+	}
+}
+
+func TestUnresolvedGatewayTriesARP(t *testing.T) {
+	local := netip.MustParseAddr("192.0.2.10")
+	gateway := netip.MustParseAddr("192.0.2.1")
+	target := netip.MustParseAddr("198.51.100.20")
+	mac := net.HardwareAddr{2, 6, 7, 8, 9, 10}
+	fake := &fakePacketIO{frames: make(chan []byte, 2), arpReplies: map[netip.Addr]net.HardwareAddr{gateway: mac}}
+	got, err := resolveNextHopsWithLookup(context.Background(), config.Config{Interface: "en0", Targets: []netip.Addr{target}, Timeout: time.Second}, fake,
+		net.HardwareAddr{2, 1, 2, 3, 4, 5}, local, newProbeLimiter(0),
+		func(netip.Addr) (netip.Addr, error) { return gateway, nil },
+		func(string, netip.Addr) net.HardwareAddr { return nil })
+	if err != nil || fake.sent != 1 || string(got[target]) != string(mac) {
+		t.Fatalf("ARP fallback: resolved=%v sent=%d err=%v", got[target], fake.sent, err)
+	}
+}
+
+func TestGatewayCacheRecheckedAfterUnansweredARP(t *testing.T) {
+	local := netip.MustParseAddr("192.0.2.10")
+	gateway := netip.MustParseAddr("192.0.2.1")
+	target := netip.MustParseAddr("198.51.100.20")
+	mac := net.HardwareAddr{2, 6, 7, 8, 9, 10}
+	fake := &fakePacketIO{frames: make(chan []byte)}
+	calls := 0
+	got, err := resolveNextHopsWithLookup(context.Background(), config.Config{Interface: "en0", Targets: []netip.Addr{target}, Timeout: 50 * time.Millisecond}, fake,
+		net.HardwareAddr{2, 1, 2, 3, 4, 5}, local, newProbeLimiter(0),
+		func(netip.Addr) (netip.Addr, error) { return gateway, nil },
+		func(string, netip.Addr) net.HardwareAddr {
+			calls++
+			if calls == 2 {
+				return mac
+			}
+			return nil
+		})
+	if err != nil || fake.sent != 1 || calls != 2 || string(got[target]) != string(mac) {
+		t.Fatalf("cache recheck: resolved=%v sent=%d calls=%d err=%v", got[target], fake.sent, calls, err)
 	}
 }
 

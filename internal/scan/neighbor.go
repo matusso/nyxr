@@ -24,8 +24,13 @@ func resolveNextHops(ctx context.Context, cfg config.Config, io packetio.PacketI
 	if err != nil {
 		return nil, err
 	}
+	return resolveNextHopsWithLookup(ctx, cfg, io, sourceMAC, sourceIP, limiter, lookup, cachedARPNeighbor)
+}
+
+func resolveNextHopsWithLookup(ctx context.Context, cfg config.Config, io packetio.PacketIO, sourceMAC net.HardwareAddr, sourceIP netip.Addr, limiter *probeLimiter, lookup func(netip.Addr) (netip.Addr, error), cache func(string, netip.Addr) net.HardwareAddr) (map[netip.Addr]net.HardwareAddr, error) {
 	byHop := make(map[netip.Addr]net.HardwareAddr)
 	targetHops := make(map[netip.Addr]netip.Addr, len(cfg.Targets))
+	gatewayHops := make(map[netip.Addr]bool)
 	var hops []netip.Addr
 	byTarget := make(map[netip.Addr]net.HardwareAddr, len(cfg.Targets))
 	for _, target := range cfg.Targets {
@@ -41,15 +46,38 @@ func resolveNextHops(ctx context.Context, cfg config.Config, io packetio.PacketI
 			hops = append(hops, hop)
 		}
 		targetHops[target] = hop
+		if hop != target {
+			gatewayHops[hop] = true
+		}
 	}
-	for start := 0; start < len(hops); start += 128 {
-		end := min(start+128, len(hops))
-		resolved, err := resolveARPBatch(ctx, io, sourceMAC, sourceIP, hops[start:end], cfg.Timeout, limiter)
+	// The OS may already know the gateway's MAC. Reusing a valid entry also
+	// avoids waiting for a raw ARP reply on BPF adapters that do not capture it.
+	// Only query gateways: spawning one cache lookup per on-link host would make
+	// a large local scan slower than sending ARP in bounded batches.
+	var unresolved []netip.Addr
+	for _, hop := range hops {
+		if gatewayHops[hop] {
+			byHop[hop] = cache(cfg.Interface, hop)
+		}
+		if len(byHop[hop]) == 0 {
+			unresolved = append(unresolved, hop)
+		}
+	}
+	for start := 0; start < len(unresolved); start += 128 {
+		end := min(start+128, len(unresolved))
+		resolved, err := resolveARPBatch(ctx, io, sourceMAC, sourceIP, unresolved[start:end], cfg.Timeout, limiter)
 		if err != nil {
 			return nil, fmt.Errorf("ARP on %s: %w", cfg.Interface, err)
 		}
 		for hop, mac := range resolved {
 			byHop[hop] = mac
+		}
+	}
+	// The kernel can populate its cache even when our BPF reader misses an ARP
+	// reply. Check unresolved gateways once more before suppressing SYN sends.
+	for _, hop := range unresolved {
+		if gatewayHops[hop] && len(byHop[hop]) == 0 {
+			byHop[hop] = cache(cfg.Interface, hop)
 		}
 	}
 	for target, hop := range targetHops {
