@@ -34,7 +34,7 @@ type Options struct {
 	InterfaceRate *int
 	Workers       *int
 	UDPRetries    *int
-	NmapUDPProbes string // local nmap-service-probes file for UDP requests on every scanned port
+	NmapUDPProbes string // local nmap-service-probes file for UDP payload selection
 	Payload       PayloadSource
 	TCPMode       string
 	Interface     string
@@ -188,6 +188,19 @@ func Build(o Options) (Config, error) {
 	rate := valueOr(o.Rate, profile.Rate)
 	workers := valueOr(o.Workers, profile.Workers)
 	retries := valueOr(o.UDPRetries, profile.UDPRetries)
+	udpMode := UDPCommon
+	switch name {
+	case "udp-basic":
+		udpMode = UDPBasic
+	case "udp-deep":
+		udpMode = UDPDeep
+	}
+	if !udp {
+		udpMode = ""
+	}
+	if udpMode == UDPBasic && (o.Payload.count() != 0 || o.NmapUDPProbes != "") {
+		return Config{}, errors.New("udp-basic does not accept UDP payload files or custom payloads")
+	}
 
 	udpProbes, err := o.Payload.load(udp)
 	if err != nil {
@@ -253,7 +266,7 @@ func Build(o Options) (Config, error) {
 		Targets: targets, AllowTargets: allowTargets, Ports: ports, TCP: tcp, UDP: udp, ICMP: icmp, ARP: arp, NDP: ndp,
 		Timeout: timeout, Rate: rate, HostRate: valueOr(o.HostRate, 0), SubnetRate: valueOr(o.SubnetRate, 0),
 		InterfaceRate: valueOr(o.InterfaceRate, 0), Workers: workers, Profile: name,
-		UDPProbes: udpProbes, UDPRetries: retries, NmapUDPSource: o.NmapUDPProbes, NmapUDPSHA: nmapUDPSHA,
+		UDPProbes: udpProbes, UDPMode: udpMode, UDPRetries: retries, NmapUDPSource: o.NmapUDPProbes, NmapUDPSHA: nmapUDPSHA,
 		TCPMode: mode, Interface: o.Interface, SourceIP: sourceIP, SourceMAC: sourceMAC, NextHopMAC: nextHopMAC,
 	}
 	if err := cfg.Validate(); err != nil {

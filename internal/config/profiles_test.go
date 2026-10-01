@@ -25,7 +25,7 @@ func TestProfilesCatalog(t *testing.T) {
 		}
 	}
 	// Every profile named in the product brief must be registered.
-	for _, want := range []string{"discovery", "fast", "tcp", "udp", "udp-deep", "service", "deep", "iot", "ot-safe", "web", "database", "full", "research", "custom"} {
+	for _, want := range []string{"discovery", "fast", "tcp", "udp", "udp-basic", "udp-common", "udp-deep", "service", "deep", "iot", "ot-safe", "web", "database", "full", "research", "custom"} {
 		if !names[want] {
 			t.Fatalf("profile %q is not registered", want)
 		}

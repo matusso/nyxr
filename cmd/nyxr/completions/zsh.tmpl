@@ -63,7 +63,7 @@ _nyxr() {
                         '--send-hex=[custom UDP payload as hex]:hex:' \
                         '--send-base64=[custom UDP payload as base64]:base64:' \
                         '--payload-file=[custom raw UDP payload file]:payload file:_files' \
-                        '--nmap-udp-probes=[add Nmap UDP payloads to every scanned port]:probes file:_files' \
+                        '--nmap-udp-probes=[add UDP payloads from Nmap probe file]:probes file:_files' \
                         '--config=[YAML scan configuration]:config file:_files -g "*.(yaml|yml)"' \
                         '--service[deep service probes on open TCP ports]' \
                         '--service-probes=[comma list of service probes]:probes:_values -s , probe banner ssh tls http dns modbus ethernetip nmap' \

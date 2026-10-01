@@ -38,8 +38,32 @@ func TestBuildOverridesProfile(t *testing.T) {
 	if cfg.UDPRetries != 1 {
 		t.Fatalf("udp-deep should default retries to 1, got %d", cfg.UDPRetries)
 	}
+	if cfg.UDPMode != UDPDeep {
+		t.Fatalf("udp-deep should exhaust the catalog, got %q", cfg.UDPMode)
+	}
 	if len(cfg.Ports) != 1 || cfg.Ports[0] != 53 {
 		t.Fatalf("port override not applied: %v", cfg.Ports)
+	}
+}
+
+func TestBuildUDPProfileModes(t *testing.T) {
+	for _, tc := range []struct {
+		profile string
+		mode    UDPMode
+	}{
+		{"udp-basic", UDPBasic},
+		{"udp-common", UDPCommon},
+		{"udp-deep", UDPDeep},
+		{"udp", UDPCommon},
+	} {
+		cfg, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: tc.profile, Ports: "40000"})
+		if err != nil || cfg.UDPMode != tc.mode || cfg.Plan().UDPMode != tc.mode {
+			t.Fatalf("%s: mode=%q, plan=%q, err=%v", tc.profile, cfg.UDPMode, cfg.Plan().UDPMode, err)
+		}
+	}
+	if _, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: "udp-basic",
+		Payload: PayloadSource{SendHex: "01"}}); err == nil {
+		t.Fatal("udp-basic accepted a custom payload")
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/probe"
 )
 
@@ -62,11 +63,23 @@ func matchRecent(recent []sentProbe, response []byte) (sentProbe, bool) {
 }
 
 func probeUDPCampaign(ctx context.Context, t task, timeout time.Duration, all []probe.Probe, extraRetries int, secret []byte, limiter *probeLimiter) Observation {
-	return probeUDPCampaignWithICMP(ctx, t, timeout, all, extraRetries, secret, limiter, nil)
+	return probeUDPCampaignWithICMPMode(ctx, t, timeout, all, extraRetries, secret, limiter, nil, config.UDPDeep)
 }
 
 func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration, all []probe.Probe, extraRetries int, secret []byte, limiter *probeLimiter, observer *udpICMPObserver) Observation {
-	selected := probe.ForPort(all, t.port)
+	return probeUDPCampaignWithICMPMode(ctx, t, timeout, all, extraRetries, secret, limiter, observer, config.UDPDeep)
+}
+
+func probeUDPCampaignWithICMPMode(ctx context.Context, t task, timeout time.Duration, all []probe.Probe, extraRetries int, secret []byte, limiter *probeLimiter, observer *udpICMPObserver, mode config.UDPMode) Observation {
+	var selected []probe.Probe
+	switch mode {
+	case config.UDPBasic:
+		selected = []probe.Probe{{Name: "udp-empty", Matcher: "any"}}
+	case config.UDPDeep:
+		selected = probe.ForEveryPort(all, t.port)
+	default:
+		selected = probe.ForPort(all, t.port)
+	}
 	if !t.target.Is4() {
 		// BACnet/IP payloads in this catalog use IPv4 BVLC addressing.
 		filtered := selected[:0]

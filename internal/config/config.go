@@ -32,6 +32,7 @@ type Config struct {
 	Workers       int
 	Profile       string
 	UDPProbes     []probe.Probe
+	UDPMode       UDPMode
 	UDPRetries    int
 	NmapUDPSource string // local source path for imported UDP payloads
 	NmapUDPSHA    string // SHA-256 of the imported file
@@ -42,6 +43,14 @@ type Config struct {
 	NextHopMAC    net.HardwareAddr
 	Research      *ResearchConfig
 }
+
+type UDPMode string
+
+const (
+	UDPBasic  UDPMode = "basic"
+	UDPCommon UDPMode = "common"
+	UDPDeep   UDPMode = "deep"
+)
 
 // ResearchConfig is deliberately separate from ordinary scan modes. Only a
 // validated research profile can carry raw header or malformed controls.
@@ -66,6 +75,12 @@ func (c Config) Validate() error {
 	}
 	if len(c.Targets) == 0 || (!c.TCP && !c.UDP && !c.ICMP && !c.ARP && !c.NDP) {
 		return errors.New("at least one target and protocol are required")
+	}
+	if c.UDPMode != "" && c.UDPMode != UDPBasic && c.UDPMode != UDPCommon && c.UDPMode != UDPDeep {
+		return fmt.Errorf("unknown UDP mode %q", c.UDPMode)
+	}
+	if c.UDPMode == UDPBasic && len(c.UDPProbes) != 0 {
+		return errors.New("udp-basic does not use payload probes")
 	}
 	if c.Profile == "ot-safe" && len(c.AllowTargets) == 0 {
 		return errors.New("ot-safe requires --allow-targets")

@@ -42,6 +42,37 @@ func TestScanCustomUDPPayload(t *testing.T) {
 	}
 }
 
+func TestScanUDPBasicSendsEmptyDatagram(t *testing.T) {
+	server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Skipf("loopback unavailable: %v", err)
+	}
+	defer server.Close()
+	go func() {
+		var buf [64]byte
+		n, peer, err := server.ReadFromUDP(buf[:])
+		if err == nil && n == 0 {
+			_, _ = server.WriteToUDP([]byte{1}, peer)
+		}
+	}()
+	var output bytes.Buffer
+	err = runScan([]string{"--profile", "udp-basic", "--ports", fmt.Sprint(server.LocalAddr().(*net.UDPAddr).Port),
+		"--timeout", "200ms", "--rate", "0", "--json", "127.0.0.1"}, &output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		State     string   `json:"state"`
+		Attempted []string `json:"probes_attempted"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.State != "open" || len(got.Attempted) != 1 || got.Attempted[0] != "udp-empty" {
+		t.Fatalf("udp-basic sent unexpected probes: %+v", got)
+	}
+}
+
 func TestScanImportedUDPPayload(t *testing.T) {
 	server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
 	if err != nil {
@@ -67,8 +98,8 @@ func TestScanImportedUDPPayload(t *testing.T) {
 		}
 	}()
 	var output bytes.Buffer
-	err = runScan([]string{"--profile", "custom", "--protocols", "udp", "--ports", fmt.Sprint(port),
-		"--timeout", "100ms", "--nmap-udp-probes", path, "--rate", "0", "--json", "127.0.0.1"}, &output)
+	err = runScan([]string{"--profile", "udp-deep", "--ports", fmt.Sprint(port),
+		"--timeout", "100ms", "--udp-retries", "0", "--nmap-udp-probes", path, "--rate", "0", "--json", "127.0.0.1"}, &output)
 	if err != nil {
 		t.Fatal(err)
 	}

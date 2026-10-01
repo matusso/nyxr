@@ -25,7 +25,8 @@ func FromNmapUDP(db *nmapdb.Database, scanPorts []uint16) ([]Probe, error) {
 			}
 		}
 		probes = append(probes, Probe{Name: "nmap-" + source.Name,
-			Ports: ports, Payload: append([]byte(nil), source.Payload...), Matcher: "any"})
+			Ports: ports, PortsDeclared: len(source.Ports) != 0,
+			Payload: append([]byte(nil), source.Payload...), Matcher: "any"})
 	}
 	return probes, nil
 }

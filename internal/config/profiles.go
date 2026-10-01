@@ -88,12 +88,22 @@ var profiles = []Profile{
 		Ports:        "22,80,443", Protocols: "tcp", Timeout: "1s", Rate: 100, Workers: 64,
 	},
 	{
-		Name: "udp", Description: "Protocol-aware UDP probes on the selected ports",
+		Name: "udp-basic", Description: "Empty UDP datagram with response and ICMP classification",
 		Availability: StatusAvailable,
 		Ports:        "53,123", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
 	},
 	{
-		Name: "udp-deep", Description: "Protocol-aware reads for common UDP services, including BACnet, RPC, NFS and memcached",
+		Name: "udp-common", Description: "UDP payloads associated with each selected port",
+		Availability: StatusAvailable,
+		Ports:        "53,69,111,123,161,1900,2049,3478,5060,5353,5355,5683,11211,47808", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
+	},
+	{
+		Name: "udp", Description: "Compatibility profile using udp-common selection",
+		Availability: StatusAvailable,
+		Ports:        "53,123", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
+	},
+	{
+		Name: "udp-deep", Description: "Try every available UDP payload on each selected port",
 		Availability: StatusAvailable,
 		Ports:        "53,69,111,123,161,1900,2049,3478,5060,5353,5355,5683,11211,47808", Protocols: "udp", Timeout: "2s", Rate: 25, Workers: 16, UDPRetries: 1,
 	},

@@ -24,6 +24,7 @@ type Plan struct {
 	InterfaceRate int           `json:"interface_rate,omitempty"`
 	Workers       int           `json:"workers"`
 	UDPRetries    int           `json:"udp_retries,omitempty"`
+	UDPMode       UDPMode       `json:"udp_mode,omitempty"`
 	UDPProbes     []string      `json:"udp_probes,omitempty"`
 	NmapUDPSource string        `json:"nmap_udp_source,omitempty"`
 	NmapUDPSHA    string        `json:"nmap_udp_sha256,omitempty"`
@@ -62,6 +63,7 @@ func (c Config) Plan() Plan {
 		HostRate:    c.HostRate, SubnetRate: c.SubnetRate, InterfaceRate: c.InterfaceRate,
 		Workers:       c.Workers,
 		UDPRetries:    c.UDPRetries,
+		UDPMode:       c.UDPMode,
 		NmapUDPSource: c.NmapUDPSource, NmapUDPSHA: c.NmapUDPSHA,
 		TCPMode:   c.TCPMode,
 		Interface: c.Interface,

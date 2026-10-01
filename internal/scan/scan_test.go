@@ -44,7 +44,7 @@ func TestUDPReply(t *testing.T) {
 	go func() {
 		var buf [64]byte
 		n, addr, err := server.ReadFromUDP(buf[:])
-		if err == nil && n > 0 {
+		if err == nil && n == 0 {
 			_, _ = server.WriteToUDP([]byte{1}, addr)
 		}
 	}()
@@ -52,6 +52,35 @@ func TestUDPReply(t *testing.T) {
 	got := probeUDPCampaign(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: port, transport: "udp"}, time.Second, nil, 0, []byte("test-secret"), newProbeLimiter(0))
 	if got.State != "open" || got.PacketsRX != 1 {
 		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestUDPBasicAndCommonFallbackSendEmptyDatagram(t *testing.T) {
+	all, err := probe.Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []config.UDPMode{config.UDPBasic, config.UDPCommon} {
+		t.Run(string(mode), func(t *testing.T) {
+			server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+			if err != nil {
+				t.Skipf("loopback unavailable: %v", err)
+			}
+			defer server.Close()
+			go func() {
+				var buf [64]byte
+				n, peer, err := server.ReadFromUDP(buf[:])
+				if err == nil && n == 0 {
+					_, _ = server.WriteToUDP([]byte{1}, peer)
+				}
+			}()
+			port := uint16(server.LocalAddr().(*net.UDPAddr).Port)
+			got := probeUDPCampaignWithICMPMode(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: port, transport: "udp"},
+				100*time.Millisecond, all, 0, []byte("secret"), newProbeLimiter(0), nil, mode)
+			if got.State != "open" || got.PacketsTX != 1 || got.Probe != "udp-empty" {
+				t.Fatalf("%s sent unexpected probes: %+v", mode, got)
+			}
+		})
 	}
 }
 

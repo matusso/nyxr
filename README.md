@@ -50,7 +50,8 @@ for raw socket features such as ICMP and packet capture.
 
 ```sh
 nyxr scan --ports 22,80,443 --protocols tcp --json 192.0.2.1
-nyxr scan --profile udp --ports 53,123 192.0.2.1
+nyxr scan --profile udp-basic --ports 53,123 192.0.2.1
+nyxr scan --profile udp-common --ports 53,123 192.0.2.1
 nyxr scan --profile udp-deep --udp-retries 1 --json 192.0.2.1
 nyxr scan --protocols udp --ports 9999 --send-hex "010203" 192.0.2.1
 nyxr scan --protocols udp --ports 9999 --payload my-probe.yaml 192.0.2.1
@@ -76,14 +77,19 @@ is limited to 65,536 unique addresses. Ports accept commas and inclusive ranges
 ports, or `all` for `1-65535`. Use `--json` for newline-delimited observations.
 `--dry-run` resolves the configuration and prints the plan — profile, target
 count, ports, protocols, pacing and scheduled task count — without sending any
-packet; add `--json` for the machine-readable plan. Every requested UDP port
-receives the available protocol payloads until a reply validates a service or
-the catalog is exhausted. Probe port lists prioritize likely payloads; they
-do not restrict where a payload is tried. The native catalog includes DNS, NTP,
-SNMP, TFTP, RPC NULL, SSDP, STUN, SIP OPTIONS, mDNS, LLMNR, CoAP GET,
-memcached version, and BACnet reads. The `udp-deep` profile selects fourteen
-common UDP ports by default and retries each probe once; `--ports` replaces
-that port list.
+packet; add `--json` for the machine-readable plan. UDP has three levels:
+`udp-basic` sends an empty datagram and classifies a reply or ICMP error;
+`udp-common` uses payloads listed for each requested port, falling back to an
+empty datagram when none apply; `udp-deep` tries every available payload on
+each requested port until a reply validates a service or the catalog is
+exhausted. The existing `udp` profile uses the `udp-common` strategy for
+compatibility. The native catalog includes DNS, NTP, SNMP, TFTP, RPC NULL,
+SSDP, STUN, SIP OPTIONS, mDNS, LLMNR, CoAP GET, memcached version, and BACnet
+reads. `udp-deep` selects fourteen common UDP ports by default and retries each
+probe once; `--ports` replaces the default port list. An empty UDP datagram is
+valid under [RFC 768](https://www.rfc-editor.org/rfc/rfc768), and a silent port
+remains `open|filtered` because [RFC 1122](https://www.rfc-editor.org/rfc/rfc1122)
+only says a closed port should send ICMP Port Unreachable.
 `--rate` limits application-level probe
 sends, including UDP retries. A matching DNS transaction ID, NTP originate
 timestamp, SNMP request ID, STUN transaction ID, SIP Call-ID or CoAP token
@@ -114,8 +120,10 @@ the roadmap phase they need, rather than silently downgrading to a weaker scan.
 | `discovery` | available | Common TCP ports, unprivileged connect scan (default) |
 | `fast` | available | Top 100 TCP ports at higher concurrency |
 | `tcp` | available | TCP connect scan of common ports |
-| `udp` | available | All native UDP probes on selected ports; DNS and NTP ports by default |
-| `udp-deep` | available | All native UDP probes on fourteen default ports, one extra retry each |
+| `udp-basic` | available | Empty UDP datagram; classify reply or ICMP response |
+| `udp-common` | available | Payloads associated with each port; fourteen default ports |
+| `udp` | available | Compatibility name for `udp-common`; DNS and NTP ports by default |
+| `udp-deep` | available | Every available UDP payload on each port; fourteen default ports |
 | `ot-safe` | available | Allowlisted TCP connect scan plus Modbus/EtherNet/IP identity reads |
 | `custom` | available | Minimal profile; set protocols, ports and timeout explicitly |
 | `service` | available | Top 100 TCP ports, then banner/SSH/TLS/HTTP/DNS identification |
@@ -180,10 +188,10 @@ the request/response bytes of each identity read.
 
 Modbus uses function 43/14 (basic Read Device Identification) on TCP/502;
 EtherNet/IP uses ListIdentity on TCP/44818. Both are read-only requests and
-return product/version fields with raw exchange evidence. BACnet uses a unicast
-Who-Is request on UDP/47808 in an explicit UDP scan or `udp-deep`, followed by
-a read-only Device object-identifier query and a BBMD Foreign Device Table read
-when earlier probes are silent. After a BACnet reply confirms the port is open,
+return product/version fields with raw exchange evidence. `udp-common` sends
+BACnet Who-Is on UDP/47808; `udp-deep` tries it on every requested UDP port.
+If Who-Is is silent, the scanner tries a read-only Device object-identifier
+query and a BBMD Foreign Device Table read. After a BACnet reply confirms the port is open,
 it reads Device name, vendor, application software, firmware, model, description,
 and location properties, plus the BBMD Foreign Device Table when available.
 Missing optional replies leave the validated open result intact. It parses
@@ -360,9 +368,11 @@ at 75%, each with the matching probe and rule line kept in the observation's
 `nmap.*` attributes and the banner retained as evidence. This sends no traffic
 beyond the banner the deep-probe stage already reads; the built-in matchers
 (SSH, TLS, HTTP, DNS) still take precedence. `--nmap-udp-probes` separately
-adds every usable UDP payload from the same kind of file to each requested port.
-The file's `ports` directives only prioritize requests. Built-in UDP probes
-are also tried. Imported requests are limited to the maximum UDP payload size;
+adds usable UDP payloads from the same kind of file. `udp-common` uses its
+`ports` directives to select probes; portless probes apply to any port.
+`udp-deep` tries every imported probe on each requested port and uses the port
+directives only to prioritize them. Built-in UDP probes are also tried. Imported
+requests are limited to the maximum UDP payload size;
 empty and oversized requests are skipped. Any datagram returned to an imported
 request confirms an open UDP port, but without a
 protocol-specific matcher its service identity is unconfirmed. This option

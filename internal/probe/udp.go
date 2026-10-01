@@ -53,6 +53,7 @@ type Probe struct {
 	Name          string
 	Tags          []string
 	Ports         []uint16
+	PortsDeclared bool // imported probe has port hints, even if none match this scan
 	Payload       []byte
 	Matcher       string
 	Timeout       time.Duration
@@ -228,12 +229,35 @@ func Builtins() ([]Probe, error) {
 	return probes, nil
 }
 
+// ForPort selects requests associated with a port for the common UDP profile.
 func ForPort(all []Probe, port uint16) []Probe {
-	if len(all) == 0 {
-		return []Probe{{Name: "generic-byte", Payload: []byte{0}, Matcher: "any"}}
+	selected := make([]Probe, 0, 2)
+	for _, p := range all {
+		if len(p.Ports) == 0 {
+			if !p.PortsDeclared {
+				selected = append(selected, p)
+			}
+			continue
+		}
+		for _, candidate := range p.Ports {
+			if candidate == port {
+				selected = append(selected, p)
+				break
+			}
+		}
 	}
-	// Port lists are ordering hints. A service on a nonstandard port must
-	// still receive every payload if the earlier probes do not identify it.
+	if len(selected) == 0 {
+		return []Probe{{Name: "udp-empty", Matcher: "any"}}
+	}
+	return selected
+}
+
+// ForEveryPort orders all requests for the deep UDP profile. Port lists are
+// hints only; every request is tried if earlier ones do not identify a service.
+func ForEveryPort(all []Probe, port uint16) []Probe {
+	if len(all) == 0 {
+		return []Probe{{Name: "udp-empty", Matcher: "any"}}
+	}
 	selected := make([]Probe, 0, len(all))
 	var portless, other []Probe
 	for _, p := range all {

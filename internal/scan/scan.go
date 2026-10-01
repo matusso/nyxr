@@ -74,7 +74,7 @@ func RunWithIO(parent context.Context, cfg config.Config, emit func(Observation)
 	var secret [32]byte
 	if cfg.UDP {
 		udpProbes = cfg.UDPProbes
-		if len(udpProbes) == 0 {
+		if len(udpProbes) == 0 && cfg.UDPMode != config.UDPBasic {
 			var err error
 			udpProbes, err = probe.Builtins()
 			if err != nil {
@@ -108,7 +108,7 @@ func RunWithIO(parent context.Context, cfg config.Config, emit func(Observation)
 					}
 					result = probeTCP(ctx, t, cfg.Timeout)
 				case "udp":
-					result = probeUDPCampaignWithICMP(ctx, t, cfg.Timeout, udpProbes, cfg.UDPRetries+udpSignals.retryBonus(t.target), secret[:], limiter, icmpObserver)
+					result = probeUDPCampaignWithICMPMode(ctx, t, cfg.Timeout, udpProbes, cfg.UDPRetries+udpSignals.retryBonus(t.target), secret[:], limiter, icmpObserver, cfg.UDPMode)
 					udpSignals.record(result)
 				case "icmp":
 					if limiter.WaitFor(ctx, t.target) != nil {

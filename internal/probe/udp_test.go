@@ -12,9 +12,9 @@ func TestBuiltinsAndTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ForPort(all, 53)) != len(all) || len(ForPort(all, 123)) != len(all) ||
-		len(ForPort(all, 161)) != len(all) || len(ForPort(all, 40000)) != len(all) {
-		t.Fatalf("every port must receive the complete UDP catalog")
+	if len(ForPort(all, 53)) != 2 || len(ForPort(all, 123)) != 1 ||
+		len(ForPort(all, 161)) != 1 || len(ForEveryPort(all, 40000)) != len(all) {
+		t.Fatalf("unexpected common/deep UDP catalog selection")
 	}
 	dns := ForPort(all, 53)[0]
 	request := Prepare(dns, Token([]byte("secret"), "192.0.2.1", 53, dns.Name, 1))
@@ -95,7 +95,7 @@ func TestBACnetReadOnlyFallbackProbes(t *testing.T) {
 		t.Fatal(err)
 	}
 	selected := ForPort(all, 47808)
-	if len(selected) != len(all) || selected[0].Matcher != "bacnet" ||
+	if len(selected) != 3 || selected[0].Matcher != "bacnet" ||
 		selected[1].Matcher != "bacnet-read" || selected[2].Matcher != "bacnet-fdt" {
 		t.Fatalf("expected BACnet probes first on the usual port, got %+v", selected)
 	}
@@ -208,7 +208,7 @@ func TestPhase2BuiltinsAndMatchers(t *testing.T) {
 	}
 	for _, port := range []uint16{69, 1900, 3478, 5060, 5353, 5355, 5683} {
 		selected := ForPort(all, port)
-		if len(selected) != len(all) || selected[0].Name == "generic-byte" {
+		if len(selected) != 1 || selected[0].Name == "udp-empty" {
 			t.Fatalf("port %d: %+v", port, selected)
 		}
 	}
