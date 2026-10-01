@@ -66,7 +66,7 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) observe.Observation 
 		Kind: observe.KindService, Timestamp: time.Now().UTC(), Target: t.Addr, Transport: "tcp", Port: t.Port,
 		State: "open", Fingerprint: observe.FingerprintUnknown,
 	}
-	if e.enabled[ProbeBanner] || e.enabled[ProbeSSH] {
+	if e.enabled[ProbeBanner] || e.enabled[ProbeSSH] || e.enabled[ProbeNmap] {
 		ev, banner := e.probeBanner(ctx, t)
 		o.Evidence = append(o.Evidence, ev)
 		o.ProbesAttempted = append(o.ProbesAttempted, ProbeBanner)
@@ -78,6 +78,10 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) observe.Observation 
 			o.Probe = ProbeBanner
 			if e.enabled[ProbeSSH] && matchSSH(&o, banner) {
 				o.Evidence[len(o.Evidence)-1].Matched = ProbeSSH
+				return o
+			}
+			if e.nmapBanner(&o, banner) {
+				o.Evidence[len(o.Evidence)-1].Matched = ProbeNmap
 				return o
 			}
 			o.Attributes = map[string]string{"banner": printable(banner, 256)}

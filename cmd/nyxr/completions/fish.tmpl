@@ -9,7 +9,7 @@ function __nyxr_profiles
 {{- end}}
 end
 
-set -l __nyxr_commands scan profiles decode sniff history serve completion version help
+set -l __nyxr_commands scan profiles decode sniff history probe serve completion version help
 complete -c nyxr -f
 
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a scan -d 'Run a scan'
@@ -17,6 +17,7 @@ complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a profil
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a decode -d 'Decode an Ethernet pcap or pcapng to JSON'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a sniff -d 'Capture and decode live frames'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a history -d 'List or query stored scans, assets and evidence'
+complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a probe -d 'Import and summarize an nmap-service-probes file'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a serve -d 'Serve the REST API and web UI'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a completion -d 'Print a shell completion script'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a version -d 'Print the version'
@@ -41,12 +42,13 @@ complete -c nyxr -n '__fish_seen_subcommand_from scan' -l send-base64 -x -d 'Cus
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l payload-file -r -F -d 'Custom raw UDP payload file'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l config -r -F -d 'YAML scan configuration'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service -d 'Deep service probes on open TCP ports'
-complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-probes -x -a 'banner ssh tls http dns modbus ethernetip banner,ssh,tls,http,dns modbus,ethernetip' -d 'Comma list of service probes'
+complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-probes -x -a 'banner ssh tls http dns modbus ethernetip nmap banner,ssh,tls,http,dns modbus,ethernetip' -d 'Comma list of service probes'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l allow-targets -x -d 'Approved IPs or CIDRs'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-fallback -x -a 'http tls,http none' -d 'Probes for unhinted silent ports, or none'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-timeout -x -d 'Upper bound for each service probe'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-workers -x -d 'Concurrent service probe workers'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-rate -x -d 'New service connections per second (0 = unlimited)'
+complete -c nyxr -n '__fish_seen_subcommand_from scan' -l nmap-service-probes -r -F -d 'Import an nmap-service-probes file for banner matching'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l pcapng -r -F -d 'Write packet evidence to a pcapng file'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l pcapng-max-mb -x -d 'Pcapng size budget in MiB'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l db -r -F -d 'Store results in a SQLite database'
@@ -66,6 +68,11 @@ complete -c nyxr -n '__fish_seen_subcommand_from decode' -F
 complete -c nyxr -n '__fish_seen_subcommand_from sniff' -l interface -x -a '(__fish_print_interfaces)' -d 'Network interface'
 complete -c nyxr -n '__fish_seen_subcommand_from sniff' -l count -x -d 'Number of decoded packets'
 complete -c nyxr -n '__fish_seen_subcommand_from sniff' -l timeout -x -d 'Capture duration'
+
+# probe
+complete -c nyxr -n '__fish_seen_subcommand_from probe; and not __fish_seen_subcommand_from import' -a import -d 'Import and summarize an nmap-service-probes file'
+complete -c nyxr -n '__fish_seen_subcommand_from probe; and __fish_seen_subcommand_from import' -l json -d 'Machine-readable summary'
+complete -c nyxr -n '__fish_seen_subcommand_from probe; and __fish_seen_subcommand_from import' -F
 
 # serve
 complete -c nyxr -n '__fish_seen_subcommand_from serve' -l listen -x -d 'Listen address'

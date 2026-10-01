@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"github.com/gopacket/gopacket/layers"
 
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/nmapdb"
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/scan"
@@ -45,6 +47,72 @@ func sshServer(t *testing.T) (netip.Addr, uint16) {
 	}()
 	ap := netip.MustParseAddrPort(ln.Addr().String())
 	return ap.Addr(), ap.Port()
+}
+
+func ftpServer(t *testing.T) (netip.Addr, uint16) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_, _ = io.WriteString(c, "220 ProFTPD 1.3.5 Server ready.\r\n")
+			time.Sleep(200 * time.Millisecond)
+			_ = c.Close()
+		}
+	}()
+	ap := netip.MustParseAddrPort(ln.Addr().String())
+	return ap.Addr(), ap.Port()
+}
+
+func TestNmapServiceProbesEndToEnd(t *testing.T) {
+	addr, open := ftpServer(t)
+	path := filepath.Join(t.TempDir(), "nmap-service-probes")
+	probes := "Probe TCP NULL q||\nmatch ftp m|^220[- ].*ProFTPD ([\\w.]+)| p/ProFTPD/ v/$1/\n"
+	if err := os.WriteFile(path, []byte(probes), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rate := 0
+	cfg, err := config.Build(config.Options{Targets: []string{"127.0.0.1"}, Profile: "service",
+		Ports: strconv.Itoa(int(open)), Rate: &rate})
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc, err := config.BuildService(cfg, config.ServiceOptions{Timeout: "1s", NmapProbes: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := nmapdb.LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	summary, err := Run(context.Background(), cfg, Options{Service: svc, Nmap: db, Sinks: []Sink{NewJSONSink(&out)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.Services != 1 {
+		t.Fatalf("expected one identified service: %+v", summary)
+	}
+	_, records := decodeKinds(t, out.Bytes())
+	found := false
+	for _, r := range records {
+		if r["kind"] == "service" {
+			if r["service"] != "ftp" || r["product"] != "ProFTPD" || r["version"] != "1.3.5" {
+				t.Fatalf("nmap did not identify the service: %v", r)
+			}
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no service record for %s:%d", addr, open)
+	}
 }
 
 func serviceConfig(t *testing.T, port uint16, extra ...uint16) (config.Config, config.Service) {
@@ -151,8 +219,8 @@ func (f *fakeCapture) ReceiveBatch(ctx context.Context, b [][]byte) (int, error)
 	return n, nil
 }
 func (f *fakeCapture) SendBatch(context.Context, [][]byte) (int, error) { return 0, nil }
-func (f *fakeCapture) Stats() packetio.Stats                             { return packetio.Stats{} }
-func (f *fakeCapture) Close() error                                      { return nil }
+func (f *fakeCapture) Stats() packetio.Stats                            { return packetio.Stats{} }
+func (f *fakeCapture) Close() error                                     { return nil }
 
 func synFrame(t *testing.T, src, dst netip.Addr, sport, dport uint16, ack bool) []byte {
 	eth := &layers.Ethernet{SrcMAC: net.HardwareAddr{2, 0, 0, 0, 0, 1}, DstMAC: net.HardwareAddr{2, 0, 0, 0, 0, 2}, EthernetType: layers.EthernetTypeIPv4}

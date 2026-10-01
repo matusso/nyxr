@@ -310,6 +310,39 @@ receives a frame. ICMP errors with complete quoted UDP headers are indexed
 under the UDP target and port flow. `nyxr decode` reads
 these pcapng files as well as classic pcap.
 
+### Nmap service-probe interoperability
+
+nyxr can import a user-supplied [`nmap-service-probes`](https://nmap.org/book/vscan-fileformat.html)
+file at runtime and use it to identify services from the banner a server sends
+on connect. The data file is the Nmap Project's and is licensed under the Nmap
+Public Source License; nyxr never bundles or redistributes it. You point nyxr at
+a copy you already have, and its provenance (path and SHA-256) is recorded.
+
+```sh
+nyxr probe import /usr/share/nmap/nmap-service-probes            # summarize a database
+nyxr probe import /usr/share/nmap/nmap-service-probes --json     # machine-readable
+nyxr scan --service --nmap-service-probes /usr/share/nmap/nmap-service-probes \
+  --ports 21,25,80,110,143 192.0.2.10
+```
+
+`probe import` reports how many probes and match rules were read, how many
+patterns compiled, and how many were skipped. Match patterns are compiled with
+Go's RE2 engine; patterns that rely on PCRE features RE2 does not support
+(backreferences, lookaround, possessive quantifiers) are skipped and counted
+rather than failing the import, so a database always loads as far as it safely
+can.
+
+At scan time the `nmap` service probe (enabled automatically by
+`--nmap-service-probes`, or named in `--service-probes`) matches the passively
+read banner against the database's `NULL` probe rules and emits a service with
+product and version. A hard match is reported at 90% confidence and a softmatch
+at 75%, each with the matching probe and rule line kept in the observation's
+`nmap.*` attributes and the banner retained as evidence. This sends no traffic
+beyond the banner the deep-probe stage already reads; the built-in matchers
+(SSH, TLS, HTTP, DNS) still take precedence. Sending Nmap's active probe
+payloads is not implemented yet, and `ot-safe` never permits the `nmap` probe.
+Remote API requests may not name a server-side probes file.
+
 `--db file` stores the scan in SQLite through a cgo-free driver, so every
 release binary can open it. The schema is versioned with forward-only
 migrations, and a database from a newer nyxr is refused. It keeps scans,

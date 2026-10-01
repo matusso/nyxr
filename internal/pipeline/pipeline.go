@@ -15,6 +15,7 @@ import (
 	"github.com/matusso/nyxr/internal/capture"
 	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/device"
+	"github.com/matusso/nyxr/internal/nmapdb"
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/scan"
@@ -48,6 +49,9 @@ type Options struct {
 	// the local privileged backend. A packetd client keeps the caller
 	// unprivileged.
 	OpenLive packetio.Opener
+	// Nmap is the compiled database for Service.NmapProbesFile. Only a local
+	// caller loads it; the pipeline never opens files named by a request.
+	Nmap *nmapdb.Database
 
 	// Test hooks; nil selects the real implementation.
 	Discover    func(context.Context, config.Config, func(scan.Observation) error) error
@@ -146,6 +150,11 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 		}
 		ec := opts.Service.Engine()
 		ec.Dial = opts.ServiceDial
+		if opts.Service.NmapProbesFile != "" && opts.Nmap == nil {
+			runErr = errors.New("nmap-service-probes: database not loaded by the caller")
+			return
+		}
+		ec.Nmap = opts.Nmap
 		var err error
 		if engine, err = service.Start(ctx, ec, deliver); err != nil {
 			runErr = err

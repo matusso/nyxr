@@ -4,7 +4,7 @@
 # Load for every new shell:    nyxr completion bash > ~/.local/share/bash-completion/completions/nyxr
 
 _nyxr() {
-    local cur prev cmd i
+    local cur prev cmd sub i seen
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
@@ -18,15 +18,22 @@ _nyxr() {
     fi
 
     cmd=""
+    sub=""
+    seen=0
     for ((i = 1; i < COMP_CWORD; i++)); do
         case "${COMP_WORDS[i]}" in
             -*) ;;
-            *) cmd="${COMP_WORDS[i]}"; break ;;
+            *)
+                if [[ -z "$cmd" ]]; then
+                    cmd="${COMP_WORDS[i]}"
+                elif [[ $seen -eq 0 ]]; then
+                    sub="${COMP_WORDS[i]}"; seen=1
+                fi ;;
         esac
     done
 
     if [[ -z "$cmd" ]]; then
-        COMPREPLY=($(compgen -W "scan profiles decode sniff history serve completion version help" -- "$cur"))
+        COMPREPLY=($(compgen -W "scan profiles decode sniff history probe serve completion version help" -- "$cur"))
         return 0
     fi
 
@@ -49,19 +56,30 @@ _nyxr() {
                     COMPREPLY=($(compgen -W "$(command ls /sys/class/net 2>/dev/null || ifconfig -l 2>/dev/null)" -- "$cur"))
                     return 0 ;;
                 --service-probes|-service-probes)
-                    COMPREPLY=($(compgen -W "banner ssh tls http dns modbus ethernetip banner,ssh,tls,http,dns modbus,ethernetip" -- "$cur"))
+                    COMPREPLY=($(compgen -W "banner ssh tls http dns modbus ethernetip nmap banner,ssh,tls,http,dns modbus,ethernetip" -- "$cur"))
                     return 0 ;;
                 --service-fallback|-service-fallback)
                     COMPREPLY=($(compgen -W "http tls,http none" -- "$cur"))
                     return 0 ;;
-                --payload|-payload|--config|-config|--payload-file|-payload-file|--pcapng|-pcapng|--db|-db|--packetd|-packetd)
+                --payload|-payload|--config|-config|--payload-file|-payload-file|--nmap-service-probes|-nmap-service-probes|--pcapng|-pcapng|--db|-db|--packetd|-packetd)
                     COMPREPLY=($(compgen -f -- "$cur"))
                     return 0 ;;
                 --timeout|-timeout|--rate|-rate|--workers|-workers|--udp-retries|-udp-retries|--send-hex|-send-hex|--send-base64|-send-base64|--source-ip|-source-ip|--source-mac|-source-mac|--next-hop-mac|-next-hop-mac|--allow-targets|-allow-targets|--service-timeout|-service-timeout|--service-workers|-service-workers|--service-rate|-service-rate|--pcapng-max-mb|-pcapng-max-mb)
                     return 0 ;;
             esac
             if [[ "$cur" == -* ]]; then
-                COMPREPLY=($(compgen -W "--profile --ports --protocols --timeout --rate --workers --udp-retries --tcp-mode --interface --source-ip --source-mac --next-hop-mac --allow-targets --payload --send-hex --send-base64 --payload-file --config --service --service-probes --service-fallback --service-timeout --service-workers --service-rate --pcapng --pcapng-max-mb --db --fingerprint --packetd --json --dry-run --help" -- "$cur"))
+                COMPREPLY=($(compgen -W "--profile --ports --protocols --timeout --rate --workers --udp-retries --tcp-mode --interface --source-ip --source-mac --next-hop-mac --allow-targets --payload --send-hex --send-base64 --payload-file --config --service --service-probes --service-fallback --service-timeout --service-workers --service-rate --nmap-service-probes --pcapng --pcapng-max-mb --db --fingerprint --packetd --json --dry-run --help" -- "$cur"))
+            fi
+            ;;
+        probe)
+            if [[ "$sub" == "import" ]]; then
+                if [[ "$cur" == -* ]]; then
+                    COMPREPLY=($(compgen -W "--json --help" -- "$cur"))
+                else
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                fi
+            else
+                COMPREPLY=($(compgen -W "import" -- "$cur"))
             fi
             ;;
         profiles)

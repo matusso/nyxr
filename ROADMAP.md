@@ -15,7 +15,7 @@ This is the execution plan for the product described in [INSTRUCTIONS.md](INSTRU
 | Safety and rate control | Partial | Global and scoped application-level probe rates, bounded concurrency, allowlisted `ot-safe` TCP policy with approved ports and read-only identity probes; allowlisted research profile capped at five frames/s | Live OT device validation and packet-level audit capture privileges |
 | Evidence and storage | Partial | Versioned `nyxr/v1` record stream (host/port/service/packet-evidence/scan); asynchronous bounded pcapng capture with per-flow packet IDs; pcap and pcapng reading; SQLite store with migrations, assets, evidence bytes, packet index, queries and retention | Live capture runtime gates, plain discovery scans still on the legacy observation stream, PostgreSQL controller backend, object storage for large artifacts |
 | Build and release | Done | Tests/vet in CI, cgo-free builds and release archives/checksums for linux/windows/darwin on amd64/arm64, and a Linux amd64/arm64 GHCR image | Runtime smoke tests on all six binary targets and signed release provenance |
-| Deep services, UI and agents | Partial | Bounded deep-probe queue fed by discovery: passive banner, SSH, TLS (chain, version, cipher, ALPN, service inside TLS), HTTP, DNS `version.bind`, Modbus and EtherNet/IP identity; every exchange kept as evidence; `service`, `deep`, `web`, `full`, `iot` and `ot-safe` profiles; REST API with bounded SSE events and an embedded web UI served unprivileged, with raw I/O in `nyxr-packetd` | SMTP/FTP/SNMP/database probes, scripting and distributed execution |
+| Deep services, UI and agents | Partial | Bounded deep-probe queue fed by discovery: passive banner, SSH, TLS (chain, version, cipher, ALPN, service inside TLS), HTTP, DNS `version.bind`, Modbus and EtherNet/IP identity; runtime-imported `nmap-service-probes` banner matching; every exchange kept as evidence; `service`, `deep`, `web`, `full`, `iot` and `ot-safe` profiles; REST API with bounded SSE events and an embedded web UI served unprivileged, with raw I/O in `nyxr-packetd` | SMTP/FTP/SNMP/database probes, active imported/NSE scripting and distributed execution |
 
 Cross-compilation confirms that a binary builds; it does **not** prove that live packet capture, raw sockets or every scan mode works on that operating system. A macOS BPF open/bind/timeout smoke test passed on `en0`; no received or transmitted frames were verified. Full BPF and Npcap live runtime gates remain open. Raw SYN currently requires an operator-supplied next-hop MAC and supports IPv4 TCP only. No packet-rate claim is established yet.
 
@@ -128,13 +128,14 @@ A test runs one loopback TCP and service scan through the CLI and the API and re
 
 **Exit:** A CLI and web scan with equivalent configuration produce equivalent observations; the web/API process has no raw-socket privilege.
 
-## Phase 7 — scripting and probe interoperability · Planned
+## Phase 7 — scripting and probe interoperability · Partial
 
-- [ ] Import user-supplied Nmap service probes into the native schema; preserve provenance and license boundaries.
+- [x] Import user-supplied Nmap service probes into the match model; preserve provenance and license boundaries. `internal/nmapdb` parses an operator-supplied `nmap-service-probes` file at runtime (never bundled), records its path and SHA-256, and compiles match/softmatch patterns with Go's RE2. Patterns RE2 cannot express (backreferences, lookaround) are skipped and counted rather than failing the import. `nyxr probe import` summarizes a database and prints the Nmap Project license notice. The service engine's `nmap` probe matches a connect banner against the NULL-probe rules and emits service/product/version with provenance, sending no extra traffic. Fixtures, a fuzz target and CLI/config/pipeline tests cover the path.
+- [ ] Send the imported active probes (GetRequest and friends) under a rarity/intensity budget and per-port cap; today only the passive NULL-probe banner match is wired into scanning. Import also does not yet translate the UDP probe payloads into sent probes.
 - [ ] Add an Nmap/NSE bridge for selected scripts with structured output and category safety checks.
 - [ ] Add resource-limited WASM plugins, then Lua/NSE compatibility only for proven use cases.
 
-**Exit:** Scripts have bounded time/memory/network access, a versioned API and reproducible fixture tests.
+**Exit:** Scripts have bounded time/memory/network access, a versioned API and reproducible fixture tests. Imported Nmap data stays runtime-loaded with recorded provenance and never ships inside a nyxr binary.
 
 ## Phase 8 — distributed scanning · Planned
 

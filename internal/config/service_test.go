@@ -75,6 +75,59 @@ func TestServiceRejections(t *testing.T) {
 	}
 }
 
+func TestServiceNmapProbes(t *testing.T) {
+	// Supplying the file enables the nmap probe and records the path.
+	s, err := BuildService(build(t, Options{Profile: "service"}), ServiceOptions{NmapProbes: "/tmp/nmap-service-probes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.NmapProbesFile != "/tmp/nmap-service-probes" {
+		t.Fatalf("nmap file not recorded: %+v", s)
+	}
+	found := false
+	for _, p := range s.Probes {
+		if p == "nmap" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("nmap probe not added: %+v", s.Probes)
+	}
+	if plan := s.Plan(); plan == nil || plan.NmapProbes != "/tmp/nmap-service-probes" {
+		t.Fatalf("plan missing nmap file: %+v", plan)
+	}
+
+	// Naming the probe without a file is an error.
+	if _, err := BuildService(build(t, Options{Profile: "service"}), ServiceOptions{Probes: "banner,nmap"}); err == nil ||
+		!strings.Contains(err.Error(), "requires --nmap-service-probes") {
+		t.Fatalf("nmap without a file should fail, got %v", err)
+	}
+
+	// The file is a service override, so it needs the stage enabled.
+	if _, err := BuildService(build(t, Options{Profile: "tcp"}), ServiceOptions{NmapProbes: "/tmp/x"}); err == nil ||
+		!strings.Contains(err.Error(), "require --service") {
+		t.Fatalf("nmap file without a service stage should fail, got %v", err)
+	}
+
+	// ot-safe never allows the nmap probe.
+	if _, err := BuildService(build(t, Options{Profile: "ot-safe", AllowTargets: []string{"192.0.2.1"}}),
+		ServiceOptions{NmapProbes: "/tmp/x"}); err == nil {
+		t.Fatal("ot-safe must reject the nmap probe")
+	}
+}
+
+func TestNmapServiceProbesRemoteRejected(t *testing.T) {
+	r := Request{Targets: []string{"192.0.2.1"}, Profile: "service", NmapServiceProbes: "/etc/nmap-service-probes"}
+	if _, err := r.Resolve(ResolveOptions{Remote: true}); err == nil ||
+		!strings.Contains(err.Error(), "local path") {
+		t.Fatalf("remote request must reject nmap_service_probes, got %v", err)
+	}
+	// The same request resolves locally.
+	if _, err := r.Resolve(ResolveOptions{}); err != nil {
+		t.Fatalf("local resolve should succeed: %v", err)
+	}
+}
+
 func TestOTServicePolicyCannotBeBypassed(t *testing.T) {
 	cfg := build(t, Options{Profile: "ot-safe", AllowTargets: []string{"192.0.2.1"}})
 	for _, svc := range []Service{

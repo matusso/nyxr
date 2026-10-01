@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/nmapdb"
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/pipeline"
@@ -50,6 +51,7 @@ type stageFlags struct {
 	serviceTimeout  *time.Duration
 	serviceWorkers  *int
 	serviceRate     *int
+	nmapProbes      *string
 	pcapng          *string
 	pcapngMaxMB     *int
 	db              *string
@@ -64,6 +66,7 @@ func addStageFlags(fs *flag.FlagSet) *stageFlags {
 	s.serviceTimeout = fs.Duration("service-timeout", 0, "upper bound for each service probe")
 	s.serviceWorkers = fs.Int("service-workers", -1, "concurrent service probe workers")
 	s.serviceRate = fs.Int("service-rate", -1, "new service connections per second (0 unlimited)")
+	s.nmapProbes = fs.String("nmap-service-probes", "", "import this nmap-service-probes file for banner matching")
 	s.pcapng = fs.String("pcapng", "", "write packet evidence to this pcapng file")
 	s.pcapngMaxMB = fs.Int("pcapng-max-mb", -1, "pcapng size budget in MiB (default 1024)")
 	s.db = fs.String("db", "", "store results in this SQLite database")
@@ -84,6 +87,7 @@ func (s *stageFlags) overlay(r *config.Request) error {
 	r.ServiceTimeout = first(timeoutText(*s.serviceTimeout), r.ServiceTimeout)
 	r.ServiceWorkers = mergeInt(*s.serviceWorkers, r.ServiceWorkers)
 	r.ServiceRate = mergeInt(*s.serviceRate, r.ServiceRate)
+	r.NmapServiceProbes = first(*s.nmapProbes, r.NmapServiceProbes)
 	r.PCAPNG = first(*s.pcapng, r.PCAPNG)
 	r.PCAPNGMaxMB = mergeInt(*s.pcapngMaxMB, r.PCAPNGMaxMB)
 	r.Fingerprint = r.Fingerprint || *s.fingerprint
@@ -106,6 +110,9 @@ func emitStagePlan(out io.Writer, r config.Resolved, db string, asJSON bool) err
 		}
 		fmt.Fprintf(out, "service     %s (fallback %s)\n", strings.Join(p.Probes, ", "), fallback)
 		fmt.Fprintf(out, "svc-timeout %s, %d workers, %s\n", p.Timeout, p.Workers, rateText(p.Rate))
+		if p.NmapProbes != "" {
+			fmt.Fprintf(out, "nmap-probes %s\n", p.NmapProbes)
+		}
 	}
 	if plan.PCAPNG != "" {
 		fmt.Fprintf(out, "pcapng      %s (max %d MiB)\n", plan.PCAPNG, plan.PCAPNGMaxMB)
@@ -124,6 +131,13 @@ func runPipeline(out io.Writer, r config.Resolved, db string, open packetio.Open
 	ctx := context.Background()
 	opts := pipeline.FromResolved(r)
 	opts.OpenLive = open
+	if f := r.Service.NmapProbesFile; f != "" {
+		nm, err := nmapdb.LoadFile(f)
+		if err != nil {
+			return fmt.Errorf("nmap-service-probes: %w", err)
+		}
+		opts.Nmap = nm
+	}
 	if asJSON {
 		opts.Sinks = append(opts.Sinks, pipeline.NewJSONSink(out))
 	} else {
