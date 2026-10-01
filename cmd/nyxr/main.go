@@ -7,6 +7,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/matusso/nyxr/internal/capture"
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/netmon"
 	"github.com/matusso/nyxr/internal/packet"
 	"github.com/matusso/nyxr/internal/packetd"
 	"github.com/matusso/nyxr/internal/packetio"
@@ -188,6 +191,43 @@ func (o progressOptions) start(tasks int, disabled bool) *ui.Progress {
 	return ui.NewProgress(o.w, tasks, o.w != nil && !disabled, ui.New(o.w, o.noColor))
 }
 
+// monitorTraffic shows interface traffic under the bar: the scan's raw
+// interface when one is set, loopback when every target is local, and
+// otherwise the sum over every interface that is up.
+func monitorTraffic(bar *ui.Progress, cfg config.Config) {
+	if !bar.Enabled() {
+		return
+	}
+	device := cfg.Interface
+	if device == "" && allLoopback(cfg.Targets) {
+		device = loopbackInterface()
+	}
+	label := device
+	if label == "" {
+		label = "all interfaces"
+	}
+	bar.Monitor(label, func() (netmon.Counters, error) { return netmon.Read(device) })
+}
+
+func allLoopback(targets []netip.Addr) bool {
+	for _, t := range targets {
+		if !t.IsLoopback() {
+			return false
+		}
+	}
+	return len(targets) > 0
+}
+
+func loopbackInterface() string {
+	ifaces, _ := net.Interfaces()
+	for _, ifc := range ifaces {
+		if ifc.Flags&net.FlagLoopback != 0 {
+			return ifc.Name
+		}
+	}
+	return ""
+}
+
 func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOptions) error {
 	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -301,6 +341,7 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	}
 	bar := progress.start(resolved.Config.Plan().Tasks, *noProgressFlag)
 	defer bar.Done()
+	monitorTraffic(bar, resolved.Config)
 	out = bar.Wrap(out)
 	if resolved.UsesPipeline() || *stages.db != "" {
 		return runPipeline(out, resolved, *stages.db, open, *jsonFlag, style, bar)
