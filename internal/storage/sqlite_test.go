@@ -210,3 +210,31 @@ func TestPruneRetention(t *testing.T) {
 		t.Fatal("negative retention accepted")
 	}
 }
+
+func TestOpenOnlyAndKnownOpen(t *testing.T) {
+	s, _ := openTest(t)
+	storeScan(t, s, "scan-1", t0, portObs(t0, 22, "open"), portObs(t0, 80, "open"), portObs(t0, 81, "filtered"))
+	later := t0.Add(time.Hour)
+	storeScan(t, s, "scan-2", later, portObs(later, 80, "closed"))
+	other := portObs(t0, 443, "closed")
+	other.Target = netip.MustParseAddr("192.0.2.6")
+	storeScan(t, s, "scan-3", t0, other)
+	assets, err := s.Assets(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	open := OpenOnly(assets)
+	if len(open) != 1 || open[0].Address != host || len(open[0].Ports) != 1 || open[0].Ports[0].Port != 22 {
+		t.Fatalf("open-only assets: %+v", open)
+	}
+	if len(assets[0].Ports) != 3 {
+		t.Fatal("OpenOnly must not modify its input")
+	}
+	known, err := s.KnownOpen(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(known) != 1 || known[0].Address != host || known[0].Port != 22 || known[0].Transport != "tcp" {
+		t.Fatalf("known open: %+v", known)
+	}
+}

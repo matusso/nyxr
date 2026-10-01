@@ -110,6 +110,9 @@ func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observatio
 			}
 			for _, target := range chunk {
 				for _, p := range cfg.Ports {
+					if !cfg.Includes(target, "tcp", p) {
+						continue
+					}
 					work := synWork{task: task{target: target, port: p, transport: "tcp"}, mac: macs[target]}
 					select {
 					case tasks <- work:

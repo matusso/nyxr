@@ -140,10 +140,10 @@ func RunWithIO(parent context.Context, cfg config.Config, emit func(Observation)
 				return
 			}
 			for _, port := range cfg.Ports {
-				if cfg.TCP && !send(task{target: target, port: port, transport: "tcp"}) {
+				if cfg.TCP && cfg.Includes(target, "tcp", port) && !send(task{target: target, port: port, transport: "tcp"}) {
 					return
 				}
-				if cfg.UDP && !send(task{target: target, port: port, transport: "udp"}) {
+				if cfg.UDP && cfg.Includes(target, "udp", port) && !send(task{target: target, port: port, transport: "udp"}) {
 					return
 				}
 			}

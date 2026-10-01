@@ -60,7 +60,7 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
                 & $emit @('--profile', '--ports', '--protocols', '--timeout', '--rate', '--workers', '--udp-retries', '--tcp-mode', '--interface', '--source-ip', '--source-mac', '--next-hop-mac',
                     '--payload', '--send-hex', '--send-base64', '--payload-file', '--nmap-udp-probes', '--config',
                     '--service', '--service-probes', '--service-fallback', '--service-timeout', '--service-workers', '--service-rate', '--nmap-service-probes', '--pcapng', '--pcapng-max-mb', '--db', '--no-db', '--allow-targets',
-                    '--fingerprint', '--packetd', '--json', '--dry-run', '--help') 'ParameterName'
+                    '--fingerprint', '--packetd', '--known-open', '--json', '--dry-run', '--help') 'ParameterName'
             }
         }
         'probe' {
@@ -79,7 +79,7 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
         'history' {
             # Returning nothing lets PowerShell fall back to path completion.
             if ($prev -match '^--?(db|scan|address|limit|prune-older-than|keep)$') { return }
-            & $emit @('--db', '--scan', '--assets', '--unknown', '--address', '--limit', '--prune-older-than', '--keep', '--json', '--help') 'ParameterName'
+            & $emit @('--db', '--scan', '--assets', '--open', '--scope', '--unknown', '--address', '--limit', '--prune-older-than', '--keep', '--json', '--help') 'ParameterName'
         }
         'serve' {
             # Returning nothing lets PowerShell fall back to path completion.

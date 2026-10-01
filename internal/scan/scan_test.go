@@ -470,3 +470,34 @@ func TestEchoReplyRequiresMatchingToken(t *testing.T) {
 		t.Fatal("truncated reply accepted")
 	}
 }
+
+func TestTargetPortsLimitConnectScan(t *testing.T) {
+	a, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("loopback unavailable: %v", err)
+	}
+	defer a.Close()
+	b, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	pa, pb := uint16(a.Addr().(*net.TCPAddr).Port), uint16(b.Addr().(*net.TCPAddr).Port)
+	target := netip.MustParseAddr("127.0.0.1")
+	r, err := config.Request{KnownOpen: true, Targets: []string{"127.0.0.1"}, Timeout: "1s"}.Resolve(config.ResolveOptions{
+		KnownOpen: func() ([]config.KnownPort, error) {
+			return []config.KnownPort{{Address: target, Transport: "tcp", Port: pa}}, nil
+		}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := r.Config
+	cfg.Ports = append(cfg.Ports, pb) // a port the restriction must skip
+	var got []Observation
+	if err := Run(context.Background(), cfg, func(o Observation) error { got = append(got, o); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Port != pa || got[0].State != "open" {
+		t.Fatalf("got %+v, want only port %d", got, pa)
+	}
+}

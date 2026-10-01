@@ -58,6 +58,10 @@ type Request struct {
 	Fingerprint       bool   `yaml:"fingerprint" json:"fingerprint,omitempty"`
 	PCAPNG            string `yaml:"pcapng" json:"pcapng,omitempty"`
 	PCAPNGMaxMB       *int   `yaml:"pcapng_max_mb" json:"pcapng_max_mb,omitempty"`
+
+	// KnownOpen rescans only the ports the database last saw open; Targets
+	// then narrow the stored addresses (IPs, CIDRs or ranges).
+	KnownOpen bool `yaml:"known_open" json:"known_open,omitempty"`
 }
 
 // ParseFile reads and validates a YAML scan request. An empty path returns a
@@ -88,6 +92,8 @@ type ResolveOptions struct {
 	// not name files on the server, and PCAPNG must be a bare *.pcapng name
 	// that the server places in its own evidence directory.
 	Remote bool
+	// KnownOpen supplies stored open ports for a KnownOpen request.
+	KnownOpen KnownPortSource
 }
 
 // DefaultPCAPNGMaxMB is the capture size budget when a request sets none.
@@ -146,6 +152,13 @@ func (r Request) Resolve(o ResolveOptions) (Resolved, error) {
 			return Resolved{}, errors.New("remote pcapng must be a plain file name ending in .pcapng")
 		}
 	}
+	var restrict TargetPorts
+	if r.KnownOpen {
+		var err error
+		if restrict, err = r.applyKnownOpen(o.KnownOpen); err != nil {
+			return Resolved{}, err
+		}
+	}
 	for _, v := range []*int{r.Rate, r.HostRate, r.SubnetRate, r.InterfaceRate, r.Workers, r.UDPRetries, r.ServiceWorkers, r.ServiceRate} {
 		if v != nil && *v < 0 {
 			return Resolved{}, errors.New("rates, workers and retries must be nonnegative")
@@ -164,6 +177,7 @@ func (r Request) Resolve(o ResolveOptions) (Resolved, error) {
 	if err != nil {
 		return Resolved{}, err
 	}
+	cfg.TargetPorts = restrict
 	svc, err := BuildService(cfg, ServiceOptions{Enable: r.Service, Probes: r.ServiceProbes, Fallback: r.ServiceFallback,
 		Timeout: r.ServiceTimeout, Workers: r.ServiceWorkers, Rate: r.ServiceRate, NmapProbes: r.NmapServiceProbes})
 	if err != nil {

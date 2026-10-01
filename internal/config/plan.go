@@ -35,6 +35,8 @@ type Plan struct {
 	SourceMAC     string        `json:"source_mac,omitempty"`
 	NextHopMAC    string        `json:"next_hop_mac,omitempty"`
 	Research      *ResearchPlan `json:"research,omitempty"`
+	// KnownOpen marks a rescan limited to ports stored as open.
+	KnownOpen bool `json:"known_open,omitempty"`
 	// Tasks is the number of scheduled probe tasks (targets x protocols x
 	// ports, plus one ICMP task per target). It is a task count, not a packet
 	// count: a UDP campaign can send several packets per task.
@@ -107,6 +109,10 @@ func (c Config) Plan() Plan {
 		perTarget++
 	}
 	p.Tasks = perTarget * c.TargetCount()
+	if c.TargetPorts != nil {
+		p.Tasks = c.TargetPorts.tasks(c.TCP, c.UDP)
+		p.KnownOpen = true
+	}
 	if c.ARP || c.NDP {
 		p.Tasks = c.TargetCount()
 	}

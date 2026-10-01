@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/netip"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
@@ -329,4 +330,46 @@ func readSSE(t *testing.T, r io.Reader) []sseEvent {
 		}
 	}
 	return out
+}
+
+func TestOpenAssetsScopeAndKnownOpenPlan(t *testing.T) {
+	e := newEnv(t, ManagerConfig{}, testToken)
+	now := time.Now().UTC()
+	sc := observe.Scan{ID: "seed", Profile: "fast", Started: now, Status: "running", Targets: 2}
+	if err := e.store.BeginScan(context.Background(), sc); err != nil {
+		t.Fatal(err)
+	}
+	var obs []observe.Observation
+	for _, o := range []struct {
+		addr  string
+		port  uint16
+		state string
+	}{{"192.0.2.1", 22, "open"}, {"192.0.2.1", 80, "closed"}, {"192.0.2.2", 443, "open"}, {"192.0.2.2", 8080, "filtered"}, {"192.0.2.3", 22, "closed"}} {
+		ob := observe.Observation{Timestamp: now, Target: netip.MustParseAddr(o.addr), Transport: "tcp", Port: o.port, State: o.state, Confidence: 100, Reason: "seed", Probe: "tcp-connect"}
+		ob.Stamp(sc.ID)
+		obs = append(obs, ob)
+	}
+	if err := e.store.AddObservations(context.Background(), obs); err != nil {
+		t.Fatal(err)
+	}
+	var assets []storage.Asset
+	_, body := e.do(t, "GET", "/api/v1/assets?open=true", "")
+	if err := json.Unmarshal(body, &assets); err != nil || len(assets) != 2 || len(assets[0].Ports) != 1 || len(assets[1].Ports) != 1 {
+		t.Fatalf("open assets = %s", body)
+	}
+	_, body = e.do(t, "GET", "/api/v1/assets?open=true&scope=192.0.2.2-192.0.2.9", "")
+	if err := json.Unmarshal(body, &assets); err != nil || len(assets) != 1 || assets[0].Address.String() != "192.0.2.2" {
+		t.Fatalf("scoped assets = %s", body)
+	}
+	if res, _ := e.do(t, "GET", "/api/v1/assets?scope=nope", ""); res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("bad scope: %d", res.StatusCode)
+	}
+	res, body := e.do(t, "POST", "/api/v1/plan", `{"known_open":true,"targets":["192.0.2.0/24"]}`)
+	var plan config.StagePlan
+	if err := json.Unmarshal(body, &plan); err != nil || res.StatusCode != http.StatusOK {
+		t.Fatalf("plan: %d %s", res.StatusCode, body)
+	}
+	if !plan.KnownOpen || plan.Tasks != 2 || plan.Targets != 2 || plan.Service == nil || plan.Profile != config.KnownProfile {
+		t.Fatalf("known-open plan = %s", body)
+	}
 }

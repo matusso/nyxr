@@ -75,7 +75,9 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 // Resolve validates a remote request and applies this process's
 // capabilities. The returned plan is exactly what Start would run.
 func (m *Manager) Resolve(req config.Request) (config.Resolved, error) {
-	r, err := req.Resolve(config.ResolveOptions{Remote: true})
+	r, err := req.Resolve(config.ResolveOptions{Remote: true, KnownOpen: func() ([]config.KnownPort, error) {
+		return m.cfg.Store.KnownOpen(m.ctx)
+	}})
 	if err != nil {
 		return r, err
 	}

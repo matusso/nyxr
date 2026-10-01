@@ -3,13 +3,18 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/matusso/nyxr/internal/observe"
 )
 
 func TestServiceDryRunIncludesStage(t *testing.T) {
@@ -117,5 +122,61 @@ func TestServiceScanStoresAndHistoryQueries(t *testing.T) {
 	}
 	if err := run([]string{"history", "extra"}, &out); err == nil {
 		t.Fatal("history with a positional argument accepted")
+	}
+}
+
+func TestKnownOpenDryRunAndHistoryFilters(t *testing.T) {
+	db := filepath.Join(t.TempDir(), "known.db")
+	ctx := context.Background()
+	store, err := openStore(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	sc := observe.Scan{ID: "seed", Profile: "fast", Started: now, Status: "running", Targets: 2}
+	if err := store.BeginScan(ctx, sc); err != nil {
+		t.Fatal(err)
+	}
+	var obs []observe.Observation
+	for _, o := range []struct {
+		addr  string
+		port  uint16
+		state string
+	}{{"192.0.2.1", 22, "open"}, {"192.0.2.1", 25, "filtered"}, {"192.0.2.9", 80, "open"}, {"198.51.100.1", 443, "open"}} {
+		ob := observe.Observation{Timestamp: now, Target: netip.MustParseAddr(o.addr), Transport: "tcp", Port: o.port, State: o.state, Confidence: 100, Reason: "seed", Probe: "tcp-connect"}
+		ob.Stamp(sc.ID)
+		obs = append(obs, ob)
+	}
+	if err := store.AddObservations(ctx, obs); err != nil {
+		t.Fatal(err)
+	}
+	store.Close()
+
+	var out bytes.Buffer
+	if err := run([]string{"scan", "--known-open", "--db", db, "--dry-run", "--json", "192.0.2.0/24"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	var plan struct {
+		Targets   int  `json:"targets"`
+		Tasks     int  `json:"tasks"`
+		KnownOpen bool `json:"known_open"`
+		Service   any  `json:"service"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &plan); err != nil {
+		t.Fatal(err)
+	}
+	if plan.Targets != 2 || plan.Tasks != 2 || !plan.KnownOpen || plan.Service == nil {
+		t.Fatalf("known-open plan %s", out.String())
+	}
+	if err := run([]string{"scan", "--known-open", "--no-db", "192.0.2.1"}, &out); err == nil || !strings.Contains(err.Error(), "--no-db") {
+		t.Fatalf("--known-open with --no-db: %v", err)
+	}
+
+	out.Reset()
+	if err := run([]string{"history", "--db", db, "--assets", "--open", "--scope", "192.0.2.1-9", "--json"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if lines := strings.Split(strings.TrimSpace(out.String()), "\n"); len(lines) != 2 || strings.Contains(out.String(), `"filtered"`) || strings.Contains(out.String(), "198.51.100.1") {
+		t.Fatalf("history --assets --open --scope:\n%s", out.String())
 	}
 }

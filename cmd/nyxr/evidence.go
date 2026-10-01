@@ -127,6 +127,9 @@ func emitStagePlan(out io.Writer, r config.Resolved, db string, asJSON bool, sty
 	if plan.Fingerprint {
 		fmt.Fprintf(out, "%s%s\n", key("fingerprint"), style.Green("enabled"))
 	}
+	if plan.KnownOpen {
+		fmt.Fprintf(out, "%s%s\n", key("known-open"), style.Dim("only ports the database last saw open"))
+	}
 	return nil
 }
 
@@ -172,6 +175,8 @@ Flags:
   --db file            SQLite database written by nyxr scan (default ~/.nyxr/nyxr.db)
   --scan id            print the observations and packet evidence of one scan
   --assets             print every address with the latest state of each port
+  --open               with --assets, keep only open ports (and hosts that have one)
+  --scope list         with --assets, keep addresses in these IPs, CIDRs or ranges
   --unknown            print service observations with an unknown fingerprint
   --address ip         restrict --scan or --unknown to one address
   --limit int          maximum scans or observations (default 50)
@@ -188,6 +193,8 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 	dbFlag := dbFlags{path: fs.String("db", "", "SQLite database")}
 	scanFlag := fs.String("scan", "", "scan ID")
 	assetsFlag := fs.Bool("assets", false, "list assets")
+	openFlag := fs.Bool("open", false, "only open ports")
+	scopeFlag := fs.String("scope", "", "IPs, CIDRs or ranges")
 	unknownFlag := fs.Bool("unknown", false, "list unknown fingerprints")
 	addressFlag := fs.String("address", "", "restrict to one address")
 	limitFlag := fs.Int("limit", 50, "maximum rows")
@@ -234,10 +241,24 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 		_, err = fmt.Fprintf(out, "deleted %s scans\n", style.Bold(fmt.Sprintf("%d", n)))
 		return err
 	case *assetsFlag:
+		scope, err := config.ParseScope([]string{*scopeFlag})
+		if err != nil {
+			return err
+		}
 		assets, err := store.Assets(ctx)
 		if err != nil {
 			return err
 		}
+		if *openFlag {
+			assets = storage.OpenOnly(assets)
+		}
+		kept := assets[:0]
+		for _, a := range assets {
+			if scope.Contains(a.Address) {
+				kept = append(kept, a)
+			}
+		}
+		assets = kept
 		if *jsonFlag {
 			for _, a := range assets {
 				if err := enc.Encode(a); err != nil {

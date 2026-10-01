@@ -110,6 +110,7 @@ Global flags:
                 variable; color is off automatically when output is not a tty)
 
 Targets may be IP addresses, hostnames, CIDRs, or inclusive A-B ranges.
+"nyxr scan --known-open [scope...]" re-probes only ports stored as open.
 Run "nyxr scan -h" for scan flags, or "nyxr profiles" for profiles.
 `)
 	return err
@@ -156,6 +157,8 @@ Flags:
   --forge-payload-hex hex  raw research payload bytes
   --fingerprint         classify devices from independent observations
   --packetd socket      raw packet I/O through nyxr-packetd instead of local privilege
+  --known-open          rescan only the ports --db last saw open (service probes on by
+                        default); targets, if given, narrow it by IP, CIDR or range
 
 Service identification, evidence and storage:
   --service             deep probes on open TCP ports (on for service, deep, web, full)
@@ -338,6 +341,7 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	ipLengthFlag := fs.Int("ip-length", 0, "override IP length field")
 	forgePayloadFlag := fs.String("forge-payload-hex", "", "raw research payload hex")
 	packetdFlag := fs.String("packetd", "", "packetd Unix socket for raw packet I/O")
+	knownOpenFlag := fs.Bool("known-open", false, "rescan only ports the database last saw open")
 	stages := addStageFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -404,8 +408,18 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	if err != nil {
 		return err
 	}
+	opts := config.ResolveOptions{BaseDir: baseDir}
+	if *knownOpenFlag {
+		req.KnownOpen = true
+	}
+	if req.KnownOpen {
+		if db == "" {
+			return errors.New("--known-open reads earlier results; it cannot be combined with --no-db")
+		}
+		opts.KnownOpen = func() ([]config.KnownPort, error) { return knownOpen(db) }
+	}
 
-	resolved, err := req.Resolve(config.ResolveOptions{BaseDir: baseDir})
+	resolved, err := req.Resolve(opts)
 	if err != nil {
 		return err
 	}
@@ -428,6 +442,17 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	bar.Done()
 	summary.print(err != nil)
 	return err
+}
+
+// knownOpen reads the stored open ports for a --known-open rescan.
+func knownOpen(db string) ([]config.KnownPort, error) {
+	ctx := context.Background()
+	store, err := openStore(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	defer store.Close()
+	return store.KnownOpen(ctx)
 }
 
 func runResolved(out io.Writer, resolved config.Resolved, db string, open packetio.Opener, asJSON, openOnly bool, style *ui.Styler, tally *scanTally) error {
