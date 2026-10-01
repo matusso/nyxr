@@ -92,6 +92,8 @@ Accepted only with the `research` profile. See [Research packets](../guide/resea
 | `service_workers` | `--service-workers` | integer | Concurrent service workers |
 | `service_rate` | `--service-rate` | integer | New service connections per second |
 | `nmap_service_probes` | `--nmap-service-probes` | path | Local `nmap-service-probes` file for banner matching |
+| `nse_scripts` | `--nse-scripts` | string | Comma list of installed, individually named NSE scripts in Nmap's `safe` category |
+| `nse_timeout` | `--nse-timeout` | duration | Maximum Nmap time per host (default `30s`, range `1s`–`5m`) |
 | `fingerprint` | `--fingerprint` | boolean | Device fingerprinting |
 | `pcapng` | `--pcapng` | path | Capture file |
 | `pcapng_max_mb` | `--pcapng-max-mb` | integer | Capture size budget in MiB (default 1024) |
@@ -105,6 +107,7 @@ When the document arrives through the API:
 
 - Fields that name server files are rejected: `udp_probe_file`,
   `payload_file`, `nmap_udp_probes`, `nmap_service_probes`.
+- `nse_scripts` and `nse_timeout` require a local CLI request.
 - `pcapng` must be a bare `*.pcapng` file name; the server stores it in its
   `--evidence-dir`.
 - The `research` profile and ICMP are refused.

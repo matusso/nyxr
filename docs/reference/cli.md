@@ -97,6 +97,8 @@ Guide: [Research packets](../guide/research-packets.md).
 | `--service-workers N` | Concurrent service probe workers |
 | `--service-rate N` | New service connections per second (`0` = unlimited) |
 | `--nmap-service-probes FILE` | Match banners against a local `nmap-service-probes` file |
+| `--nse-scripts LIST` | Run selected installed NSE scripts in Nmap's `safe` category on open ports |
+| `--nse-timeout DURATION` | Maximum Nmap time per host (default `30s`) |
 | `--fingerprint` | Classify devices from independent observations |
 | `--pcapng FILE` | Capture scan traffic on `--interface` as pcapng evidence |
 | `--pcapng-max-mb N` | pcapng size budget (default 1024) |
