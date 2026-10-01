@@ -253,6 +253,26 @@ func TestResolvePorts(t *testing.T) {
 			t.Fatalf("top100 not sorted/unique at %d: %v", i, top)
 		}
 	}
+	var prev []uint16
+	for _, tc := range []struct {
+		name string
+		want int
+	}{{"TOP-1000", 1000}, {"top2000", 2000}, {"top5000", 5000}, {"top8387", 8387}} {
+		ports, err := ResolvePorts(tc.name)
+		if err != nil || len(ports) != tc.want {
+			t.Fatalf("%s: len=%d err=%v", tc.name, len(ports), err)
+		}
+		in := make(map[uint16]bool, len(ports))
+		for _, p := range ports {
+			in[p] = true
+		}
+		for _, p := range prev {
+			if !in[p] {
+				t.Fatalf("%s is missing port %d from the smaller set", tc.name, p)
+			}
+		}
+		prev = ports
+	}
 	if _, err := ResolvePorts("22,443"); err != nil {
 		t.Fatalf("numeric list should still work: %v", err)
 	}

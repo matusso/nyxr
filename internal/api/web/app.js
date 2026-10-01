@@ -193,7 +193,7 @@ async function newScan() {
   const out = h("div", {});
   f.targets = h("textarea", { name: "targets", placeholder: "10.0.0.0/24, 192.168.1.10, host.example" });
   f.profile = h("select", { name: "profile" }, profiles.map(p => h("option", { value: p.Name }, `${p.Name} — ${p.Description}`)));
-  f.portsMode = h("select", {}, ["profile default", "top100", "all", "custom"].map(v => h("option", { value: v }, v)));
+  f.portsMode = h("select", {}, ["profile default", "top100", "top1000", "top2000", "top5000", "top8387", "all", "custom"].map(v => h("option", { value: v }, v)));
   const protos = ["tcp", "udp", "arp", "ndp"].map(p => ({ p, el: h("input", { type: "checkbox", value: p }) }));
   f.service = h("select", {}, ["profile default", "on", "off"].map(v => h("option", { value: v }, v)));
   f.tcpMode = h("select", {}, ["", "connect", "syn"].map(v => h("option", { value: v }, v || "profile default")));
@@ -205,7 +205,7 @@ async function newScan() {
     if (targets.length) r.targets = targets;
     r.profile = f.profile.value;
     const pm = f.portsMode.value;
-    if (pm === "top100" || pm === "all") r.ports = pm;
+    if (pm !== "profile default" && pm !== "custom") r.ports = pm;
     if (pm === "custom" && f.ports.value.trim()) r.ports = f.ports.value.trim();
     const chosen = protos.filter(x => x.el.checked).map(x => x.p);
     if (chosen.length) r.protocols = chosen.join(",");
