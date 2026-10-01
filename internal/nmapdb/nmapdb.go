@@ -2,8 +2,9 @@
 // own match model at runtime. It never bundles Nmap's probe data: the database
 // is read from a path the operator provides, its provenance (source path and
 // SHA-256) is recorded, and the importer reports how much of the file it could
-// use. This keeps the license boundary that INSTRUCTIONS.md §7 requires — the
-// Nmap Project's data is not redistributed inside a nyxr binary.
+// use. This keeps the license boundary that docs/architecture/design.md §7
+// requires — the Nmap Project's data is not redistributed inside a nyxr
+// binary.
 //
 // Only a safe, self-contained subset is used at scan time. Match patterns are
 // compiled with Go's RE2 engine; any pattern that relies on PCRE features RE2
