@@ -167,3 +167,52 @@ func (s *StoreSink) Finish(sc observe.Scan) error {
 	s.packets = s.packets[:0]
 	return s.store.FinishScan(s.ctx, sc)
 }
+
+// IsOpen reports whether a discovery state is a positive result: an open
+// port or a responsive host.
+func IsOpen(state string) bool {
+	switch state {
+	case "open", "responsive", "up", "identified":
+		return true
+	}
+	return false
+}
+
+// OpenOnlySink forwards only positive host and port results to its inner
+// sink, along with the packet evidence of those results. Service and device
+// records describe open ports already, and the scan summary is unchanged.
+type OpenOnlySink struct {
+	inner Sink
+	shown map[evidenceKey]bool
+}
+
+type evidenceKey struct {
+	target    string
+	transport string
+	port      uint16
+}
+
+func NewOpenOnlySink(inner Sink) *OpenOnlySink {
+	return &OpenOnlySink{inner: inner, shown: map[evidenceKey]bool{}}
+}
+
+func (s *OpenOnlySink) Begin(sc observe.Scan) error { return s.inner.Begin(sc) }
+
+func (s *OpenOnlySink) Observation(o observe.Observation) error {
+	if o.Kind == observe.KindHost || o.Kind == observe.KindPort {
+		if !IsOpen(o.State) {
+			return nil
+		}
+		s.shown[evidenceKey{o.Target.String(), o.Transport, o.Port}] = true
+	}
+	return s.inner.Observation(o)
+}
+
+func (s *OpenOnlySink) PacketEvidence(p observe.PacketEvidence) error {
+	if !s.shown[evidenceKey{p.Target.String(), p.Transport, p.Port}] {
+		return nil
+	}
+	return s.inner.PacketEvidence(p)
+}
+
+func (s *OpenOnlySink) Finish(sc observe.Scan) error { return s.inner.Finish(sc) }

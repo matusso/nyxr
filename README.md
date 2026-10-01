@@ -61,6 +61,7 @@ nyxr scan --profile ot-safe --allow-targets 192.0.2.0/24 --json 192.0.2.10
 nyxr scan --profile iot --fingerprint --json 192.0.2.10
 nyxr scan --profile udp --ports 47808 --fingerprint --json 192.0.2.10
 nyxr scan --profile fast --ports top100 192.0.2.0/24
+nyxr scan --profile fast --ports top100 --open 192.0.2.0/24
 nyxr scan --profile udp-deep --dry-run 192.0.2.0/28
 nyxr scan --profile service --db nyxr.db 192.0.2.0/28
 nyxr scan --profile web --json 192.0.2.10
@@ -75,6 +76,8 @@ Targets may be IP addresses, hostnames, CIDRs, or inclusive IP ranges. A scan
 is limited to 65,536 unique addresses. Ports accept commas and inclusive ranges
 (`80,443,8000-8100`) or a named set: `top100` for a curated list of common TCP
 ports, or `all` for `1-65535`. Use `--json` for newline-delimited observations.
+`--open` shows only open ports and responsive hosts, hiding closed and
+filtered results from text and JSON output; `--db` still stores everything.
 `--dry-run` resolves the configuration and prints the plan — profile, target
 count, ports, protocols, pacing and scheduled task count — without sending any
 packet; add `--json` for the machine-readable plan. UDP has three levels:
