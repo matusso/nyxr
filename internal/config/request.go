@@ -55,6 +55,8 @@ type Request struct {
 	ServiceWorkers    *int   `yaml:"service_workers" json:"service_workers,omitempty"`
 	ServiceRate       *int   `yaml:"service_rate" json:"service_rate,omitempty"`
 	NmapServiceProbes string `yaml:"nmap_service_probes" json:"nmap_service_probes,omitempty"`
+	NSEScripts        string `yaml:"nse_scripts" json:"nse_scripts,omitempty"`
+	NSETimeout        string `yaml:"nse_timeout" json:"nse_timeout,omitempty"`
 	Fingerprint       bool   `yaml:"fingerprint" json:"fingerprint,omitempty"`
 	PCAPNG            string `yaml:"pcapng" json:"pcapng,omitempty"`
 	PCAPNGMaxMB       *int   `yaml:"pcapng_max_mb" json:"pcapng_max_mb,omitempty"`
@@ -103,6 +105,7 @@ const DefaultPCAPNGMaxMB = 1024
 type Resolved struct {
 	Config      Config
 	Service     Service
+	NSE         NSE
 	Fingerprint bool
 	// PCAPNG is the capture path as requested; for a remote request it is a
 	// bare file name the caller must place in its evidence directory.
@@ -112,13 +115,14 @@ type Resolved struct {
 
 // UsesPipeline reports whether any stage beyond discovery is active.
 func (r Resolved) UsesPipeline() bool {
-	return r.Service.Enabled || r.Fingerprint || r.PCAPNG != ""
+	return r.Service.Enabled || r.NSE.Enabled() || r.Fingerprint || r.PCAPNG != ""
 }
 
 // StagePlan is the --dry-run and API plan: the discovery plan plus stages.
 type StagePlan struct {
 	Plan
 	Service     *ServicePlan `json:"service,omitempty"`
+	NSE         *NSEPlan     `json:"nse,omitempty"`
 	PCAPNG      string       `json:"pcapng,omitempty"`
 	PCAPNGMaxMB int          `json:"pcapng_max_mb,omitempty"`
 	DB          string       `json:"db,omitempty"`
@@ -127,7 +131,7 @@ type StagePlan struct {
 
 // Plan summarizes the resolved scan.
 func (r Resolved) Plan() StagePlan {
-	p := StagePlan{Plan: r.Config.Plan(), Service: r.Service.Plan(), PCAPNG: r.PCAPNG, Fingerprint: r.Fingerprint}
+	p := StagePlan{Plan: r.Config.Plan(), Service: r.Service.Plan(), NSE: r.NSE.Plan(), PCAPNG: r.PCAPNG, Fingerprint: r.Fingerprint}
 	if r.PCAPNG != "" {
 		p.PCAPNGMaxMB = int(r.PCAPNGMaxBytes >> 20)
 	}
@@ -146,6 +150,9 @@ func (r Request) Resolve(o ResolveOptions) (Resolved, error) {
 		}
 		if r.NmapServiceProbes != "" {
 			return Resolved{}, errors.New("remote requests cannot read server files; nmap_service_probes is a local path")
+		}
+		if r.NSEScripts != "" || r.NSETimeout != "" {
+			return Resolved{}, errors.New("NSE scripts require a local CLI request")
 		}
 		if r.PCAPNG != "" && (filepath.Base(r.PCAPNG) != r.PCAPNG || strings.ContainsAny(r.PCAPNG, `/\`) ||
 			strings.HasPrefix(r.PCAPNG, ".") || !strings.HasSuffix(r.PCAPNG, ".pcapng")) {
@@ -183,7 +190,11 @@ func (r Request) Resolve(o ResolveOptions) (Resolved, error) {
 	if err != nil {
 		return Resolved{}, err
 	}
-	res := Resolved{Config: cfg, Service: svc, PCAPNG: r.PCAPNG,
+	nse, err := BuildNSE(cfg, r.NSEScripts, r.NSETimeout)
+	if err != nil {
+		return Resolved{}, err
+	}
+	res := Resolved{Config: cfg, Service: svc, NSE: nse, PCAPNG: r.PCAPNG,
 		Fingerprint: r.Fingerprint || cfg.Profile == "iot" || cfg.Profile == "ot-safe"}
 	if r.PCAPNG != "" {
 		mb := valueOr(r.PCAPNGMaxMB, DefaultPCAPNGMaxMB)

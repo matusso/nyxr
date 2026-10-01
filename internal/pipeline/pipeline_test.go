@@ -22,11 +22,63 @@ import (
 
 	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/nmapdb"
+	"github.com/matusso/nyxr/internal/nse"
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/scan"
 	"github.com/matusso/nyxr/internal/storage"
 )
+
+type fakeNSERunner struct {
+	validated bool
+	ports     []nse.Port
+}
+
+func (f *fakeNSERunner) Validate(_ context.Context, cfg config.NSE) error {
+	f.validated = cfg.Enabled()
+	return nil
+}
+
+func (f *fakeNSERunner) RunHost(_ context.Context, _ config.NSE, addr netip.Addr, ports []nse.Port, _ int) ([]observe.Observation, error) {
+	f.ports = append(f.ports, ports...)
+	return []observe.Observation{{Kind: observe.KindScript, Target: addr, Transport: "tcp", Port: ports[0].Number,
+		State: "reported", Probe: "nse/http-title", NSE: &observe.NSEResult{ID: "http-title", Output: "Welcome"}}}, nil
+}
+
+func TestNSEReceivesOnlyDiscoveredOpenPorts(t *testing.T) {
+	resolved, err := (config.Request{Targets: []string{"127.0.0.1"}, Ports: "80,81", Protocols: "tcp", NSEScripts: "http-title"}).Resolve(config.ResolveOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake := &fakeNSERunner{}
+	var output bytes.Buffer
+	addr := netip.MustParseAddr("127.0.0.1")
+	opts := FromResolved(resolved)
+	opts.NSERunner = fake
+	opts.Sinks = []Sink{NewJSONSink(&output)}
+	opts.Discover = func(_ context.Context, _ config.Config, emit func(scan.Observation) error) error {
+		for _, item := range []struct {
+			port  uint16
+			state string
+		}{{80, "open"}, {81, "closed"}} {
+			if err := emit(scan.Observation{Target: addr, Transport: "tcp", Port: item.port, State: item.state}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	summary, err := Run(context.Background(), resolved.Config, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !fake.validated || len(fake.ports) != 1 || fake.ports[0].Number != 80 || summary.Observations != 3 {
+		t.Fatalf("NSE pipeline did not select just the open port: runner=%+v summary=%+v", fake, summary)
+	}
+	_, records := decodeKinds(t, output.Bytes())
+	if records[2]["kind"] != observe.KindScript || records[2]["nse"].(map[string]any)["output"] != "Welcome" {
+		t.Fatalf("missing NSE result: %+v", records)
+	}
+}
 
 func sshServer(t *testing.T) (netip.Addr, uint16) {
 	t.Helper()

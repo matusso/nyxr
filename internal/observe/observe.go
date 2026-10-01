@@ -22,6 +22,7 @@ const (
 	KindHost           = "host"            // ICMP/ARP/NDP reachability of one address
 	KindPort           = "port"            // discovery state of one transport port
 	KindService        = "service"         // deep-probe identity of an open port
+	KindScript         = "script"          // Nmap NSE result for an open port or host
 	KindDevice         = "device"          // multi-source device classification
 	KindPacketEvidence = "packet-evidence" // captured frames belonging to one flow
 	KindScan           = "scan"            // scan summary, emitted last
@@ -63,9 +64,24 @@ type Observation struct {
 	// Attributes holds protocol fields such as http.server or ssh.software.
 	Attributes map[string]string `json:"attributes,omitempty"`
 	TLS        *TLS              `json:"tls,omitempty"`
+	NSE        *NSEResult        `json:"nse,omitempty"`
 	// Evidence lists every deep-probe exchange, matched or not.
 	Evidence []Evidence     `json:"evidence,omitempty"`
 	Signals  []DeviceSignal `json:"signals,omitempty"`
+}
+
+// NSEResult preserves both Nmap's readable output and its structured XML.
+type NSEResult struct {
+	ID     string     `json:"id"`
+	Output string     `json:"output"`
+	Fields []NSEField `json:"fields,omitempty"`
+}
+
+type NSEField struct {
+	Kind     string     `json:"kind"` // table or elem
+	Key      string     `json:"key,omitempty"`
+	Value    string     `json:"value,omitempty"`
+	Children []NSEField `json:"children,omitempty"`
 }
 
 // DeviceSignal points to an observation that supports a device claim.

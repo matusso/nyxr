@@ -64,11 +64,11 @@ _nyxr() {
                 --payload|-payload|--config|-config|--payload-file|-payload-file|--nmap-udp-probes|-nmap-udp-probes|--nmap-service-probes|-nmap-service-probes|--pcapng|-pcapng|--db|-db|--packetd|-packetd)
                     COMPREPLY=($(compgen -f -- "$cur"))
                     return 0 ;;
-                --timeout|-timeout|--rate|-rate|--workers|-workers|--udp-retries|-udp-retries|--send-hex|-send-hex|--send-base64|-send-base64|--source-ip|-source-ip|--source-mac|-source-mac|--next-hop-mac|-next-hop-mac|--allow-targets|-allow-targets|--service-timeout|-service-timeout|--service-workers|-service-workers|--service-rate|-service-rate|--pcapng-max-mb|-pcapng-max-mb)
+                --timeout|-timeout|--rate|-rate|--workers|-workers|--udp-retries|-udp-retries|--send-hex|-send-hex|--send-base64|-send-base64|--source-ip|-source-ip|--source-mac|-source-mac|--next-hop-mac|-next-hop-mac|--allow-targets|-allow-targets|--service-timeout|-service-timeout|--service-workers|-service-workers|--service-rate|-service-rate|--nse-scripts|-nse-scripts|--nse-timeout|-nse-timeout|--pcapng-max-mb|-pcapng-max-mb)
                     return 0 ;;
             esac
             if [[ "$cur" == -* ]]; then
-                COMPREPLY=($(compgen -W "--profile --ports --protocols --timeout --rate --workers --udp-retries --tcp-mode --interface --source-ip --source-mac --next-hop-mac --allow-targets --payload --send-hex --send-base64 --payload-file --nmap-udp-probes --config --service --service-probes --service-fallback --service-timeout --service-workers --service-rate --nmap-service-probes --pcapng --pcapng-max-mb --db --no-db --fingerprint --packetd --known-open --json --dry-run --help" -- "$cur"))
+                COMPREPLY=($(compgen -W "--profile --ports --protocols --timeout --rate --workers --udp-retries --tcp-mode --interface --source-ip --source-mac --next-hop-mac --allow-targets --payload --send-hex --send-base64 --payload-file --nmap-udp-probes --config --service --service-probes --service-fallback --service-timeout --service-workers --service-rate --nmap-service-probes --nse-scripts --nse-timeout --pcapng --pcapng-max-mb --db --no-db --fingerprint --packetd --known-open --json --dry-run --help" -- "$cur"))
             fi
             ;;
         probe)

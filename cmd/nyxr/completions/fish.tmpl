@@ -50,6 +50,8 @@ complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-timeout -x -d 
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-workers -x -d 'Concurrent service probe workers'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l service-rate -x -d 'New service connections per second (0 = unlimited)'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l nmap-service-probes -r -F -d 'Import an nmap-service-probes file for banner matching'
+complete -c nyxr -n '__fish_seen_subcommand_from scan' -l nse-scripts -x -d 'Comma list of installed safe NSE scripts'
+complete -c nyxr -n '__fish_seen_subcommand_from scan' -l nse-timeout -x -d 'Maximum Nmap time per host'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l pcapng -r -F -d 'Write packet evidence to a pcapng file'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l pcapng-max-mb -x -d 'Pcapng size budget in MiB'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l db -r -F -d 'SQLite database (default ~/.nyxr/nyxr.db)'

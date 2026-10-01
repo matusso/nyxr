@@ -221,6 +221,7 @@ function detail(o) {
   }
   const attrs = o.attributes || {};
   if (attrs["http.title"]) parts.push(`title "${attrs["http.title"]}"`);
+  if (o.kind === "script" && o.nse) parts.push((o.nse.output || "").split("\n")[0].slice(0, 160));
   if (o.kind === "device") parts.push(`${attrs["device.class"] || ""} (${(o.signals || []).length} signals)`);
   if (o.mac) parts.push("MAC " + o.mac);
   parts.push(o.reason);
@@ -228,11 +229,14 @@ function detail(o) {
 }
 
 function obsRow(o, fresh) {
-  const label = o.kind === "service" ? "svc " + (o.service || "unknown") : o.kind === "device" ? "device" : o.state;
+  const label = o.kind === "service" ? "svc " + (o.service || "unknown") : o.kind === "script" ? "nse " + (o.nse?.id || "script") : o.kind === "device" ? "device" : o.state;
   return h("tr", { class: fresh ? "new" : "" },
     h("td", {}, o.target), h("td", {}, port(o)), h("td", {}, state(label)),
     h("td", {}, o.confidence + "%"), h("td", {}, fmtRTT(o.rtt_ns)),
     h("td", { class: "wrap" }, detail(o),
+      o.nse ? h("details", {}, h("summary", {}, "NSE output"),
+        h("pre", {}, o.nse.output || ""),
+        (o.nse.fields && o.nse.fields.length) ? h("pre", {}, JSON.stringify(o.nse.fields, null, 2)) : null) : null,
       (o.evidence && o.evidence.length) ? h("details", {}, h("summary", {}, `${o.evidence.length} exchanges`),
         o.evidence.map(e => h("pre", {}, `${e.probe} [${e.layer}] ${e.matched || "unmatched"}${e.error ? " error: " + e.error : ""}\n` +
           (e.request ? "> " + printable(e.request) + "\n" : "") + (e.response ? "< " + printable(e.response) : "")))) : null));
