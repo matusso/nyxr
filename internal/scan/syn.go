@@ -34,7 +34,10 @@ func runSYN(parent context.Context, cfg config.Config, emit func(Observation) er
 		}
 		srcMAC = iface.HardwareAddr
 		if len(cfg.SourceMAC) != 0 && string(cfg.SourceMAC) != string(srcMAC) {
-			return fmt.Errorf("source MAC does not match interface %s", cfg.Interface)
+			if !kernelNeighborProbes {
+				return fmt.Errorf("source MAC does not match interface %s", cfg.Interface)
+			}
+			srcMAC = cfg.SourceMAC // the reported address may not be the one on the wire
 		}
 	} else {
 		// Npcap device IDs need not be OS interface names. Explicit source
@@ -50,6 +53,28 @@ func runSYN(parent context.Context, cfg config.Config, emit func(Observation) er
 	}
 	defer io.Close()
 	limiter := newScopedProbeLimiter(cfg)
+	var learnedHop netip.Addr
+	var learnedMAC net.HardwareAddr
+	if kernelNeighborProbes && lookupErr == nil {
+		// Frames built with a source MAC the access point has not associated
+		// are dropped, so neither ARP nor SYN would get an answer. Learn the
+		// transmitted source from one kernel-sent frame before the scan's
+		// reader starts on io.
+		if first, ok := firstTarget(cfg); ok {
+			if lookup, err := loadIPv4Routes(cfg.Interface); err == nil {
+				if hop, err := lookup(first); err == nil {
+					wire, macs, err := observeKernelNeighbors(parent, io, cfg.Interface, source, []netip.Addr{hop}, cfg.Timeout, limiter)
+					if err != nil {
+						return err
+					}
+					if len(wire) == 6 && len(cfg.SourceMAC) == 0 {
+						srcMAC = wire
+					}
+					learnedHop, learnedMAC = hop, macs[hop]
+				}
+			}
+		}
+	}
 	if len(cfg.NextHopMAC) == 0 {
 		// Neighbor resolution and SYN reception must not compete for reads
 		// on one BPF/AF_PACKET/packetd handle.
@@ -63,6 +88,12 @@ func runSYN(parent context.Context, cfg config.Config, emit func(Observation) er
 			return fmt.Errorf("resolve SYN next hops: %w", err)
 		}
 		cache := snapshotCachedARPNeighbors(cfg.Interface)
+		if cache == nil {
+			cache = make(map[netip.Addr]net.HardwareAddr)
+		}
+		if len(learnedMAC) == 6 {
+			cache[learnedHop] = learnedMAC
+		}
 		resolve := func(ctx context.Context, targets []netip.Addr) (map[netip.Addr]net.HardwareAddr, error) {
 			chunk := cfg
 			chunk.Targets = targets
@@ -96,6 +127,39 @@ func runSYN(parent context.Context, cfg config.Config, emit func(Observation) er
 					}
 				}
 			}
+			if missing && kernelNeighborProbes {
+				var hops []netip.Addr
+				seen := make(map[netip.Addr]bool)
+				for target, mac := range resolved {
+					if len(mac) != 0 {
+						continue
+					}
+					hop, err := lookup(target)
+					if err != nil {
+						return nil, err
+					}
+					if !seen[hop] {
+						seen[hop] = true
+						hops = append(hops, hop)
+					}
+				}
+				_, macs, err := observeKernelNeighbors(ctx, neighborIO, cfg.Interface, source, hops, cfg.Timeout, limiter)
+				if err != nil {
+					return nil, err
+				}
+				for target, mac := range resolved {
+					if len(mac) != 0 {
+						continue
+					}
+					hop, err := lookup(target)
+					if err != nil {
+						return nil, err
+					}
+					if mac = macs[hop]; len(mac) == 6 {
+						resolved[target] = mac
+					}
+				}
+			}
 			for target, mac := range resolved {
 				if len(mac) != 6 {
 					continue
@@ -111,6 +175,15 @@ func runSYN(parent context.Context, cfg config.Config, emit func(Observation) er
 		return runSYNAsync(parent, cfg, emit, io, srcMAC, source, nil, limiter, resolve)
 	}
 	return runSYNWithIOResolved(parent, cfg, emit, io, srcMAC, source, nil, limiter)
+}
+
+func firstTarget(cfg config.Config) (netip.Addr, bool) {
+	var first netip.Addr
+	cfg.EachTarget(func(t netip.Addr) bool {
+		first = t
+		return false
+	})
+	return first, first.IsValid()
 }
 
 func selectIPv4Source(iface *net.Interface, requested netip.Addr) (netip.Addr, error) {

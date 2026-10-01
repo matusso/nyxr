@@ -39,7 +39,7 @@ func parseDarwinARPSnapshot(output, device string) map[netip.Addr]net.HardwareAd
 		if err != nil || !ip.Is4() {
 			continue
 		}
-		mac, err := net.ParseMAC(fields[3])
+		mac, err := parseDarwinMAC(fields[3])
 		if err != nil || len(mac) != 6 || mac[0]&1 != 0 || isZeroMAC(mac) {
 			continue
 		}
@@ -58,7 +58,7 @@ func parseDarwinARP(output, device string, hop netip.Addr) net.HardwareAddr {
 			if fields[i] != "at" {
 				continue
 			}
-			mac, err := net.ParseMAC(fields[i+1])
+			mac, err := parseDarwinMAC(fields[i+1])
 			if err != nil || len(mac) != 6 || mac[0]&1 != 0 || isZeroMAC(mac) {
 				break
 			}
@@ -71,6 +71,20 @@ func parseDarwinARP(output, device string, hop netip.Addr) net.HardwareAddr {
 		}
 	}
 	return nil
+}
+
+// arp(8) prints octets without leading zeros ("0:1b:2:..."), which
+// net.ParseMAC rejects.
+func parseDarwinMAC(value string) (net.HardwareAddr, error) {
+	octets := strings.Split(value, ":")
+	if len(octets) == 6 {
+		for i, octet := range octets {
+			if len(octet) == 1 {
+				octets[i] = "0" + octet
+			}
+		}
+	}
+	return net.ParseMAC(strings.Join(octets, ":"))
 }
 
 func isZeroMAC(mac net.HardwareAddr) bool {

@@ -92,7 +92,6 @@ func (b *bpfLive) ReceiveBatch(ctx context.Context, buffers [][]byte) (int, erro
 			return count, err
 		}
 		if b.offset >= len(b.data) {
-			b.offset = 0
 			n, err := syscall.Read(b.fd, b.data[:cap(b.data)])
 			if err == syscall.EAGAIN || err == syscall.EWOULDBLOCK {
 				if count != 0 {
@@ -107,34 +106,37 @@ func (b *bpfLive) ReceiveBatch(ctx context.Context, buffers [][]byte) (int, erro
 			if err != nil {
 				return count, err
 			}
-			b.data = b.data[:n]
-			if n == 0 {
-				continue
-			}
+			b.data, b.offset = b.data[:n], 0
+			continue
 		}
-		if len(b.data)-b.offset < 26 {
+		frame, advance, ok := bpfRecord(b.data[b.offset:])
+		if !ok {
 			b.offset = len(b.data)
 			continue
 		}
-		// macOS bpf_hdr: 16-byte timeval, caplen, datalen, hdrlen.
-		h := b.data[b.offset:]
-		caplen := int(binary.NativeEndian.Uint32(h[16:20]))
-		hdrlen := int(binary.NativeEndian.Uint16(h[24:26]))
-		if hdrlen < 26 || caplen < 14 || hdrlen+caplen > len(h) {
-			b.offset = len(b.data)
-			continue
-		}
-		advance := (hdrlen + caplen + 3) &^ 3
 		b.offset += advance
-		if len(buffers[count]) < caplen {
-			return count, fmt.Errorf("receive buffer too small for %d-byte frame", caplen)
+		if len(buffers[count]) < len(frame) {
+			return count, fmt.Errorf("receive buffer too small for %d-byte frame", len(frame))
 		}
-		copy(buffers[count], h[hdrlen:hdrlen+caplen])
-		buffers[count] = buffers[count][:caplen]
+		buffers[count] = buffers[count][:copy(buffers[count], frame)]
 		count++
 		b.received.Add(1)
 	}
 	return count, nil
+}
+
+// bpfRecord decodes one record. Userland bpf_hdr on macOS uses a 32-bit
+// timeval even for 64-bit processes: tstamp (8), caplen, datalen, hdrlen.
+func bpfRecord(h []byte) (frame []byte, advance int, ok bool) {
+	if len(h) < 18 {
+		return nil, 0, false
+	}
+	caplen := int(binary.NativeEndian.Uint32(h[8:12]))
+	hdrlen := int(binary.NativeEndian.Uint16(h[16:18]))
+	if hdrlen < 18 || caplen < 14 || hdrlen+caplen > len(h) {
+		return nil, 0, false
+	}
+	return h[hdrlen : hdrlen+caplen], (hdrlen + caplen + 3) &^ 3, true
 }
 
 func (b *bpfLive) SendBatch(ctx context.Context, frames [][]byte) (int, error) {
