@@ -8,7 +8,8 @@ import (
 // portSets are named shorthands accepted by ResolvePorts. Keys are matched
 // case-insensitively with dashes removed, so "top-100" and "top100" are equal.
 // top100 is a curated list of commonly open TCP ports; it is not derived from a
-// measured frequency ranking and is documented as such.
+// measured frequency ranking and is documented as such. The frequency-ranked
+// top1000, top2000, top5000 and top8387 sets live in nmapPortSets.
 var portSets = map[string][]uint16{
 	// Common native and HTTP database endpoints. Port membership schedules an
 	// identity exchange; it is never evidence of a database by itself.
@@ -33,26 +34,33 @@ var portSets = map[string][]uint16{
 
 // ResolvePorts expands a port specification. In addition to the numeric list
 // and range syntax handled by ParsePorts, it accepts the keyword "all" for the
-// full 1..65535 range and any named set in portSets. Named sets and numeric
-// lists are not mixed within one specification.
+// full 1..65535 range and any named set in portSets or nmapPortSets. Named
+// sets and numeric lists are not mixed within one specification.
 func ResolvePorts(s string) ([]uint16, error) {
 	key := strings.ToLower(strings.TrimSpace(s))
 	if key == "all" {
 		return ParsePorts("1-65535")
 	}
-	if set, ok := portSets[strings.ReplaceAll(key, "-", "")]; ok {
+	name := strings.ReplaceAll(key, "-", "")
+	if set, ok := portSets[name]; ok {
 		out := append([]uint16(nil), set...)
 		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 		return out, nil
+	}
+	if spec, ok := nmapPortSets[name]; ok {
+		return ParsePorts(spec)
 	}
 	return ParsePorts(s)
 }
 
 // PortSetNames lists the named port sets, sorted, for help output.
 func PortSetNames() []string {
-	names := make([]string, 0, len(portSets)+1)
+	names := make([]string, 0, len(portSets)+len(nmapPortSets)+1)
 	names = append(names, "all")
 	for name := range portSets {
+		names = append(names, name)
+	}
+	for name := range nmapPortSets {
 		names = append(names, name)
 	}
 	sort.Strings(names)

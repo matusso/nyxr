@@ -78,7 +78,10 @@ Targets may be IP addresses, hostnames, CIDRs, or inclusive IP ranges. Raw IPv4
 SYN scans stream larger ranges; other scan modes remain limited to 65,536 unique
 addresses. Ports accept commas and inclusive ranges
 (`80,443,8000-8100`) or a named set: `top100` for a curated list of common TCP
-ports, or `all` for `1-65535`. Use `--json` for newline-delimited observations.
+ports; `top1000`, `top2000` or `top5000` for the same TCP ports as
+`nmap --top-ports N`, or `top8387` for every TCP port nmap-services ranks;
+`database` for common database endpoints; or `all` for `1-65535`.
+Use `--json` for newline-delimited observations.
 `--open` shows only open ports and responsive hosts, hiding closed and
 filtered results from text and JSON output; the database still stores everything.
 `--dry-run` resolves the configuration and prints the plan — profile, target
