@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: memcached-version
+transport: udp
+ports: [11211]
+tags: [memcached]
+safety: safe
+payload:
+  encoding: hex
+  data: "000000000001000076657273696f6e0d0a"
+timeout: 1s
+match:
+  - type: memcached

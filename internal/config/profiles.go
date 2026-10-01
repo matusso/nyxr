@@ -93,9 +93,9 @@ var profiles = []Profile{
 		Ports:        "53,123", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
 	},
 	{
-		Name: "udp-deep", Description: "Safe DNS, NTP, SNMP, TFTP, SSDP, STUN, SIP, mDNS, LLMNR, CoAP and BACnet probes with retries",
+		Name: "udp-deep", Description: "Protocol-aware reads for common UDP services, including BACnet, RPC, NFS and memcached",
 		Availability: StatusAvailable,
-		Ports:        "53,69,123,161,1900,3478,5060,5353,5355,5683,47808", Protocols: "udp", Timeout: "2s", Rate: 25, Workers: 16, UDPRetries: 1,
+		Ports:        "53,69,111,123,161,1900,2049,3478,5060,5353,5355,5683,11211,47808", Protocols: "udp", Timeout: "2s", Rate: 25, Workers: 16, UDPRetries: 1,
 	},
 	{
 		Name: "ot-safe", Description: "Allowlisted, low-rate Modbus and EtherNet/IP identity reads",

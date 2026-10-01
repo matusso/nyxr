@@ -1,0 +1,13 @@
+schema: nyxr/udp/v1
+name: bacnet-fdt
+transport: udp
+ports: [47808]
+tags: [bacnet]
+safety: safe
+payload:
+  encoding: hex
+  data: "81060004"
+timeout: 750ms
+match:
+  - type: bacnet-fdt
+extract: [bacnet.fdt_entries]

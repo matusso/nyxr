@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: rpcbind-null
+transport: udp
+ports: [111]
+tags: [rpcbind]
+safety: safe
+payload:
+  encoding: hex
+  data: "000000000000000000000002000186a0000000020000000000000000000000000000000000000000"
+timeout: 1s
+match:
+  - type: rpc

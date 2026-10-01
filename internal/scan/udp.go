@@ -20,6 +20,14 @@ type sentProbe struct {
 	checksum uint16
 }
 
+func isBACnetMatcher(matcher string) bool {
+	return matcher == "bacnet" || matcher == "bacnet-read" || matcher == "bacnet-fdt"
+}
+
+func isUntokenedMatcher(matcher string) bool {
+	return matcher == "tftp" || matcher == "ssdp" || matcher == "bacnet" || matcher == "bacnet-fdt"
+}
+
 // BACnet I-Am may be broadcast to UDP/47808. One listener owns that port at a
 // time so replies cannot be consumed by a concurrent target campaign.
 var bacnetListenerSlot = func() chan struct{} {
@@ -37,7 +45,7 @@ func matchRecent(recent []sentProbe, response []byte) (sentProbe, bool) {
 		if !sent.sent.IsZero() && time.Since(sent.sent) > 5*time.Second {
 			continue
 		}
-		if (sent.probe.Matcher == "tftp" || sent.probe.Matcher == "ssdp" || sent.probe.Matcher == "bacnet") && i != len(recent)-1 {
+		if isUntokenedMatcher(sent.probe.Matcher) && i != len(recent)-1 {
 			continue
 		}
 		if sent.probe.Matcher != "any" && probe.Match(sent.probe, sent.request, response) {
@@ -64,7 +72,10 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 	var conn *net.UDPConn
 	var err error
 	tftp := len(selected) == 1 && selected[0].Matcher == "tftp"
-	bacnet := len(selected) == 1 && selected[0].Matcher == "bacnet"
+	bacnet := false
+	for _, p := range selected {
+		bacnet = bacnet || isBACnetMatcher(p.Matcher)
+	}
 	if bacnet {
 		if !t.target.Is4() {
 			o.State, o.Reason = "error", "BACnet/IP Who-Is currently supports IPv4 only"
@@ -84,10 +95,14 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 			network = "udp6"
 		}
 		listenAddr := &net.UDPAddr{}
-		if bacnet {
+		if bacnet && t.port == 47808 {
 			listenAddr.Port = int(t.port)
 		}
 		conn, err = net.ListenUDP(network, listenAddr)
+		if err != nil && bacnet && listenAddr.Port != 0 && errors.Is(err, syscall.EADDRINUSE) {
+			listenAddr.Port = 0
+			conn, err = net.ListenUDP(network, listenAddr)
+		}
 	} else {
 		conn, err = net.DialUDP("udp", nil, addr)
 	}
@@ -241,7 +256,7 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 					confidence, reason := 100, "validated "+matched.probe.Matcher+" response"
 					if matched.probe.Matcher == "any" {
 						confidence, reason = 80, "socket-scoped UDP response; probe identity unconfirmed"
-					} else if matched.probe.Matcher == "tftp" || matched.probe.Matcher == "ssdp" || matched.probe.Matcher == "bacnet" {
+					} else if isUntokenedMatcher(matched.probe.Matcher) {
 						confidence, reason = 85, "protocol-shaped UDP response from target; no transaction token"
 					} else {
 						o.Service = matched.probe.Matcher
@@ -249,7 +264,9 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 					if len(matched.probe.Tags) > 0 {
 						o.Service = matched.probe.Tags[0]
 					}
-					if matched.probe.Matcher == "tftp" || matched.probe.Matcher == "ssdp" || matched.probe.Matcher == "bacnet" {
+					if isBACnetMatcher(matched.probe.Matcher) {
+						o.Service = "bacnet"
+					} else if matched.probe.Matcher == "tftp" || matched.probe.Matcher == "ssdp" {
 						o.Service = matched.probe.Matcher
 					}
 					o.Probe = matched.probe.Name

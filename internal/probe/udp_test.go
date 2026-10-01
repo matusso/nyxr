@@ -2,6 +2,7 @@ package probe
 
 import (
 	"bytes"
+	"encoding/binary"
 	"strings"
 	"testing"
 )
@@ -58,7 +59,12 @@ func TestBACnetWhoIsIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := ForPort(all, 47808)[0]
+	var p Probe
+	for _, candidate := range ForPort(all, 47808) {
+		if candidate.Matcher == "bacnet" {
+			p = candidate
+		}
+	}
 	if p.Matcher != "bacnet" {
 		t.Fatalf("missing BACnet probe: %+v", p)
 	}
@@ -79,6 +85,100 @@ func TestBACnetWhoIsIdentity(t *testing.T) {
 	response[9] = 0 // not a Device object
 	if Match(p, p.Payload, response) {
 		t.Fatal("accepted non-device response")
+	}
+}
+
+func TestBACnetReadOnlyFallbackProbes(t *testing.T) {
+	all, err := Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := ForPort(all, 47808)
+	if len(selected) != 3 {
+		t.Fatalf("expected Who-Is, ReadProperty and FDT probes, got %+v", selected)
+	}
+	var read, fdt Probe
+	for _, p := range selected {
+		switch p.Matcher {
+		case "bacnet-read":
+			read = p
+		case "bacnet-fdt":
+			fdt = p
+		}
+	}
+	if read.Name == "" || fdt.Name == "" {
+		t.Fatalf("missing BACnet fallback probes: %+v", selected)
+	}
+	request := Prepare(read, 0x1234)
+	for _, apdu := range []byte{0x30, 0x50} {
+		response := []byte{0x81, 0x0a, 0, 9, 1, 0, apdu, 0x34, 0x0c}
+		if !Match(read, request, response) {
+			t.Fatalf("read reply %02x rejected", apdu)
+		}
+		response[7] ^= 1
+		if Match(read, request, response) {
+			t.Fatal("read reply with wrong invoke ID accepted")
+		}
+	}
+	readResponse := []byte{0x81, 0x0a, 0, 23, 1, 0, 0x30, 0x34, 0x0c, 0x0c,
+		0x02, 0x3f, 0xff, 0xff, 0x19, 0x4b, 0x3e, 0xc4, 0, 0, 0, 0, 0x3f}
+	binary.BigEndian.PutUint32(readResponse[18:22], 8<<22|2099201)
+	if !Match(read, request, readResponse) || Extract(read, readResponse)["bacnet.device_id"] != "2099201" {
+		t.Fatalf("Device ID response rejected: %x", readResponse)
+	}
+	if !bytes.Equal(fdt.Payload, []byte{0x81, 0x06, 0, 4}) {
+		t.Fatalf("unexpected FDT request %x", fdt.Payload)
+	}
+	response := []byte{0x81, 0x07, 0, 14, 192, 0, 2, 1, 0xba, 0xc0, 0, 30, 0, 34}
+	if !Match(fdt, fdt.Payload, response) || Extract(fdt, response)["bacnet.fdt_entries"] != "1" {
+		t.Fatalf("valid FDT response rejected: %x", response)
+	}
+	if Match(fdt, fdt.Payload, response[:13]) || Match(fdt, fdt.Payload, []byte{0x81, 0x07, 0, 5, 0}) {
+		t.Fatal("malformed FDT response accepted")
+	}
+	if !Match(fdt, fdt.Payload, []byte{0x81, 0, 0, 6, 0, 0x40}) {
+		t.Fatal("FDT read failure still identifies a BACnet endpoint")
+	}
+}
+
+func TestRPCAndMemcachedUDPProbes(t *testing.T) {
+	all, err := Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, port := range []uint16{111, 2049} {
+		p := ForPort(all, port)[0]
+		if p.Matcher != "rpc" {
+			t.Fatalf("port %d lacks an RPC NULL probe", port)
+		}
+		request := Prepare(p, 0x12345678)
+		reply := []byte{0x12, 0x34, 0x56, 0x78, 0, 0, 0, 1, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+		if !Match(p, request, reply) {
+			t.Fatalf("port %d rejected matching RPC reply", port)
+		}
+		reply[3] ^= 1
+		if Match(p, request, reply) {
+			t.Fatal("RPC reply with wrong XID accepted")
+		}
+		reply[3] ^= 1
+		reply[23] = 1 // Program unavailable is not a match for the named service.
+		if Match(p, request, reply) {
+			t.Fatal("RPC error identified as the requested service")
+		}
+	}
+	memcached := ForPort(all, 11211)[0]
+	if memcached.Matcher != "memcached" {
+		t.Fatalf("missing memcached UDP probe: %+v", memcached)
+	}
+	request := Prepare(memcached, 0x1234)
+	reply := append([]byte{0x12, 0x34, 0, 0, 0, 1, 0, 0}, []byte("VERSION 1.6.0\r\n")...)
+	if !Match(memcached, request, reply) {
+		t.Fatal("memcached version reply rejected")
+	}
+	reply[0] ^= 1
+	if Match(memcached, request, reply) {
+		t.Fatal("memcached reply with wrong request ID accepted")
 	}
 }
 

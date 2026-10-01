@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: nfs-null
+transport: udp
+ports: [2049]
+tags: [nfs]
+safety: safe
+payload:
+  encoding: hex
+  data: "000000000000000000000002000186a3000000030000000000000000000000000000000000000000"
+timeout: 1s
+match:
+  - type: rpc
