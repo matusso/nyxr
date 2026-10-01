@@ -380,16 +380,30 @@ func (s *server) scanPCAPNG(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, filepath.Base(path), fi.ModTime(), f)
 }
 
+// assets lists stored addresses. open=true keeps only open ports (and the
+// hosts that have one); scope narrows addresses by IP, CIDR or range.
 func (s *server) assets(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	scope, err := config.ParseScope(q["scope"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	assets, err := s.cfg.Store.Assets(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if assets == nil {
-		assets = []storage.Asset{}
+	if q.Get("open") == "true" {
+		assets = storage.OpenOnly(assets)
 	}
-	writeJSON(w, http.StatusOK, assets)
+	out := make([]storage.Asset, 0, len(assets))
+	for _, a := range assets {
+		if scope.Contains(a.Address) {
+			out = append(out, a)
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // scanEvents streams Server-Sent Events: buffered history first, then live

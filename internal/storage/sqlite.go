@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/observe"
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 )
@@ -616,4 +617,40 @@ func (s *Store) Prune(ctx context.Context, r Retention, now time.Time) (int, err
 		return 0, err
 	}
 	return deleted, tx.Commit()
+}
+
+// OpenOnly returns a copy of assets keeping only open ports, and only the
+// addresses that still have one. Ports a scan tested and found closed or
+// filtered are dropped.
+func OpenOnly(assets []Asset) []Asset {
+	out := make([]Asset, 0, len(assets))
+	for _, a := range assets {
+		var ports []PortSummary
+		for _, p := range a.Ports {
+			if p.State == "open" {
+				ports = append(ports, p)
+			}
+		}
+		if len(ports) > 0 {
+			a.Ports = ports
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// KnownOpen lists every port whose latest stored state is open, for a
+// known-open rescan.
+func (s *Store) KnownOpen(ctx context.Context) ([]config.KnownPort, error) {
+	assets, err := s.Assets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []config.KnownPort
+	for _, a := range OpenOnly(assets) {
+		for _, p := range a.Ports {
+			out = append(out, config.KnownPort{Address: a.Address, Transport: p.Transport, Port: p.Port})
+		}
+	}
+	return out, nil
 }

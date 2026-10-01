@@ -58,6 +58,7 @@ complete -c nyxr -n '__fish_seen_subcommand_from scan' -l json -d 'Newline-delim
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l dry-run -d 'Print the plan without sending packets'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l fingerprint -d 'Classify devices from independent observations'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l packetd -r -F -d 'Raw packet I/O through nyxr-packetd'
+complete -c nyxr -n '__fish_seen_subcommand_from scan' -l known-open -d 'Rescan only ports the database last saw open'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l help -d 'Show scan help'
 
 # profiles
@@ -90,6 +91,8 @@ complete -c nyxr -n '__fish_seen_subcommand_from serve' -l help -d 'Show serve h
 complete -c nyxr -n '__fish_seen_subcommand_from history' -l db -r -F -d 'SQLite database written by nyxr scan --db'
 complete -c nyxr -n '__fish_seen_subcommand_from history' -l scan -x -d 'Print the observations and packet evidence of one scan'
 complete -c nyxr -n '__fish_seen_subcommand_from history' -l assets -d 'Print every address with the latest state of each port'
+complete -c nyxr -n '__fish_seen_subcommand_from history' -l open -d 'With --assets, keep only open ports'
+complete -c nyxr -n '__fish_seen_subcommand_from history' -l scope -x -d 'With --assets, keep addresses in these IPs, CIDRs or ranges'
 complete -c nyxr -n '__fish_seen_subcommand_from history' -l unknown -d 'Print service observations with an unknown fingerprint'
 complete -c nyxr -n '__fish_seen_subcommand_from history' -l address -x -d 'Restrict --scan or --unknown to one address'
 complete -c nyxr -n '__fish_seen_subcommand_from history' -l limit -x -d 'Maximum scans or observations'
