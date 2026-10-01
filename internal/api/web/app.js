@@ -115,6 +115,100 @@ function kv(pairs) {
     .flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v)]));
 }
 function port(o) { return o.port ? `${o.port}/${o.transport}` : o.transport; }
+
+// Packet fields retain byte offsets so selecting a parsed value selects its
+// source bytes in the editable hex pane, as in a packet analyzer.
+function parseFrame(hex) {
+  const clean = hex.replace(/\s/g, "");
+  if (/[^0-9a-f]/i.test(clean)) throw new Error("Frame contains non-hex characters.");
+  if (clean.length % 2) throw new Error("Frame has an incomplete hex byte.");
+  const bytes = Uint8Array.from(clean.match(/../g) || [], pair => parseInt(pair, 16));
+  if (!bytes.length) return { bytes, groups: [] };
+  const groups = [];
+  const group = name => { const fields = []; groups.push({ name, fields }); return fields; };
+  const put = (fields, name, at, size, value) => {
+    if (at + size <= bytes.length) fields.push({ name, at, size, value: String(value) });
+  };
+  const u16 = at => (bytes[at] << 8) | bytes[at + 1];
+  const u32 = at => ((bytes[at] * 0x1000000) + (bytes[at + 1] << 16) + (bytes[at + 2] << 8) + bytes[at + 3]) >>> 0;
+  const mac = at => Array.from(bytes.slice(at, at + 6), b => b.toString(16).padStart(2, "0")).join(":");
+  const ip4 = at => Array.from(bytes.slice(at, at + 4)).join(".");
+  const ip6 = at => Array.from({ length: 8 }, (_, i) => u16(at + i * 2).toString(16)).join(":");
+  const eth = group("Ethernet II");
+  if (bytes.length < 14) { put(eth, "Incomplete frame", 0, bytes.length, `${bytes.length} bytes`); return { bytes, groups }; }
+  put(eth, "Destination", 0, 6, mac(0));
+  put(eth, "Source", 6, 6, mac(6));
+  let kind = u16(12), at = 14;
+  put(eth, "Type", 12, 2, `0x${kind.toString(16).padStart(4, "0")}`);
+  for (let i = 0; i < 2 && (kind === 0x8100 || kind === 0x88a8) && bytes.length >= at + 4; i++) {
+    const vlan = group("802.1Q VLAN");
+    put(vlan, "Tag control", at, 2, `VLAN ${u16(at) & 0xfff}`);
+    kind = u16(at + 2);
+    put(vlan, "Inner type", at + 2, 2, `0x${kind.toString(16).padStart(4, "0")}`);
+    at += 4;
+  }
+  let protocol = -1;
+  if (kind === 0x0800 && bytes.length >= at + 20 && bytes[at] >> 4 === 4) {
+    const start = at, size = (bytes[at] & 15) * 4;
+    if (size >= 20 && bytes.length >= at + size) {
+      const ip = group("Internet Protocol v4");
+      put(ip, "Version / header length", at, 1, `IPv4 · ${size} bytes`);
+      put(ip, "Total length", at + 2, 2, u16(at + 2));
+      put(ip, "Identification", at + 4, 2, `0x${u16(at + 4).toString(16)}`);
+      put(ip, "Flags / fragment offset", at + 6, 2, `0x${u16(at + 6).toString(16)}`);
+      put(ip, "Time to live", at + 8, 1, bytes[at + 8]);
+      protocol = bytes[at + 9];
+      put(ip, "Protocol", at + 9, 1, protocol);
+      put(ip, "Header checksum", at + 10, 2, `0x${u16(at + 10).toString(16)}`);
+      put(ip, "Source address", at + 12, 4, ip4(at + 12));
+      put(ip, "Destination address", at + 16, 4, ip4(at + 16));
+      if (size > 20) put(ip, "Options", at + 20, size - 20, `${size - 20} bytes`);
+      at += size;
+      if (u16(start + 6) & 0x1fff) protocol = -1; // later fragments have no transport header
+    }
+  } else if (kind === 0x86dd && bytes.length >= at + 40 && bytes[at] >> 4 === 6) {
+    const ip = group("Internet Protocol v6");
+    put(ip, "Version / traffic class / flow", at, 4, `0x${u32(at).toString(16)}`);
+    put(ip, "Payload length", at + 4, 2, u16(at + 4));
+    protocol = bytes[at + 6];
+    put(ip, "Next header", at + 6, 1, protocol);
+    put(ip, "Hop limit", at + 7, 1, bytes[at + 7]);
+    put(ip, "Source address", at + 8, 16, ip6(at + 8));
+    put(ip, "Destination address", at + 24, 16, ip6(at + 24));
+    at += 40;
+  }
+  if (protocol === 6 && bytes.length >= at + 20) {
+    const tcp = group("Transmission Control Protocol");
+    const size = (bytes[at + 12] >> 4) * 4;
+    put(tcp, "Source port", at, 2, u16(at));
+    put(tcp, "Destination port", at + 2, 2, u16(at + 2));
+    put(tcp, "Sequence number", at + 4, 4, u32(at + 4));
+    put(tcp, "Acknowledgment number", at + 8, 4, u32(at + 8));
+    put(tcp, "Header length / flags", at + 12, 2, `${size} bytes · 0x${u16(at + 12).toString(16)}`);
+    put(tcp, "Window", at + 14, 2, u16(at + 14));
+    put(tcp, "Checksum", at + 16, 2, `0x${u16(at + 16).toString(16)}`);
+    put(tcp, "Urgent pointer", at + 18, 2, u16(at + 18));
+    if (size >= 20 && at + size <= bytes.length) {
+      if (size > 20) put(tcp, "Options", at + 20, size - 20, `${size - 20} bytes`);
+      at += size;
+    } else at = bytes.length;
+  } else if (protocol === 17 && bytes.length >= at + 8) {
+    const udp = group("User Datagram Protocol");
+    put(udp, "Source port", at, 2, u16(at));
+    put(udp, "Destination port", at + 2, 2, u16(at + 2));
+    put(udp, "Length", at + 4, 2, u16(at + 4));
+    put(udp, "Checksum", at + 6, 2, `0x${u16(at + 6).toString(16)}`);
+    at += 8;
+  } else if ((protocol === 1 || protocol === 58) && bytes.length >= at + 4) {
+    const icmp = group(protocol === 1 ? "ICMP" : "ICMPv6");
+    put(icmp, "Type", at, 1, bytes[at]);
+    put(icmp, "Code", at + 1, 1, bytes[at + 1]);
+    put(icmp, "Checksum", at + 2, 2, `0x${u16(at + 2).toString(16)}`);
+    at += 4;
+  }
+  if (at < bytes.length) put(group("Payload / remaining bytes"), "Data", at, bytes.length - at, `${bytes.length - at} bytes`);
+  return { bytes, groups };
+}
 function detail(o) {
   const parts = [];
   const product = [o.product, o.version].filter(Boolean).join(" ");
@@ -162,7 +256,7 @@ const scanHeaders = ["scan", "profile", "status", "started", "targets", "observa
 // ---- pages ----
 
 async function dashboard() {
-  const [scans, assets] = await Promise.all([api("/scans?limit=20"), api("/assets")]);
+  const [scans, assets] = await Promise.all([api("/scans?limit=20"), api("/assets?open=true")]);
   let open = 0, services = 0;
   for (const a of assets) for (const p of a.ports || []) {
     if (p.state === "open") open++;
@@ -186,18 +280,37 @@ async function scansPage() {
     table(scanHeaders, scans.map(scanRow))];
 }
 
-async function newScan() {
+async function newScan(knownScope = null) {
   const profiles = (await api("/profiles")).filter(p => p.Availability === "available" && p.Name !== "research");
   const f = {};
   const input = (name, attrs = {}) => (f[name] = h("input", Object.assign({ type: "text", name }, attrs)));
   const out = h("div", {});
   f.targets = h("textarea", { name: "targets", placeholder: "10.0.0.0/24, 192.168.1.10, host.example" });
+  f.knownOpen = h("input", { type: "checkbox", checked: knownScope !== null });
+  if (knownScope) f.targets.value = knownScope;
+  const targetHelp = h("span", { class: "muted field-help" });
   f.profile = h("select", { name: "profile" }, profiles.map(p => h("option", { value: p.Name }, `${p.Name} — ${p.Description}`)));
   f.portsMode = h("select", {}, ["profile default", "top100", "top1000", "top2000", "top5000", "top8387", "all", "custom"].map(v => h("option", { value: v }, v)));
   const protos = ["tcp", "udp", "arp", "ndp"].map(p => ({ p, el: h("input", { type: "checkbox", value: p }) }));
   f.service = h("select", {}, ["profile default", "on", "off"].map(v => h("option", { value: v }, v)));
   f.tcpMode = h("select", {}, ["", "connect", "syn"].map(v => h("option", { value: v }, v || "profile default")));
   f.fingerprint = h("input", { type: "checkbox" });
+  const syncKnownOpen = () => {
+    const known = f.knownOpen.checked;
+    f.portsMode.disabled = f.ports.disabled = known;
+    protos.forEach(x => { x.el.disabled = known; });
+    f.service.disabled = known;
+    if (known) {
+      f.service.value = "on";
+      if (profiles.some(p => p.Name === "service")) f.profile.value = "service";
+      f.targets.placeholder = "Optional: IP, CIDR or range; blank uses all known open ports";
+      targetHelp.textContent = "Uses only ports whose latest stored state is open. Leave blank for every stored host.";
+    } else {
+      f.targets.placeholder = "10.0.0.0/24, 192.168.1.10, host.example";
+      targetHelp.textContent = "IP addresses, hostnames, CIDRs or ranges.";
+    }
+  };
+  f.knownOpen.addEventListener("change", syncKnownOpen);
 
   const request = () => {
     const r = {};
@@ -205,10 +318,11 @@ async function newScan() {
     if (targets.length) r.targets = targets;
     r.profile = f.profile.value;
     const pm = f.portsMode.value;
-    if (pm !== "profile default" && pm !== "custom") r.ports = pm;
-    if (pm === "custom" && f.ports.value.trim()) r.ports = f.ports.value.trim();
+    if (!f.knownOpen.checked && pm !== "profile default" && pm !== "custom") r.ports = pm;
+    if (!f.knownOpen.checked && pm === "custom" && f.ports.value.trim()) r.ports = f.ports.value.trim();
     const chosen = protos.filter(x => x.el.checked).map(x => x.p);
-    if (chosen.length) r.protocols = chosen.join(",");
+    if (!f.knownOpen.checked && chosen.length) r.protocols = chosen.join(",");
+    if (f.knownOpen.checked) r.known_open = true;
     for (const k of ["timeout", "interface", "source_ip", "source_mac", "next_hop_mac", "service_probes", "service_timeout", "send_hex", "pcapng"]) {
       const v = f[k].value.trim();
       if (v) r[k] = v;
@@ -220,7 +334,8 @@ async function newScan() {
     const allow = f.allow_targets.value.split(/[\s,]+/).filter(Boolean);
     if (allow.length) r.allow_targets = allow;
     if (f.tcpMode.value) r.tcp_mode = f.tcpMode.value;
-    if (f.service.value !== "profile default") r.service = f.service.value === "on";
+    if (f.knownOpen.checked) r.service = true;
+    else if (f.service.value !== "profile default") r.service = f.service.value === "on";
     if (f.fingerprint.checked) r.fingerprint = true;
     return r;
   };
@@ -238,7 +353,8 @@ async function newScan() {
       location.hash = "#/scans/" + encodeURIComponent(sc.scan_id);
     } catch (e) { fail(e); }
   } },
-  h("label", {}, "targets"), f.targets,
+  h("label", {}, "scan source"), h("label", { class: "choice" }, f.knownOpen, " Service scan on stored open ports"),
+  h("label", {}, "targets / scope"), h("div", {}, f.targets, targetHelp),
   h("label", {}, "profile"), f.profile,
   h("label", {}, "ports"), h("div", { class: "checks" }, f.portsMode, input("ports", { placeholder: "22,80,443,8000-8100" })),
   h("label", {}, "protocols"), h("div", { class: "checks" }, protos.map(x => h("label", {}, x.el, " " + x.p)),
@@ -259,7 +375,8 @@ async function newScan() {
   h("label", {}, "fingerprint devices"), h("div", {}, f.fingerprint),
   h("label", {}, "capture"), input("pcapng", { placeholder: "evidence.pcapng (needs packetd and --evidence-dir)" }),
   h("div", { class: "actions" }, h("button", { type: "submit" }, "start scan"), planBtn, reqBtn));
-  return [h("h1", {}, "new scan"), form, out];
+  syncKnownOpen();
+  return [h("h1", {}, knownScope !== null ? "service scan" : "new scan"), form, out];
 }
 
 async function scanPage(id) {
@@ -345,18 +462,53 @@ async function download(id, name) {
 }
 
 async function assetsPage() {
-  const assets = await api("/assets");
-  const rows = [];
-  for (const a of assets) {
-    const ports = a.ports && a.ports.length ? a.ports : [null];
-    ports.forEach((p, i) => rows.push(h("tr", {},
-      h("td", {}, i === 0 ? a.address : ""),
-      h("td", {}, p ? `${p.port}/${p.transport}` : "-"), h("td", {}, p ? state(p.state) : "-"),
-      h("td", {}, p ? p.service || "" : ""), h("td", { class: "wrap" }, p ? [p.product, p.version].filter(Boolean).join(" ") : ""),
-      h("td", {}, p ? h("a", { href: "#/scans/" + encodeURIComponent(p.scan_id) }, fmtTime(p.observed_at)) : fmtTime(a.last_seen)))));
-  }
-  return [h("h1", {}, `assets (${assets.length} hosts)`),
-    table(["address", "port", "state", "service", "product", "last seen"], rows)];
+  const assets = await api("/assets?open=true");
+  const search = h("input", { type: "search", placeholder: "Address, CIDR, range, port or service", autocomplete: "off", list: "asset-suggestions", "aria-label": "Search assets" });
+  const suggestions = h("datalist", { id: "asset-suggestions" });
+  const count = h("span", { class: "muted" });
+  const results = h("div", {});
+  const values = [...new Set(assets.flatMap(a => [a.address, ...(a.ports || []).flatMap(p =>
+    [`${p.port}/${p.transport}`, p.service, p.product])]).filter(Boolean))];
+  let serial = 0, timer;
+  const render = shown => {
+    count.textContent = `${shown.length} of ${assets.length} hosts`;
+    const rows = [];
+    for (const a of shown) {
+      (a.ports || []).forEach((p, i) => rows.push(h("tr", {},
+        h("td", {}, i === 0 ? h("strong", {}, a.address) : ""),
+        h("td", {}, `${p.port}/${p.transport}`), h("td", {}, state(p.state)),
+        h("td", {}, p.service || ""), h("td", { class: "wrap" }, [p.product, p.version].filter(Boolean).join(" ")),
+        h("td", {}, h("a", { href: "#/scans/" + encodeURIComponent(p.scan_id) }, fmtTime(p.observed_at))),
+        h("td", {}, i === 0 ? h("a", { href: "#/new/known-open/" + encodeURIComponent(a.address) }, "scan open ports") : ""))));
+    }
+    results.replaceChildren(rows.length ? table(["address", "port", "state", "service", "product", "last seen", ""], rows)
+      : h("p", { class: "muted" }, "No open ports match this search."));
+  };
+  const update = () => {
+    const query = search.value.trim().toLowerCase();
+    const mySerial = ++serial;
+    clearTimeout(timer);
+    suggestions.replaceChildren(...values.filter(v => v.toLowerCase().includes(query)).sort((a, b) =>
+      Number(!a.toLowerCase().startsWith(query)) - Number(!b.toLowerCase().startsWith(query))).slice(0, 12)
+      .map(v => h("option", { value: v })));
+    if (!query) { render(assets); return; }
+    if (/^[0-9a-f:.]+\/\d{1,3}$/i.test(query) || /^[0-9a-f:.]+-[0-9a-f:.]+$/i.test(query)) {
+      timer = setTimeout(async () => {
+        try {
+          const scoped = await api("/assets?open=true&scope=" + encodeURIComponent(query));
+          if (serial === mySerial) render(scoped);
+        } catch (e) { if (serial === mySerial) results.replaceChildren(h("p", { class: "error" }, e.message)); }
+      }, 180);
+      return;
+    }
+    render(assets.filter(a => [a.address, ...(a.ports || []).flatMap(p =>
+      [`${p.port}/${p.transport}`, p.port, p.service, p.product, p.version])].some(v => String(v || "").toLowerCase().includes(query))));
+  };
+  search.addEventListener("input", update);
+  render(assets);
+  return [h("div", { class: "bar" }, h("h1", {}, "assets"),
+    h("a", { href: "#/new/known-open" }, "+ service scan on open ports")),
+    h("div", { class: "asset-search" }, search, suggestions, count), results];
 }
 
 async function servicesPage() {
@@ -379,6 +531,8 @@ function packetsPage() {
   const rows = h("tbody", {});
   const hexInput = h("textarea", { class: "packet-hex", spellcheck: "false", placeholder: "Ethernet frame as hex bytes" });
   const editorInfo = h("span", { class: "muted" }, "Select a packet to clone it into the editor.");
+  const fields = h("div", { class: "packet-fields" });
+  const selectedValue = h("div", { class: "packet-selected muted" }, "Select a field to highlight its bytes.");
   const sendStatus = h("span", {});
   let watch = null, total = 0, selected = null;
 
@@ -389,10 +543,33 @@ function packetsPage() {
     hexInput.focus();
   };
   const updateEditor = () => {
-    const clean = hexInput.value.replace(/\s/g, "");
-    editorInfo.textContent = `${selected || "New frame"} · ${Math.floor(clean.length / 2)} bytes`;
+    try {
+      const parsed = parseFrame(hexInput.value);
+      editorInfo.textContent = `${selected || "New frame"} · ${parsed.bytes.length} bytes`;
+      const selectField = field => {
+        const pairs = [...hexInput.value.matchAll(/[0-9a-f]{2}/gi)];
+        const first = pairs[field.at], last = pairs[field.at + field.size - 1];
+        if (first && last) {
+          hexInput.focus();
+          hexInput.setSelectionRange(first.index, last.index + 2);
+        }
+        selectedValue.textContent = `${field.name}: ${field.value} · bytes ${field.at}–${field.at + field.size - 1}`;
+      };
+      fields.replaceChildren(...parsed.groups.map(g => h("details", { open: true },
+        h("summary", {}, g.name),
+        h("div", { class: "packet-field-list" }, g.fields.map(f => h("button", {
+          type: "button", class: "packet-field", onclick: () => selectField(f),
+          title: `Select bytes ${f.at}–${f.at + f.size - 1}`
+        }, h("span", { class: "packet-field-name" }, f.name), h("span", { class: "packet-field-value" }, f.value)))))));
+      if (!parsed.groups.length) fields.replaceChildren(h("p", { class: "muted" }, "Paste or clone a frame to inspect its fields."));
+    } catch (e) {
+      editorInfo.textContent = e.message;
+      fields.replaceChildren(h("p", { class: "error" }, e.message));
+    }
+    selectedValue.textContent = "Select a field to highlight its bytes.";
   };
   hexInput.addEventListener("input", updateEditor);
+  updateEditor();
   const submit = async (value, device = interfaceInput.value.trim()) => {
     sendStatus.replaceChildren("");
     try {
@@ -468,7 +645,10 @@ function packetsPage() {
   return [h("h1", {}, "packets"), h("p", { class: "muted" }, "Watch live Ethernet frames, clone one into the hex editor, then send or resend one frame. Watching needs packetd; sending also needs --allow-packet-send."),
     h("div", { class: "bar packet-toolbar" }, h("label", {}, "interface ", interfaceInput), start, stop, clear, status, count),
     h("div", { class: "scroll packet-list" }, h("table", {}, h("thead", {}, h("tr", {}, ["#", "time", "packet", "bytes", ""].map(x => h("th", {}, x)))), rows)),
-    h("h2", {}, "packet editor"), editorInfo, hexInput,
+    h("h2", {}, "packet editor"), editorInfo,
+    h("div", { class: "packet-split" },
+      h("section", { class: "packet-pane" }, h("h3", {}, "headers and parsed values"), fields),
+      h("section", { class: "packet-pane" }, h("h3", {}, "frame bytes · editable hex"), hexInput, selectedValue)),
     h("div", { class: "bar" }, sendEdited, sendStatus)];
 }
 
@@ -489,6 +669,8 @@ async function route() {
   if (hash === "/") page = dashboard();
   else if (hash === "/scans") page = scansPage();
   else if (hash === "/new") page = newScan();
+  else if (hash === "/new/known-open") page = newScan("");
+  else if (hash.startsWith("/new/known-open/")) page = newScan(decodeURIComponent(hash.slice(16)));
   else if (hash.startsWith("/scans/")) page = scanPage(decodeURIComponent(hash.slice(7)));
   else if (hash === "/assets") page = assetsPage();
   else if (hash === "/services") page = servicesPage();

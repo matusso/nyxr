@@ -65,6 +65,8 @@ nyxr scan --profile fast --ports top100 192.0.2.0/24
 nyxr scan --profile fast --ports top100 --open 192.0.2.0/24
 nyxr scan --profile udp-deep --dry-run 192.0.2.0/28
 nyxr scan --profile service 192.0.2.0/28
+nyxr scan --known-open 192.0.2.10             # probe only this host's stored open ports
+nyxr scan --known-open 192.0.2.0/24            # or scope the stored hosts by CIDR
 nyxr scan --profile fast --no-db 192.0.2.0/24
 nyxr scan --profile web --json 192.0.2.10
 sudo nyxr scan --profile deep --interface eth0 --pcapng scan.pcapng 192.0.2.10
@@ -84,6 +86,10 @@ ports; `top1000`, `top2000` or `top5000` for the same TCP ports as
 Use `--json` for newline-delimited observations.
 `--open` shows only open ports and responsive hosts, hiding closed and
 filtered results from text and JSON output; the database still stores everything.
+`--known-open` creates a service scan from ports whose latest stored state is
+open. Targets are optional and, when supplied, restrict stored hosts by IP,
+CIDR or inclusive range. It requires the scan database and chooses the service
+profile with service probes enabled by default. Run a discovery scan first.
 `--dry-run` resolves the configuration and prints the plan — profile, target
 count, ports, protocols, pacing and scheduled task count — without sending any
 packet; add `--json` for the machine-readable plan. UDP has three levels:
@@ -442,6 +448,7 @@ and the packet index. Writes are batched per transaction. Query and maintain it 
 nyxr history                                      # scans, newest first
 nyxr history --scan <scan-id>                     # observations and packet evidence
 nyxr history --assets                             # latest state and service per port
+nyxr history --assets --open --scope 192.0.2.0/24  # only current open ports in a subnet
 nyxr history --unknown --json                     # unknown fingerprints for signature work
 nyxr history --db lab.db --prune-older-than 720h  # retention (or --keep 20)
 ```
@@ -454,7 +461,8 @@ disk.
 
 `nyxr serve` runs the REST API, live scan events and an embedded web UI
 (dashboard, scan creation with dry-run plan, running and past scans with live
-results, assets, services, profiles, live packet watching, packet editing and
+results, open-port assets with autocomplete and CIDR/range search, stored-open-port
+service scans, services, profiles, live packet watching, split packet editing and
 resending, packet evidence and pcapng download):
 
 ```sh
@@ -474,7 +482,7 @@ NYXR_API_TOKEN=$(openssl rand -hex 16) nyxr serve --listen 0.0.0.0:8484
 | `GET /api/v1/scans/{id}/evidence` | packet-evidence records |
 | `GET /api/v1/scans/{id}/events` | Server-Sent Events: `observation`, `packet-evidence`, `scan` |
 | `GET /api/v1/scans/{id}/pcapng` | capture file, for captures in `--evidence-dir` only |
-| `GET /api/v1/assets`, `GET /api/v1/observations` | asset inventory and cross-scan queries |
+| `GET /api/v1/assets`, `GET /api/v1/observations` | asset inventory and cross-scan queries; assets accept `open=true` and IP/CIDR/range `scope` |
 | `GET /api/v1/packets/watch?interface=eth0` | live Ethernet frames as Server-Sent Events; requires `--packetd` |
 | `POST /api/v1/packets/send` | submit one hex Ethernet frame on an interface; requires `--packetd --allow-packet-send` |
 
