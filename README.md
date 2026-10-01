@@ -539,7 +539,9 @@ batches of raw Ethernet frames and keeps acquisition separate from decoding.
 
 TCP scanning uses portable connect mode by default. To send raw IPv4 SYNs,
 select an Ethernet interface. The scanner looks up the route on that interface
-and resolves the target or gateway MAC with ARP before sending a SYN:
+and resolves the target or gateway MAC before sending a SYN. On macOS, an
+existing, valid gateway entry in the selected interface's ARP cache avoids an
+extra raw ARP exchange; otherwise the scanner sends its own ARP request:
 
 ```sh
 sudo nyxr scan --tcp-mode syn --interface eth0 \
@@ -555,8 +557,12 @@ automatic route and neighbor resolution on any platform. Raw SYN mode requires
 TCP-only IPv4 targets;
 the `ot-safe` profile always uses connect mode. `--dry-run` includes the chosen
 mode and link details; route and neighbor discovery occurs only when the scan
-runs. Unanswered ARP produces a `no-response` observation without sending a
-SYN. An incorrect manual MAC can cause every probe to time out. A SYN/ACK is
+runs. If raw ARP gets no reply on macOS, the scanner checks the gateway's ARP
+cache once more. An unresolved next hop produces a `no-response` observation
+without sending a SYN. For an off-link target, `route -n get -ifscope en0
+TARGET_IP` identifies the gateway; `arp -n GATEWAY_IP` shows its cached MAC.
+`--next-hop-mac` can use that MAC directly. An incorrect manual MAC can cause
+every probe to time out. A SYN/ACK is
 `open`, a matching RST/ACK is
 `closed`, and a matching ICMP destination-unreachable or timeout is `filtered`.
 Replies must match the target, ports and a per-probe sequence token. A single
