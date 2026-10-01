@@ -1,0 +1,14 @@
+schema: nyxr/udp/v1
+name: snmp-v3-discovery
+transport: udp
+ports: [161]
+tags: [snmp, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "303a020103300f02024a69020300ffe30401040201030410300e0400020100020100040004000400301204000400a00c020237f00201000201003000"
+timeout: 1500ms
+retries: 0
+match:
+  - type: snmpv3
+extract: [snmp.engine_id]

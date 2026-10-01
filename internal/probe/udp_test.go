@@ -2,6 +2,7 @@ package probe
 
 import (
 	"bytes"
+	"encoding/asn1"
 	"encoding/binary"
 	"strings"
 	"testing"
@@ -13,7 +14,7 @@ func TestBuiltinsAndTokens(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(ForPort(all, 53)) != 2 || len(ForPort(all, 123)) != 1 ||
-		len(ForPort(all, 161)) != 1 || len(ForEveryPort(all, 40000)) != len(all) {
+		len(ForPort(all, 161)) != 2 || len(ForEveryPort(all, 40000)) != len(all) {
 		t.Fatalf("unexpected common/deep UDP catalog selection")
 	}
 	dns := ForPort(all, 53)[0]
@@ -53,6 +54,82 @@ func TestBuiltinsAndTokens(t *testing.T) {
 	if Match(snmp, sRequest, sResponse) {
 		t.Fatal("wrong SNMP request ID accepted")
 	}
+}
+
+func TestSNMPv3DiscoveryAndEngineIdentity(t *testing.T) {
+	all, err := Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var discovery Probe
+	for _, p := range ForPort(all, 161) {
+		if p.Matcher == "snmpv3" {
+			discovery = p
+		}
+	}
+	if discovery.Name == "" {
+		t.Fatal("SNMPv3 discovery probe missing")
+	}
+	request := Prepare(discovery, 0x12345678)
+	if len(request) != 60 || binary.BigEndian.Uint16(request[9:11]) != 0x5678 {
+		t.Fatalf("unexpected discovery request %x", request)
+	}
+	response := snmpV3ReportFixture(t, 0x5678)
+	if !Match(discovery, request, response) {
+		t.Fatalf("SNMPv3 Report rejected: %x", response)
+	}
+	fields := Extract(discovery, response)
+	if fields["snmp.version"] != "3" || fields["snmp.enterprise"] != "9" ||
+		fields["snmp.engine_id_format"] != "mac" || fields["snmp.engine_id_data"] != "54:a2:74:df:db:42" ||
+		fields["snmp.engine_boots"] != "2" || fields["snmp.engine_time"] != "685 days, 8:16:30" ||
+		fields["snmp.engine_id"] != "80:00:00:09:03:54:a2:74:df:db:42" {
+		t.Fatalf("unexpected SNMPv3 fields: %+v", fields)
+	}
+	request[9] ^= 1
+	if Match(discovery, request, response) {
+		t.Fatal("Report with wrong message ID accepted")
+	}
+	request[9] ^= 1
+	if Match(discovery, request, response[:len(response)-1]) {
+		t.Fatal("truncated Report accepted")
+	}
+}
+
+func snmpV3ReportFixture(t *testing.T, msgID int) []byte {
+	t.Helper()
+	mustMarshal := func(value any) []byte {
+		encoded, err := asn1.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return encoded
+	}
+	engine := []byte{0x80, 0, 0, 9, 3, 0x54, 0xa2, 0x74, 0xdf, 0xdb, 0x42}
+	usm := mustMarshal(struct {
+		Engine []byte
+		Boots  int
+		Time   int
+		User   []byte
+		Auth   []byte
+		Priv   []byte
+	}{engine, 2, 685*86400 + 8*3600 + 16*60 + 30, nil, nil, nil})
+	header := mustMarshal(struct {
+		ID    int
+		Size  int
+		Flags []byte
+		Model int
+	}{msgID, 65507, []byte{0}, 3})
+	unknownEngineIDs := mustMarshal(asn1.ObjectIdentifier{1, 3, 6, 1, 6, 3, 15, 1, 1, 4, 0})
+	unknownEngineIDs = append(unknownEngineIDs, mustMarshal(asn1.RawValue{Class: 1, Tag: 1, Bytes: []byte{1}})...)
+	varBind := mustMarshal(asn1.RawValue{Tag: 16, IsCompound: true, Bytes: unknownEngineIDs})
+	varBinds := mustMarshal(asn1.RawValue{Tag: 16, IsCompound: true, Bytes: varBind})
+	pduBody := append([]byte{2, 1, 1, 2, 1, 0, 2, 1, 0}, varBinds...)
+	pdu := mustMarshal(asn1.RawValue{Class: 2, Tag: 8, IsCompound: true, Bytes: pduBody})
+	scoped := mustMarshal(asn1.RawValue{Tag: 16, IsCompound: true, Bytes: append([]byte{4, 0, 4, 0}, pdu...)})
+	content := append(mustMarshal(3), header...)
+	content = append(content, mustMarshal(usm)...)
+	content = append(content, scoped...)
+	return mustMarshal(asn1.RawValue{Tag: 16, IsCompound: true, Bytes: content})
 }
 
 func TestBACnetWhoIsIdentity(t *testing.T) {

@@ -101,7 +101,7 @@ func (d Definition) Compile(baseDir string) (Probe, error) {
 		return Probe{}, errors.New("probe requires exactly one matcher")
 	}
 	matcher := d.Match[0].Type
-	if matcher != "dns" && matcher != "ntp" && matcher != "snmp" && matcher != "any" &&
+	if matcher != "dns" && matcher != "ntp" && matcher != "snmp" && matcher != "snmpv3" && matcher != "any" &&
 		matcher != "stun" && matcher != "tftp" && matcher != "ssdp" && matcher != "sip" && matcher != "coap" &&
 		matcher != "bacnet" && matcher != "bacnet-read" && matcher != "bacnet-fdt" &&
 		matcher != "rpc" && matcher != "memcached" {
@@ -145,6 +145,9 @@ func (d Definition) Compile(baseDir string) (Probe, error) {
 	if matcher == "snmp" && (len(payload) < 21 || payload[0] != 0x30 || payload[13] != 0xa0 || payload[15] != 0x02 || payload[16] != 0x04) {
 		return Probe{}, errors.New("SNMP matcher requires a v2c GET template with a four-byte request ID")
 	}
+	if matcher == "snmpv3" && !bytes.Equal(payload, snmpV3DiscoveryTemplate) {
+		return Probe{}, errors.New("SNMPv3 matcher requires a noAuthNoPriv engine discovery template")
+	}
 	if matcher == "stun" && (len(payload) != 20 || binary.BigEndian.Uint16(payload[:2]) != 1 || !bytes.Equal(payload[4:8], []byte{0x21, 0x12, 0xa4, 0x42})) {
 		return Probe{}, errors.New("STUN matcher requires a 20-byte binding request")
 	}
@@ -181,7 +184,8 @@ func (d Definition) Compile(baseDir string) (Probe, error) {
 	}
 	allowed := map[string]string{"dns.rcode": "dns", "ntp.stratum": "ntp", "stun.message_type": "stun",
 		"tftp.error_code": "tftp", "ssdp.server": "ssdp", "sip.status": "sip", "coap.code": "coap",
-		"bacnet.device_id": "bacnet", "bacnet.vendor_id": "bacnet", "bacnet.fdt_entries": "bacnet-fdt"}
+		"bacnet.device_id": "bacnet", "bacnet.vendor_id": "bacnet", "bacnet.fdt_entries": "bacnet-fdt",
+		"snmp.engine_id": "snmpv3"}
 	if len(d.Extract) > 16 {
 		return Probe{}, errors.New("at most 16 extraction fields are allowed")
 	}
@@ -303,6 +307,9 @@ func Prepare(p Probe, token uint64) []byte {
 		binary.BigEndian.PutUint64(payload[40:48], token)
 	case "snmp":
 		binary.BigEndian.PutUint32(payload[17:21], uint32(token)&0x7fffffff)
+	case "snmpv3":
+		binary.BigEndian.PutUint16(payload[9:11], uint16(token)&0x7fff)
+		binary.BigEndian.PutUint16(payload[50:52], uint16(token>>16)&0x7fff)
 	case "stun":
 		binary.BigEndian.PutUint64(payload[8:16], token)
 	case "sip":
@@ -331,6 +338,9 @@ func Match(p Probe, request, response []byte) bool {
 		return len(request) >= 48 && len(response) >= 48 && response[0]&7 == 4 && bytes.Equal(request[40:48], response[24:32])
 	case "snmp":
 		return matchSNMP(request, response)
+	case "snmpv3":
+		_, ok := parseSNMPv3Report(request, response)
+		return ok
 	case "stun":
 		return len(request) == 20 && len(response) >= 20 && response[0] == 1 && (response[1] == 1 || response[1] == 0x11) &&
 			bytes.Equal(request[4:20], response[4:20])
@@ -403,6 +413,12 @@ func Extract(p Probe, response []byte) map[string]string {
 		case "ntp.stratum":
 			if len(response) >= 2 {
 				fields[field] = strconv.Itoa(int(response[1]))
+			}
+		case "snmp.engine_id":
+			if report, ok := parseSNMPv3Report(nil, response); ok {
+				for name, value := range report.fields() {
+					fields[name] = value
+				}
 			}
 		case "stun.message_type":
 			if len(response) >= 2 {

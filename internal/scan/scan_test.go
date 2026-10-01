@@ -1,8 +1,10 @@
 package scan
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"net"
 	"net/netip"
 	"testing"
@@ -81,6 +83,42 @@ func TestUDPBasicAndCommonFallbackSendEmptyDatagram(t *testing.T) {
 				t.Fatalf("%s sent unexpected probes: %+v", mode, got)
 			}
 		})
+	}
+}
+
+func TestUDPDeepFindsSNMPv3OnNonstandardPort(t *testing.T) {
+	server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Skipf("loopback unavailable: %v", err)
+	}
+	defer server.Close()
+	port := uint16(server.LocalAddr().(*net.UDPAddr).Port)
+	all, err := probe.Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := hex.DecodeString("3058020103300f02021234020300ffe3040100020103041e301c040b800000090354a274dfdb420201020204038787de040004000400302204000400a81c0201010201000201003011300f060a2b060106030f01010400410101")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		var buf [4096]byte
+		for {
+			n, peer, err := server.ReadFromUDP(buf[:])
+			if err != nil {
+				return
+			}
+			if n == 60 && bytes.HasPrefix(buf[:n], []byte{0x30, 0x3a, 2, 1, 3}) {
+				copy(report[9:11], buf[9:11])
+				_, _ = server.WriteToUDP(report, peer)
+			}
+		}
+	}()
+	got := probeUDPCampaignWithICMPMode(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: port, transport: "udp"},
+		40*time.Millisecond, all, 0, []byte("secret"), newProbeLimiter(0), nil, config.UDPDeep)
+	if got.State != "open" || got.Service != "snmp" || got.Probe != "snmp-v3-discovery" ||
+		got.Fields["snmp.engine_id_data"] != "54:a2:74:df:db:42" || got.Fields["snmp.engine_boots"] != "2" {
+		t.Fatalf("deep scan should identify SNMPv3 on port %d: %+v", port, got)
 	}
 }
 

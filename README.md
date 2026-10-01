@@ -83,16 +83,18 @@ packet; add `--json` for the machine-readable plan. UDP has three levels:
 empty datagram when none apply; `udp-deep` tries every available payload on
 each requested port until a reply validates a service or the catalog is
 exhausted. The existing `udp` profile uses the `udp-common` strategy for
-compatibility. The native catalog includes DNS, NTP, SNMP, TFTP, RPC NULL,
-SSDP, STUN, SIP OPTIONS, mDNS, LLMNR, CoAP GET, memcached version, and BACnet
-reads. `udp-deep` selects fourteen common UDP ports by default and retries each
+compatibility. The native catalog includes DNS, NTP, SNMPv2c and SNMPv3 engine
+discovery, TFTP, RPC NULL, SSDP, STUN, SIP OPTIONS, mDNS, LLMNR, CoAP GET,
+memcached version, and BACnet reads. `udp-deep` selects fourteen common UDP
+ports by default and retries each
 probe once; `--ports` replaces the default port list. An empty UDP datagram is
 valid under [RFC 768](https://www.rfc-editor.org/rfc/rfc768), and a silent port
 remains `open|filtered` because [RFC 1122](https://www.rfc-editor.org/rfc/rfc1122)
 only says a closed port should send ICMP Port Unreachable.
 `--rate` limits application-level probe
 sends, including UDP retries. A matching DNS transaction ID, NTP originate
-timestamp, SNMP request ID, STUN transaction ID, SIP Call-ID or CoAP token
+timestamp, SNMP request or message ID, STUN transaction ID, SIP Call-ID or
+CoAP token
 raises confidence;
 the token is derived from a per-scan secret. An unmatched UDP response is retained as an unknown
 fingerprint with a hex evidence sample. No response is `open|filtered` with
@@ -238,14 +240,17 @@ match:
 ```
 
 Supported payload encodings are `ascii`, `hex`, `base64`, and `raw_file`
-(relative to the YAML file). Matchers are `any`, `dns`, `ntp`, `snmp`, `stun`,
+(relative to the YAML file). Matchers are `any`, `dns`, `ntp`, `snmp`, `snmpv3`, `stun`,
 `tftp`, `ssdp`, `sip`, `coap`, `bacnet`, `bacnet-read`, `bacnet-fdt`, `rpc`,
 and `memcached`. The optional `schema` defaults to
 `nyxr/udp/v1` for older definitions; unknown versions are rejected. The
 `extract` list can request `dns.rcode`, `ntp.stratum`, `stun.message_type`,
-`tftp.error_code`, `ssdp.server`, `sip.status`, `coap.code`,
+`snmp.engine_id`, `tftp.error_code`, `ssdp.server`, `sip.status`, `coap.code`,
 `bacnet.device_id`, `bacnet.vendor_id`, or `bacnet.fdt_entries`; values appear
-in the observation's `fields` map. BACnet enrichment also adds
+in the observation's `fields` map. SNMPv3 engine discovery also adds
+`snmp.version`, `snmp.enterprise`, `snmp.engine_id_format`,
+`snmp.engine_id_data`, `snmp.engine_boots`, `snmp.engine_time_seconds`, and
+`snmp.engine_time` from a valid Report. BACnet enrichment also adds
 `bacnet.object_name`, `bacnet.vendor_name`, `bacnet.application_software`,
 `bacnet.firmware`, `bacnet.model_name`, `bacnet.description`, and
 `bacnet.location` when returned. FDT entries appear as `bacnet.fdt.0`,
