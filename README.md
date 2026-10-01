@@ -17,6 +17,7 @@ Go 1.27.1 or newer is required. nyxr builds without cgo:
 ```sh
 make check      # go test + go vet
 make build      # ./nyxr and ./nyxr-packetd for the host platform
+sudo make install  # copy both into /usr/local/bin (PREFIX, DESTDIR honored)
 make package    # dist/: archives for all platforms + SHA256SUMS
 make help       # list all targets
 ```
