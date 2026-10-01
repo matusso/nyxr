@@ -32,6 +32,7 @@ Flags:
   --evidence-dir dir   directory for pcapng captures requested through the API
   --token-file file    require this bearer token (or set NYXR_API_TOKEN)
   --max-scans int      concurrent scans (default 1)
+  --allow-packet-send  enable single-frame send/resend from the web UI (requires --packetd)
   --allow-privileged   run even with root or raw-socket capabilities
 
 A non-loopback --listen address requires a token.
@@ -48,6 +49,7 @@ func runServe(args []string, out io.Writer) error {
 	evidenceDir := fs.String("evidence-dir", "", "pcapng directory")
 	tokenFile := fs.String("token-file", "", "bearer token file")
 	maxScans := fs.Int("max-scans", 1, "concurrent scans")
+	allowPacketSend := fs.Bool("allow-packet-send", false, "enable web UI packet transmission")
 	allowPrivileged := fs.Bool("allow-privileged", false, "allow root or raw-socket capabilities")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -60,6 +62,9 @@ func runServe(args []string, out io.Writer) error {
 	}
 	if *maxScans < 1 {
 		return errors.New("--max-scans must be at least 1")
+	}
+	if *allowPacketSend && *packetdSocket == "" {
+		return errors.New("--allow-packet-send requires --packetd")
 	}
 	if reason := privileged(); reason != "" && !*allowPrivileged {
 		return fmt.Errorf("refusing to serve with %s; run nyxr-packetd for raw packet I/O, or pass --allow-privileged", reason)
@@ -111,7 +116,7 @@ func runServe(args []string, out io.Writer) error {
 		hosts = []string{"localhost", "127.0.0.1", "::1", strings.Trim(host, "[]")}
 	}
 	handler := api.Handler(api.ServerConfig{Manager: manager, Store: store, Token: token, AllowedHosts: hosts,
-		Version: version, EvidenceDir: *evidenceDir})
+		Version: version, EvidenceDir: *evidenceDir, PacketSendEnabled: *allowPacketSend})
 	l, err := net.Listen("tcp", *listen)
 	if err != nil {
 		return err

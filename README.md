@@ -422,7 +422,8 @@ disk.
 
 `nyxr serve` runs the REST API, live scan events and an embedded web UI
 (dashboard, scan creation with dry-run plan, running and past scans with live
-results, assets, services, profiles, packet evidence and pcapng download):
+results, assets, services, profiles, live packet watching, packet editing and
+resending, packet evidence and pcapng download):
 
 ```sh
 nyxr serve --db nyxr.db                      # http://127.0.0.1:8484
@@ -442,6 +443,8 @@ NYXR_API_TOKEN=$(openssl rand -hex 16) nyxr serve --db nyxr.db --listen 0.0.0.0:
 | `GET /api/v1/scans/{id}/events` | Server-Sent Events: `observation`, `packet-evidence`, `scan` |
 | `GET /api/v1/scans/{id}/pcapng` | capture file, for captures in `--evidence-dir` only |
 | `GET /api/v1/assets`, `GET /api/v1/observations` | asset inventory and cross-scan queries |
+| `GET /api/v1/packets/watch?interface=eth0` | live Ethernet frames as Server-Sent Events; requires `--packetd` |
+| `POST /api/v1/packets/send` | submit one hex Ethernet frame on an interface; requires `--packetd --allow-packet-send` |
 
 ```sh
 curl -s -H 'Content-Type: application/json' localhost:8484/api/v1/scans \
@@ -471,6 +474,16 @@ cross-origin without a preflight, and the server approves no CORS requests.
 The UI is served with a strict same-origin CSP and renders every scanned value
 as text. Authentication beyond one shared token, RBAC, approvals and audit
 trails are Phase 9 work.
+
+The **packets** page opens a live watch on a packetd-allowed interface. It
+keeps the latest 500 frames in the browser and displays up to 100 frames per
+second; a busy interface reports skipped display frames. Select **clone** to
+copy a captured frame into the hex editor, **send edited frame** to submit it,
+or **resend** to submit its original bytes. Start the server with
+`--packetd SOCKET --allow-packet-send` to enable transmission. The send API
+accepts one 14–9216 byte frame per request and returns `submitted` after
+packetd accepts the write; packetd's interface and source-MAC policy can still
+reject it before transmission. Capture rows are not saved on the server.
 
 ### Privilege separation with nyxr-packetd
 

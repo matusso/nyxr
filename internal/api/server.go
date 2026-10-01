@@ -50,6 +50,8 @@ type ServerConfig struct {
 	Version      string
 	// EvidenceDir serves pcapng files captured through the API.
 	EvidenceDir string
+	// PacketSendEnabled explicitly permits raw frame transmission from the UI.
+	PacketSendEnabled bool
 }
 
 type server struct {
@@ -77,6 +79,8 @@ func Handler(cfg ServerConfig) http.Handler {
 	api.HandleFunc("GET /api/v1/scans/{id}/pcapng", s.scanPCAPNG)
 	api.HandleFunc("GET /api/v1/assets", s.assets)
 	api.HandleFunc("GET /api/v1/observations", s.observations)
+	api.HandleFunc("GET /api/v1/packets/watch", s.watchPackets)
+	api.HandleFunc("POST /api/v1/packets/send", s.sendPacket)
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "no such endpoint")
 	})
