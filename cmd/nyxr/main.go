@@ -120,7 +120,7 @@ func scanUsage(out io.Writer) {
 
 Flags:
   --profile string      scan profile (default "discovery"; see: nyxr profiles)
-  --ports string        ports, ranges (80,443,8000-8100), or a set (all, top100)
+  --ports string        ports, ranges (80,443,8000-8100), or a set (all, top100, database)
   --protocols string    comma list of tcp, udp, icmp, arp, ndp; research also accepts sctp, ip
   --timeout duration    per-probe timeout (e.g. 1s, 750ms)
   --rate int            max probes/second (0 = unlimited)
@@ -158,7 +158,7 @@ Flags:
 
 Service identification, evidence and storage:
   --service             deep probes on open TCP ports (on for service, deep, web, full)
-  --service-probes list banner, ssh, tls, http, dns, socks, modbus, ethernetip, nmap
+  --service-probes list banner, ssh, tls, http, dns, socks, modbus, ethernetip, nmap, database
   --service-fallback l  probes for silent ports without a port hint, or none
   --service-timeout d   upper bound for each service probe
   --service-workers int concurrent service probe workers

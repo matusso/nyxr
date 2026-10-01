@@ -17,7 +17,7 @@ func build(t *testing.T, o Options) Config {
 }
 
 func TestServiceProfilesEnableStage(t *testing.T) {
-	for name, fallback := range map[string]string{"service": "http", "deep": "tls,http", "web": "tls,http", "full": "tls,http"} {
+	for name, fallback := range map[string]string{"service": "http", "deep": "tls,http", "web": "tls,http", "full": "tls,http", "database": ""} {
 		s, err := BuildService(build(t, Options{Profile: name}), ServiceOptions{})
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
@@ -25,6 +25,10 @@ func TestServiceProfilesEnableStage(t *testing.T) {
 		if !s.Enabled || strings.Join(s.Fallback, ",") != fallback || s.Workers < 1 || s.Timeout <= 0 {
 			t.Fatalf("%s: unexpected stage %+v", name, s)
 		}
+	}
+	db, err := BuildService(build(t, Options{Profile: "database"}), ServiceOptions{})
+	if err != nil || strings.Join(db.Probes, ",") != "database" {
+		t.Fatalf("database identity stage: %+v %v", db, err)
 	}
 	ot, err := BuildService(build(t, Options{Profile: "ot-safe", AllowTargets: []string{"192.0.2.1"}}), ServiceOptions{})
 	if err != nil || !ot.Enabled || strings.Join(ot.Probes, ",") != "modbus,ethernetip" {

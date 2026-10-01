@@ -140,9 +140,30 @@ the roadmap phase they need, rather than silently downgrading to a weaker scan.
 | `deep` | available | As `service`, and tries TLS and HTTP on every silent open port |
 | `web` | available | Common web ports with TLS and HTTP identification |
 | `full` | available | All TCP ports plus deep service identification |
-| `database` | planned | Database protocol handshakes (a later Phase 3 slice) |
+| `database` | available | Common SQL, NoSQL, graph, search and cache ports with response-validated identity probes |
 | `iot` | available | TCP service identity and multi-source device fingerprinting |
 | `research` | available | Allowlisted, paced raw TCP/UDP/ICMP/SCTP/IP packet experiments |
+
+### Database profile
+
+`nyxr scan --profile database 192.0.2.10` scans the `database` TCP port set and
+interrogates open ports. The set includes common SQL, document, key-value,
+graph, search, time-series, vector and cache endpoints. Use `--ports` to narrow
+or extend it, and `--dry-run --json` to review the resolved ports and probe plan.
+
+The built-in probe actively validates Redis-compatible RESP, Memcached,
+PostgreSQL-compatible SSL negotiation, MongoDB OP_MSG, Neo4j Bolt, Cassandra
+CQL, SQL Server TDS, and selected HTTP database identities (Elasticsearch,
+OpenSearch, CouchDB, InfluxDB, ArangoDB, ClickHouse, Qdrant, Meilisearch and
+Neo4j). It passively validates MySQL/MariaDB greetings. A recognized port with
+an unsupported or unrecognized response stays `unknown` with its evidence;
+the scanner does not infer the product from the port. The list of database
+products and wire versions is open-ended, so the port set also contains
+products for which a built-in active matcher is not available yet.
+
+For a local Nmap probe file, `--nmap-service-probes FILE` adds its passive
+banner rules to this profile. It can identify additional server-first services
+without shipping Nmap's database in nyxr.
 
 ### Research packets
 

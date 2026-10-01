@@ -37,6 +37,8 @@ func portSet(ports ...uint16) map[uint16]bool {
 func (e *Engine) plan(port uint16) []string {
 	var order []string
 	switch {
+	case databasePorts[port] && e.enabled[ProbeDatabase]:
+		order = []string{ProbeDatabase}
 	case modbusPorts[port]:
 		order = []string{ProbeModbus}
 	case ethernetIPPorts[port]:
@@ -69,7 +71,7 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) observe.Observation 
 		Kind: observe.KindService, Timestamp: time.Now().UTC(), Target: t.Addr, Transport: "tcp", Port: t.Port,
 		State: "open", Fingerprint: observe.FingerprintUnknown,
 	}
-	if e.enabled[ProbeBanner] || e.enabled[ProbeSSH] || e.enabled[ProbeNmap] {
+	if e.enabled[ProbeBanner] || e.enabled[ProbeSSH] || e.enabled[ProbeNmap] || e.enabled[ProbeDatabase] {
 		ev, banner := e.probeBanner(ctx, t)
 		o.Evidence = append(o.Evidence, ev)
 		o.ProbesAttempted = append(o.ProbesAttempted, ProbeBanner)
@@ -79,6 +81,10 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) observe.Observation 
 		}
 		if len(banner) > 0 {
 			o.Probe = ProbeBanner
+			if e.enabled[ProbeDatabase] && matchDatabaseBanner(&o, banner) {
+				o.Evidence[len(o.Evidence)-1].Matched = ProbeDatabase
+				return o
+			}
 			if e.enabled[ProbeSSH] && matchSSH(&o, banner) {
 				o.Evidence[len(o.Evidence)-1].Matched = ProbeSSH
 				return o
@@ -89,7 +95,9 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) observe.Observation 
 			}
 			o.Attributes = map[string]string{"banner": printable(banner, 256)}
 			o.Reason = "unrecognized banner retained as evidence"
-			return o
+			if !e.enabled[ProbeDatabase] {
+				return o
+			}
 		}
 	}
 	for _, p := range e.plan(t.Port) {
@@ -113,6 +121,8 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) observe.Observation 
 			matched = e.probeModbus(ctx, t, &o)
 		case ProbeEtherNetIP:
 			matched = e.probeEtherNetIP(ctx, t, &o)
+		case ProbeDatabase:
+			matched = e.probeDatabase(ctx, t, &o)
 		}
 		if matched {
 			o.Fingerprint = observe.FingerprintMatched
@@ -137,6 +147,9 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) observe.Observation 
 // probeBanner connects and waits for the server to speak first.
 func (e *Engine) probeBanner(ctx context.Context, t Target) (observe.Evidence, []byte) {
 	timeout := e.timeout(ProbeBanner)
+	if e.enabled[ProbeDatabase] && !e.enabled[ProbeSSH] && timeout > 350*time.Millisecond {
+		timeout = 350 * time.Millisecond
+	}
 	ev := observe.Evidence{Probe: ProbeBanner, Layer: "tcp", Started: time.Now().UTC()}
 	conn, err := e.dial(ctx, t, timeout)
 	if err != nil {
