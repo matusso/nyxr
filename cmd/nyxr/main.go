@@ -41,7 +41,7 @@ func run(args []string, out io.Writer) error {
 	}
 	switch args[0] {
 	case "scan":
-		return runScan(args[1:], out, style)
+		return runScan(args[1:], out, style, stderrProgress(out, noColor))
 	case "profiles":
 		return runProfiles(args[1:], out, style)
 	case "decode":
@@ -137,6 +137,7 @@ Flags:
   --config file         YAML scan configuration (flags override its fields)
   --json                newline-delimited JSON output
   --dry-run             resolve and print the plan without sending packets
+  --no-progress         hide the progress bar (shown on stderr when it is a tty)
   --allow-targets list  approved IP/CIDR targets (required for ot-safe)
   --research-kind name  tcp, udp, icmp, sctp or ip (research profile only)
   --ip-protocol n      IP protocol number for research IP scans
@@ -167,7 +168,27 @@ Explicit flags override profile defaults and configuration-file fields.
 `)
 }
 
-func runScan(args []string, out io.Writer, style *ui.Styler) error {
+// progressOptions say where a scan may draw its progress bar. The zero value
+// draws none, which is what tests and embedded callers get.
+type progressOptions struct {
+	w       io.Writer
+	noColor bool
+}
+
+// stderrProgress draws the bar on stderr, but only when the CLI writes its
+// results to a real file or terminal, never to a caller's buffer.
+func stderrProgress(out io.Writer, noColor bool) progressOptions {
+	if _, ok := out.(*os.File); !ok {
+		return progressOptions{}
+	}
+	return progressOptions{w: os.Stderr, noColor: noColor}
+}
+
+func (o progressOptions) start(tasks int, disabled bool) *ui.Progress {
+	return ui.NewProgress(o.w, tasks, o.w != nil && !disabled, ui.New(o.w, o.noColor))
+}
+
+func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOptions) error {
 	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.Usage = func() { scanUsage(out) }
@@ -194,6 +215,7 @@ func runScan(args []string, out io.Writer, style *ui.Styler) error {
 	nmapUDPFlag := fs.String("nmap-udp-probes", "", "add UDP payloads from this nmap-service-probes file")
 	jsonFlag := fs.Bool("json", false, "newline-delimited JSON output")
 	dryRunFlag := fs.Bool("dry-run", false, "resolve and print the plan without scanning")
+	noProgressFlag := fs.Bool("no-progress", false, "hide the progress bar")
 	allowTargetsFlag := fs.String("allow-targets", "", "comma-separated approved IPs or CIDRs")
 	researchKindFlag := fs.String("research-kind", "", "tcp, udp, icmp, sctp or ip")
 	ipProtocolFlag := fs.String("ip-protocol", "", "IP protocol number")
@@ -277,12 +299,16 @@ func runScan(args []string, out io.Writer, style *ui.Styler) error {
 	if *packetdFlag != "" {
 		open = packetd.Opener(*packetdFlag)
 	}
+	bar := progress.start(resolved.Config.Plan().Tasks, *noProgressFlag)
+	defer bar.Done()
+	out = bar.Wrap(out)
 	if resolved.UsesPipeline() || *stages.db != "" {
-		return runPipeline(out, resolved, *stages.db, open, *jsonFlag, style)
+		return runPipeline(out, resolved, *stages.db, open, *jsonFlag, style, bar)
 	}
 
 	encoder := json.NewEncoder(out)
 	return scan.RunWithIO(context.Background(), resolved.Config, func(o scan.Observation) error {
+		bar.Step(o.State == "open" || o.State == "responsive")
 		if *jsonFlag {
 			return encoder.Encode(o)
 		}

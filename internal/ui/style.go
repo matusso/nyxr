@@ -37,6 +37,11 @@ func colorEnabled(w io.Writer, disabled bool) bool {
 	if _, ok := os.LookupEnv("NO_COLOR"); ok {
 		return false
 	}
+	return isTerminal(w)
+}
+
+// isTerminal reports whether w is an interactive terminal.
+func isTerminal(w io.Writer) bool {
 	f, ok := w.(interface{ Fd() uintptr })
 	if !ok {
 		return false
