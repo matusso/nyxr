@@ -7,7 +7,7 @@ import (
 	"github.com/matusso/nyxr/internal/nmapdb"
 )
 
-func TestFromNmapUDPUsesOnlyApplicablePortPayloads(t *testing.T) {
+func TestFromNmapUDPUsesPortListsOnlyForOrdering(t *testing.T) {
 	const source = `Exclude U:9998
 Probe UDP directed q|hello|
 ports 9999
@@ -25,8 +25,9 @@ ports 9999
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(selected) != 1 || selected[0].Name != "nmap-directed" ||
-		selected[0].Matcher != "any" || len(selected[0].Ports) != 1 || selected[0].Ports[0] != 9999 {
+	if len(selected) != 3 || selected[0].Name != "nmap-directed" ||
+		selected[1].Name != "nmap-excluded" || selected[2].Name != "nmap-generic" ||
+		len(ForPort(selected, 9997)) != 3 || ForPort(selected, 9998)[0].Name != "nmap-excluded" {
 		t.Fatalf("unexpected imported probes: %+v", selected)
 	}
 }

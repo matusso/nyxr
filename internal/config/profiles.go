@@ -88,7 +88,7 @@ var profiles = []Profile{
 		Ports:        "22,80,443", Protocols: "tcp", Timeout: "1s", Rate: 100, Workers: 64,
 	},
 	{
-		Name: "udp", Description: "Protocol-aware UDP probes (DNS, NTP)",
+		Name: "udp", Description: "Protocol-aware UDP probes on the selected ports",
 		Availability: StatusAvailable,
 		Ports:        "53,123", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
 	},

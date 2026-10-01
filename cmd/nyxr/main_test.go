@@ -50,20 +50,25 @@ func TestScanImportedUDPPayload(t *testing.T) {
 	defer server.Close()
 	port := server.LocalAddr().(*net.UDPAddr).Port
 	path := filepath.Join(t.TempDir(), "nmap-service-probes")
-	content := fmt.Sprintf("Probe UDP Hello q|hello|\nports %d\nmatch hello m|^world$|\n", port)
+	content := "Probe UDP Hello q|hello|\nports 9\nmatch hello m|^world$|\n"
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
 	go func() {
 		var buf [16]byte
-		n, addr, err := server.ReadFromUDP(buf[:])
-		if err == nil && string(buf[:n]) == "hello" {
-			_, _ = server.WriteToUDP([]byte("world"), addr)
+		for {
+			n, addr, err := server.ReadFromUDP(buf[:])
+			if err != nil {
+				return
+			}
+			if string(buf[:n]) == "hello" {
+				_, _ = server.WriteToUDP([]byte("world"), addr)
+			}
 		}
 	}()
 	var output bytes.Buffer
 	err = runScan([]string{"--profile", "custom", "--protocols", "udp", "--ports", fmt.Sprint(port),
-		"--timeout", "200ms", "--nmap-udp-probes", path, "--rate", "0", "--json", "127.0.0.1"}, &output)
+		"--timeout", "100ms", "--nmap-udp-probes", path, "--rate", "0", "--json", "127.0.0.1"}, &output)
 	if err != nil {
 		t.Fatal(err)
 	}

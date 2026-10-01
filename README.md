@@ -76,13 +76,14 @@ is limited to 65,536 unique addresses. Ports accept commas and inclusive ranges
 ports, or `all` for `1-65535`. Use `--json` for newline-delimited observations.
 `--dry-run` resolves the configuration and prints the plan — profile, target
 count, ports, protocols, pacing and scheduled task count — without sending any
-packet; add `--json` for the machine-readable plan. UDP/53 attempts DNS A then
-DNS NS, UDP/123 sends an NTP client request, and UDP/161 sends a read-only
-SNMPv2c `sysDescr.0` GET. Ports without a native probe receive a single byte. The
-`udp-deep` profile also scans ports 69, 111, 1900, 2049, 3478, 5060, 5353,
-5355, 5683, 11211 and 47808 using read-only TFTP, RPC NULL, SSDP, STUN, SIP
-OPTIONS, mDNS, LLMNR, CoAP GET, memcached version, and BACnet Who-Is, Device
-ReadProperty, and Foreign Device Table reads. It retries each probe once.
+packet; add `--json` for the machine-readable plan. Every requested UDP port
+receives the available protocol payloads until a reply validates a service or
+the catalog is exhausted. Probe port lists prioritize likely payloads; they
+do not restrict where a payload is tried. The native catalog includes DNS, NTP,
+SNMP, TFTP, RPC NULL, SSDP, STUN, SIP OPTIONS, mDNS, LLMNR, CoAP GET,
+memcached version, and BACnet reads. The `udp-deep` profile selects fourteen
+common UDP ports by default and retries each probe once; `--ports` replaces
+that port list.
 `--rate` limits application-level probe
 sends, including UDP retries. A matching DNS transaction ID, NTP originate
 timestamp, SNMP request ID, STUN transaction ID, SIP Call-ID or CoAP token
@@ -113,8 +114,8 @@ the roadmap phase they need, rather than silently downgrading to a weaker scan.
 | `discovery` | available | Common TCP ports, unprivileged connect scan (default) |
 | `fast` | available | Top 100 TCP ports at higher concurrency |
 | `tcp` | available | TCP connect scan of common ports |
-| `udp` | available | Protocol-aware UDP probes (DNS, NTP) |
-| `udp-deep` | available | Protocol probes on fourteen common UDP ports, one extra retry each |
+| `udp` | available | All native UDP probes on selected ports; DNS and NTP ports by default |
+| `udp-deep` | available | All native UDP probes on fourteen default ports, one extra retry each |
 | `ot-safe` | available | Allowlisted TCP connect scan plus Modbus/EtherNet/IP identity reads |
 | `custom` | available | Minimal profile; set protocols, ports and timeout explicitly |
 | `service` | available | Top 100 TCP ports, then banner/SSH/TLS/HTTP/DNS identification |
@@ -359,10 +360,11 @@ at 75%, each with the matching probe and rule line kept in the observation's
 `nmap.*` attributes and the banner retained as evidence. This sends no traffic
 beyond the banner the deep-probe stage already reads; the built-in matchers
 (SSH, TLS, HTTP, DNS) still take precedence. `--nmap-udp-probes` separately
-adds UDP payloads from the same kind of file for the ports named by each probe's
-`ports` directive. Built-in UDP probes run first. An imported request is limited
-to 1400 bytes; portless probes and excluded ports are skipped. Any datagram
-returned to an imported request confirms an open UDP port, but without a
+adds every usable UDP payload from the same kind of file to each requested port.
+The file's `ports` directives only prioritize requests. Built-in UDP probes
+are also tried. Imported requests are limited to the maximum UDP payload size;
+empty and oversized requests are skipped. Any datagram returned to an imported
+request confirms an open UDP port, but without a
 protocol-specific matcher its service identity is unconfirmed. This option
 requires a local file and cannot be combined with a custom UDP payload.
 `ot-safe` never permits these UDP probes. Remote API requests may not name a

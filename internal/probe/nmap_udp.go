@@ -1,29 +1,22 @@
 package probe
 
-import (
-	"fmt"
+import "github.com/matusso/nyxr/internal/nmapdb"
 
-	"github.com/matusso/nyxr/internal/nmapdb"
-)
-
-// FromNmapUDP maps port-directed UDP requests from an operator-supplied
-// nmap-service-probes database to the scan's selected ports. An arbitrary
-// response confirms a UDP listener but does not confirm the probe's service.
+// FromNmapUDP imports UDP requests from an operator-supplied database.
+// Declared ports only prioritize requests on those ports; all requests are
+// available on every selected scan port. An arbitrary response confirms a
+// UDP listener but does not confirm the probe's service.
 func FromNmapUDP(db *nmapdb.Database, scanPorts []uint16) ([]Probe, error) {
 	if db == nil {
 		return nil, nil
 	}
 	probes := make([]Probe, 0)
 	for _, source := range db.Probes {
-		if source.Proto != "UDP" || len(source.Payload) == 0 || len(source.Ports) == 0 ||
-			len(source.Payload) > 1400 {
+		if source.Proto != "UDP" || len(source.Payload) == 0 || len(source.Payload) > maxPayload {
 			continue
 		}
 		var ports []uint16
 		for _, port := range scanPorts {
-			if excludedUDP(db.Exclude, port) {
-				continue
-			}
 			for _, candidate := range source.Ports {
 				if candidate.Contains(port) {
 					ports = append(ports, port)
@@ -31,22 +24,8 @@ func FromNmapUDP(db *nmapdb.Database, scanPorts []uint16) ([]Probe, error) {
 				}
 			}
 		}
-		if len(ports) > 0 {
-			probes = append(probes, Probe{Name: "nmap-" + source.Name,
-				Ports: ports, Payload: append([]byte(nil), source.Payload...), Matcher: "any"})
-		}
-		if len(probes) > 256 {
-			return nil, fmt.Errorf("nmap-service-probes has more than 256 applicable UDP payloads")
-		}
+		probes = append(probes, Probe{Name: "nmap-" + source.Name,
+			Ports: ports, Payload: append([]byte(nil), source.Payload...), Matcher: "any"})
 	}
 	return probes, nil
-}
-
-func excludedUDP(ranges []nmapdb.PortRange, port uint16) bool {
-	for _, r := range ranges {
-		if r.UDP && r.Contains(port) {
-			return true
-		}
-	}
-	return false
 }

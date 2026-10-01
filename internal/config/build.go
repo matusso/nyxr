@@ -34,7 +34,7 @@ type Options struct {
 	InterfaceRate *int
 	Workers       *int
 	UDPRetries    *int
-	NmapUDPProbes string // local nmap-service-probes file for port-directed UDP requests
+	NmapUDPProbes string // local nmap-service-probes file for UDP requests on every scanned port
 	Payload       PayloadSource
 	TCPMode       string
 	Interface     string

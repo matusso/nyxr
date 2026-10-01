@@ -132,8 +132,8 @@ func (c Config) Validate() error {
 			}
 		}
 	}
-	if c.UDPRetries < 0 || c.UDPRetries > 5 || len(c.UDPProbes) > 256 {
-		return errors.New("UDP retries must be 0..5 and custom probes at most 256")
+	if c.UDPRetries < 0 || c.UDPRetries > 5 {
+		return errors.New("UDP retries must be 0..5")
 	}
 	if c.TCPMode != "" && c.TCPMode != "connect" && c.TCPMode != "syn" {
 		return fmt.Errorf("unknown TCP mode %q", c.TCPMode)

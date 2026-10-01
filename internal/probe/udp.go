@@ -229,23 +229,32 @@ func Builtins() ([]Probe, error) {
 }
 
 func ForPort(all []Probe, port uint16) []Probe {
-	selected := make([]Probe, 0, 2)
+	if len(all) == 0 {
+		return []Probe{{Name: "generic-byte", Payload: []byte{0}, Matcher: "any"}}
+	}
+	// Port lists are ordering hints. A service on a nonstandard port must
+	// still receive every payload if the earlier probes do not identify it.
+	selected := make([]Probe, 0, len(all))
+	var portless, other []Probe
 	for _, p := range all {
 		if len(p.Ports) == 0 {
-			selected = append(selected, p)
+			portless = append(portless, p)
 			continue
 		}
+		preferred := false
 		for _, candidate := range p.Ports {
 			if candidate == port {
-				selected = append(selected, p)
+				preferred = true
 				break
 			}
 		}
+		if preferred {
+			selected = append(selected, p)
+		} else {
+			other = append(other, p)
+		}
 	}
-	if len(selected) == 0 {
-		selected = append(selected, Probe{Name: "generic-byte", Payload: []byte{0}, Matcher: "any"})
-	}
-	return selected
+	return append(append(selected, portless...), other...)
 }
 
 // Token derives a stateless validation value for protocol fields. The secret
