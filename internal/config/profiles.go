@@ -68,9 +68,9 @@ type Profile struct {
 }
 
 // profiles is the ordered catalog. The order controls how `nyxr profiles`
-// lists them. Every profile named in INSTRUCTIONS.md §18 appears here so the
-// set is complete and self-documenting; ones whose engine does not exist yet
-// are marked planned rather than omitted.
+// lists them. Every profile named in docs/architecture/design.md §18 appears
+// here so the set is complete and self-documenting; ones whose engine does
+// not exist yet are marked planned rather than omitted.
 var profiles = []Profile{
 	{
 		Name: "discovery", Description: "Common TCP ports, unprivileged connect scan",

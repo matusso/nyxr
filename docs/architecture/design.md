@@ -1,4 +1,22 @@
-# nyxr — Network / Port Security Scanner Roadmap
+# Design brief
+
+This is the long-term product and architecture brief for nyxr: what the
+scanner should become and why. It describes the target design, not the current
+implementation.
+
+- For what is built today, see the [Architecture overview](overview.md).
+- For delivery status and order, see the [Roadmap](../roadmap.md).
+
+Where the implementation has deliberately chosen a different path, the
+overview is authoritative. Notable differences so far:
+
+| Brief | Current implementation |
+| --- | --- |
+| React/Svelte web UI over WebSocket (§1, §24) | Embedded, build-free web UI; live events over Server-Sent Events |
+| REST and gRPC API (§1) | REST only; gRPC is deferred to the controller/agent protocol (§22) |
+| Repository layout with `engine/`, `protocols/`, `forge/` and other trees (§26) | Flatter `internal/` packages listed in the [overview](overview.md#packages) |
+| `nyxrd` and `nyxr-agent` binaries (§26) | `nyxr` and the privilege-separated `nyxr-packetd`; agents are planned |
+
 
 ## 1. Product architecture
 

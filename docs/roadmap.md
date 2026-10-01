@@ -1,21 +1,21 @@
-# nyxr implementation roadmap
+# Roadmap
 
-This is the execution plan for the product described in [INSTRUCTIONS.md](INSTRUCTIONS.md). It records what the repository implements today and orders the remaining work into testable releases. `INSTRUCTIONS.md` remains the long-term product and architecture brief; this file is the implementation tracker.
+This is the execution plan for the product described in the [Design brief](architecture/design.md). It records what the repository implements today and orders the remaining work into testable releases. The design brief remains the long-term product and architecture target; this page is the implementation tracker. For how the current code is structured, see the [Architecture overview](architecture/overview.md).
 
-**Status date:** 2026-09-30. **Legend:** Done = implemented in the repository; Partial = useful code exists but the stated capability is incomplete; Planned = no end-to-end implementation yet. A checked item means the code or workflow exists, not that every target platform has been runtime tested.
+**Status date:** 2026-10-01. **Legend:** Done = implemented in the repository; Partial = useful code exists but the stated capability is incomplete; Planned = no end-to-end implementation yet. A checked item means the code or workflow exists, not that every target platform has been runtime tested.
 
 ## Current baseline
 
 | Area | Status | Implemented now | Main gap |
 | --- | --- | --- | --- |
-| CLI and configuration | Done | `scan`, `profiles`, `decode`, `sniff`, `history`, `serve`; one `config.Request` document (YAML file plus flags, or API JSON) resolved and validated by one `Resolve` path; full profile catalog with honest `planned` gating; named port sets (`top100`, nmap-ranked `top1000`/`top2000`/`top5000`/`top8387`, `database`, `all`); `--dry-run` plan (text/JSON); target/CIDR/range and port parsing; JSON observations; bounded workers | Rate-scheduling hierarchy and target/policy enforcement (tracked in the safety row and Phases 4/9) |
+| CLI and configuration | Done | `scan`, `profiles`, `decode` (with an interactive `--tui` packet browser), `sniff`, `history`, `probe import`, `serve`, `completion` for bash/zsh/fish/PowerShell; one `config.Request` document (YAML file plus flags, or API JSON) resolved and validated by one `Resolve` path; full profile catalog with honest `planned` gating; named port sets (`top100`, nmap-ranked `top1000`/`top2000`/`top5000`/`top8387`, `database`, `all`); `--dry-run` plan (text/JSON); target/CIDR/range and port parsing; JSON observations; bounded workers | Rate-scheduling hierarchy and target/policy enforcement (tracked in the safety row and Phases 4/9) |
 | Portable scans | Partial | TCP connect and UDP socket scans on IPv4/IPv6; privileged IPv4/IPv6 ICMP echo, explicit ARP/NDP discovery and raw IPv4 TCP SYN mode; guarded raw research TCP/UDP/ICMP/SCTP/IP protocol probes | IPv6 production raw SYN, wider protocol-specific interpretation and privileged live validation |
 | Packet path | Partial | Reused `gopacket.DecodingLayerParser` for Ethernet/VLAN IPv4/IPv6 TCP/UDP/ICMP and quoted IPv4 TCP; bounded asynchronous raw IPv4 TCP SYN scan with checksummed packet templates, token-validated SYN/ACK, RST/ACK and ICMP classification, batched sends and deadline expiry; AF_PACKET, BPF and Npcap live Ethernet backends | Privileged Linux and live macOS/Windows runtime gates, hardware multi-queue RX fanout and measured throughput/drops |
-| UDP intelligence | Partial | Raw ICMPv4/v6 quote correlation with socket fallback; DNS A/NS, NTP, SNMP, mDNS, LLMNR, TFTP, SSDP, STUN, SIP OPTIONS, CoAP GET and BACnet Who-Is probes; versioned YAML with extraction fields; bounded late-reply matching and feedback-based retries | Privileged live ICMP gates, IKE/IPMI fixtures, BACnet device gate and wider calibration |
+| UDP intelligence | Partial | Raw ICMPv4/v6 quote correlation with socket fallback; `udp-basic`/`udp-common`/`udp-deep` strategies; DNS, DHCP, NTP, NBNS, mDNS, LLMNR, Kerberos, CLDAP, RADIUS, IKE, L2TP, SNMPv1/v2c/v3, SSDP, SLP, BACnet (with Device property and FDT reads), CoAP, RPC, IPMI, TFTP, SIP, STUN, memcached and game-server probes; runtime-imported Nmap UDP payloads; versioned YAML with extraction fields; bounded late-reply matching and feedback-based retries | Privileged live ICMP gates, live device gates for most protocols and wider calibration |
 | Safety and rate control | Partial | Global and scoped application-level probe rates, bounded concurrency, allowlisted `ot-safe` TCP policy with approved ports and read-only identity probes; allowlisted research profile capped at five frames/s | Live OT device validation and packet-level audit capture privileges |
-| Evidence and storage | Partial | Versioned `nyxr/v1` record stream (host/port/service/packet-evidence/scan); asynchronous bounded pcapng capture with per-flow packet IDs; pcap and pcapng reading; SQLite store with migrations, assets, evidence bytes, packet index, queries and retention | Live capture runtime gates, plain discovery scans still on the legacy observation stream, PostgreSQL controller backend, object storage for large artifacts |
+| Evidence and storage | Partial | Versioned `nyxr/v1` record stream (host/port/service/device/packet-evidence/scan); asynchronous bounded pcapng capture with per-flow packet IDs; pcap and pcapng reading with open/closed/filtered summaries and field-level dissection; SQLite store with migrations, assets, evidence bytes, packet index, queries and retention | Live capture runtime gates, plain discovery scans still on the legacy observation stream, PostgreSQL controller backend, object storage for large artifacts |
 | Build and release | Done | Tests/vet in CI, cgo-free builds and release archives/checksums for linux/windows/darwin on amd64/arm64, and a Linux amd64/arm64 GHCR image | Runtime smoke tests on all six binary targets and signed release provenance |
-| Deep services, UI and agents | Partial | Bounded deep-probe queue fed by discovery: passive banner, SSH, TLS (chain, version, cipher, ALPN, service inside TLS), HTTP, DNS `version.bind`, Modbus and EtherNet/IP identity; database profile with common SQL/NoSQL/graph/cache handshakes; runtime-imported `nmap-service-probes` banner matching; every exchange kept as evidence; `service`, `deep`, `web`, `database`, `full`, `iot` and `ot-safe` profiles; REST API with bounded SSE events and an embedded web UI served unprivileged, with raw I/O in `nyxr-packetd` | SMTP/FTP/SNMP and additional database wire protocols, active imported/NSE scripting and distributed execution |
+| Deep services, UI and agents | Partial | Bounded deep-probe queue fed by discovery: passive banner, SSH, TLS (chain, version, cipher, ALPN, service inside TLS), HTTP, DNS `version.bind`, Modbus and EtherNet/IP identity; database profile with common SQL/NoSQL/graph/cache handshakes; runtime-imported `nmap-service-probes` banner matching; every exchange kept as evidence; `service`, `deep`, `web`, `database`, `full`, `iot` and `ot-safe` profiles; REST API with bounded SSE events and an embedded web UI served unprivileged (including live packet watching and single-frame resend), with raw I/O in `nyxr-packetd` | SMTP/FTP/SNMP and additional database wire protocols, active imported/NSE scripting and distributed execution |
 
 Cross-compilation confirms that a binary builds; it does **not** prove that live packet capture, raw sockets or every scan mode works on that operating system. A macOS BPF open/bind/timeout smoke test passed on `en0`; no received or transmitted frames were verified. Full BPF and Npcap live runtime gates remain open. Raw SYN supports IPv4 TCP only and resolves next hops with route lookup and ARP; macOS can reuse a valid cached gateway MAC. No packet-rate claim is established yet.
 
@@ -42,7 +42,7 @@ Cross-compilation confirms that a binary builds; it does **not** prove that live
 - [x] Add deterministic reusable PCAP fixtures for IPv4/IPv6, TCP/UDP/ICMP, VLANs, malformed/truncated frames and ICMP quotations.
 - [x] Add fake UDP and SYN responders with configurable latency, loss, duplicate replies, ICMP rate limits and protocol mismatch.
 - [x] Add a privileged Linux network-namespace lab and documented macOS/Windows live RX/TX gates. The Linux lab and Windows gate have not yet run on their target hosts.
-- [ ] Record baseline throughput, allocations, CPU, packet loss and NIC drops at fixed workloads; publish the benchmark command and environment with results. Decoder and synthetic scan results are recorded in `tests/performance/README.md`; real NIC drop counters await the privileged Linux lab.
+- [ ] Record baseline throughput, allocations, CPU, packet loss and NIC drops at fixed workloads; publish the benchmark command and environment with results. Decoder and synthetic scan results are recorded in [Performance](development/performance.md); real NIC drop counters await the privileged Linux lab.
 - [x] Fuzz packet decoders, probe definitions/matchers and pcap readers with hostile input; short campaigns run in CI.
 
 **Exit:** CI reproduces classification and regression cases, and performance claims cite measured workloads rather than estimates.
@@ -60,7 +60,7 @@ Cross-compilation confirms that a binary builds; it does **not** prove that live
 - [ ] Resolve routes and ARP/NDP neighbors automatically. IPv4 SYN now looks up routes and resolves ARP next hops unless a MAC is supplied; NDP discovery is explicit, while IPv6 raw SYN and automatic NDP next-hop use remain open.
 - [ ] Add hardware RX queue/socket fanout after measuring the current single reader and sharded decoder workers.
 - [ ] Add per-host/subnet/interface rate limits, backpressure and cancellation; measure actual packets sent rather than counting only scheduled targets. Scoped limits and cancellable waits are implemented; raw-send counts are reported per observation, while end-to-end packet accounting and NIC counters await live lab runs.
-- [ ] Add TCP ACK/FIN/NULL/XMAS/custom flags only after the SYN path and safety controls are stable.
+- [x] Add TCP ACK/FIN/NULL/XMAS/custom flags only after the SYN path and safety controls are stable. Available in the allowlisted `research` profile only (Phase 5); ordinary profiles reject them.
 
 **Exit:** Controlled labs prove open/closed/filtered correlation for IPv4 and IPv6, under loss and background traffic; privileged features report clear prerequisites on every supported OS.
 
@@ -72,11 +72,11 @@ Cross-compilation confirms that a binary builds; it does **not** prove that live
 - [x] Correlate raw ICMPv4/v6 quoted packets to the original UDP probe independent of socket-error behavior, with socket fallback when raw sockets are unavailable. Synthetic quote tests exist; live privileged gates remain.
 - [x] Add bounded socket-scoped fallback correlation for protocols without a transaction field; retain unmatched response evidence and test delayed, duplicate and mismatched replies.
 - [x] Add a safe fixture-backed group: mDNS/LLMNR, TFTP, SSDP/STUN, SIP OPTIONS and CoAP GET.
-- [ ] Add IKE/IPMI only after read-only safety review and protocol fixtures; BACnet unicast Who-Is has protocol fixtures, but needs a live device gate.
+- [x] Add IKE/IPMI only after read-only safety review and protocol fixtures. Both are classified `safe` and have request/response fixtures. BACnet Who-Is, Device property and FDT reads have simulator fixtures and one live building-controller result; IKE and IPMI still lack live device gates.
 - [x] Use packet-loss/ICMP-limit feedback for one adaptive retry and distinguish token-validated, protocol-shaped, unknown, ICMP and silent results by reason and confidence.
 - [ ] Calibrate confidence and retry behavior with privileged live loss, firewall and ICMP-limit cases on Linux, macOS and Windows.
 - [x] Add matcher-specific extraction fields and a versioned native probe schema (`nyxr/udp/v1`), accepting schema-less legacy definitions.
-- [ ] Consider an imported Nmap probe database only after license review; keep it optional and separate.
+- [x] Consider an imported Nmap probe database only after license review; keep it optional and separate. `--nmap-udp-probes` loads UDP payloads from an operator-supplied file at runtime; nothing is bundled (see Phase 7).
 
 **Exit:** UDP results remain explainable under silence, ICMP filtering, delayed replies and protocol mismatch; each new probe has a fixture and safety classification.
 
@@ -90,6 +90,7 @@ Cross-compilation confirms that a binary builds; it does **not** prove that live
 - [x] Add the `database` profile with a broad TCP port set and response-validated Redis, Memcached, PostgreSQL, MongoDB, Bolt, CQL, TDS, MySQL and selected HTTP database identities.
 - [ ] Expand database wire protocol coverage (Oracle TNS, DB2, RethinkDB, Kafka, native ClickHouse, vector protocols), TLS-wrapped database probing, and fixture-backed live compatibility; add SMTP/FTP/SNMP.
 - [x] Make TLS a shared subsystem for certificates, versions, ALPN and services behind TLS. Preserve unrecognized responses for future signatures. Alternative ClientHello profiles and SNI for hostname targets are not implemented yet.
+- [x] Explain captures offline: `nyxr decode` summarizes pcap/pcapng files into hosts and open/closed/filtered ports, and `--tui` browses every packet with field-level notes and a linked hex dump (`internal/dissect`, `internal/tui`).
 - [ ] Route plain discovery scans through the record pipeline too, so every scan emits `nyxr/v1` records. Today the pipeline runs only when a service stage, `--pcapng` or `--db` is active.
 - [ ] Pass live capture runtime gates on Linux AF_PACKET, macOS BPF and Windows Npcap, and measure capture drops under load.
 
@@ -101,7 +102,7 @@ Cross-compilation confirms that a binary builds; it does **not** prove that live
 - [x] Add read-only Modbus function 43/14, BACnet unicast Who-Is and EtherNet/IP ListIdentity probes with simulator tests and recorded exchanges. BACnet is available through an explicit UDP scan; `ot-safe` remains TCP-only.
 - [x] Emit device records from at least two independent service, UDP, MAC OUI or port signals with explainable confidence. OUI prefixes are evidence rather than vendor names.
 
-Live tests on representative OT equipment, a vendor OUI database, and a fuller set of industrial protocols from `INSTRUCTIONS.md` remain open. Packet-level auditing still requires `--pcapng` and capture privileges.
+Live tests on representative OT equipment, a vendor OUI database, and a fuller set of industrial protocols from the [Design brief](architecture/design.md#11-otics-safety-profile) remain open. Packet-level auditing still requires `--pcapng` and capture privileges.
 
 **Exit:** OT scans can be audited for every transmitted probe, and device claims point to multiple independent observations.
 
@@ -123,6 +124,7 @@ header controls; advanced VLAN, options and extension layouts remain internal.
 
 - [x] Expose the same validated scan configuration and observation schema through REST; add live progress/events with bounded streams. `config.Request` is the one document for YAML, flags and API JSON; `pipeline.FromResolved` maps it to stages for both. Events are Server-Sent Events with a 4096-event replay ring, 256-event subscriber queues and `Last-Event-ID` resume; slow clients are disconnected, never waited on. gRPC is deferred to the Phase 8 controller/agent protocol, which needs it; SSE covers one-way browser streaming without a WebSocket dependency.
 - [x] Build scan creation/history, assets/services, packet evidence and profiles in the web UI from those APIs. It is an embedded, build-free UI (`nyxr serve`) with dry-run plans, live results, cancel and pcapng download.
+- [x] Add live packet watching and single-frame clone/edit/resend to the web UI through packetd, with bounded browser buffers and an explicit `--allow-packet-send` opt-in.
 - [x] Split privileged packet I/O into a narrow `nyxr-packetd` process before running API/UI/storage alongside raw scanning. It is a separate binary that relays Ethernet frames over a Unix socket for allowlisted interfaces, with a source-MAC check, frame, client and rate limits. `nyxr serve` refuses root or `CAP_NET_RAW`/`CAP_NET_ADMIN` by default, and `nyxr scan --packetd` uses the same relay.
 
 A test runs one loopback TCP and service scan through the CLI and the API and requires identical observations apart from IDs and timings. The UI was checked in headless Chromium against a live server. Open items: ICMP echo still needs a raw IP socket in the scanning process, so the API refuses ICMP. The `research` profile stays CLI-only until Phase 9 approvals. packetd has been exercised on macOS, matching the local BPF backend whose live RX/TX gate is open, but not yet on privileged Linux or Windows. Authentication is a single shared bearer token; RBAC and audit are Phase 9.
@@ -132,7 +134,7 @@ A test runs one loopback TCP and service scan through the CLI and the API and re
 ## Phase 7 — scripting and probe interoperability · Partial
 
 - [x] Import user-supplied Nmap service probes into the match model; preserve provenance and license boundaries. `internal/nmapdb` parses an operator-supplied `nmap-service-probes` file at runtime (never bundled), records its path and SHA-256, and compiles match/softmatch patterns with Go's RE2. Patterns RE2 cannot express (backreferences, lookaround) are skipped and counted rather than failing the import. `nyxr probe import` summarizes a database and prints the Nmap Project license notice. The service engine's `nmap` probe matches a connect banner against the NULL-probe rules and emits service/product/version with provenance, sending no extra traffic. Fixtures, a fuzz target and CLI/config/pipeline tests cover the path.
-- [ ] Send the imported active probes (GetRequest and friends) under a rarity/intensity budget and per-port cap; today only the passive NULL-probe banner match is wired into scanning. Import also does not yet translate the UDP probe payloads into sent probes.
+- [ ] Send the imported active probes (GetRequest and friends) under a rarity/intensity budget and per-port cap; today only the passive NULL-probe banner match is wired into TCP scanning. Imported UDP payloads are sent through `--nmap-udp-probes`.
 - [ ] Add an Nmap/NSE bridge for selected scripts with structured output and category safety checks.
 - [ ] Add resource-limited WASM plugins, then Lua/NSE compatibility only for proven use cases.
 

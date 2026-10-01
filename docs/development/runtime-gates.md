@@ -1,4 +1,16 @@
-# Runtime packet gates
+# Runtime gates
+
+Cross-builds and fixtures prove that code compiles and parses correctly. They
+do not prove that a live backend sends and receives packets on a given
+operating system. These gates do. Run them on real hosts, record the results,
+and update the [Roadmap](../roadmap.md) when a gate passes.
+
+| Gate | Platform | Automation |
+| --- | --- | --- |
+| [Linux AF_PACKET](#linux-af_packet) | Linux | Scripted, disposable network namespaces |
+| [macOS BPF](#macos-bpf-manual-gate) | macOS | Manual, isolated test network |
+| [Windows Npcap](#windows-npcap-manual-gate) | Windows | Manual, isolated test network |
+| [UDP ICMP](#udp-icmp-manual-gate-macos-and-windows) | macOS, Windows | Manual, isolated test network |
 
 ## Linux AF_PACKET
 
