@@ -182,12 +182,18 @@ EtherNet/IP uses ListIdentity on TCP/44818. Both are read-only requests and
 return product/version fields with raw exchange evidence. BACnet uses a unicast
 Who-Is request on UDP/47808 in an explicit UDP scan or `udp-deep`, followed by
 a read-only Device object-identifier query and a BBMD Foreign Device Table read
-when earlier probes are silent. It parses unicast or broadcast I-Am device and
-vendor IDs. The scanner prefers local UDP/47808 for these IPv4 probes and uses
+when earlier probes are silent. After a BACnet reply confirms the port is open,
+it reads Device name, vendor, application software, firmware, model, description,
+and location properties, plus the BBMD Foreign Device Table when available.
+Missing optional replies leave the validated open result intact. It parses
+unicast or broadcast I-Am device and vendor IDs. The scanner prefers local
+UDP/47808 for these IPv4 probes and uses
 an ephemeral source port if that port is busy. I-Am and FDT responses have no
 transaction token, so their confidence is lower than token-validated replies.
-These probes have local simulator fixtures; behavior on real OT equipment
-remains to be validated.
+These probes have local simulator fixtures. A live Siemens PXC22.1-E.D scan
+also returned its Device identifier, name, vendor, application software,
+firmware, model, description, and one FDT entry. The reported FDT timeout is
+the remaining time at the moment of the scan and may change between runs.
 
 `--fingerprint` combines matched service/UDP identities, MAC OUI prefixes and
 open port patterns into a `device` record when at least two independent signals
@@ -230,7 +236,12 @@ and `memcached`. The optional `schema` defaults to
 `extract` list can request `dns.rcode`, `ntp.stratum`, `stun.message_type`,
 `tftp.error_code`, `ssdp.server`, `sip.status`, `coap.code`,
 `bacnet.device_id`, `bacnet.vendor_id`, or `bacnet.fdt_entries`; values appear
-in the observation's `fields` map. Only `safety: safe` is accepted. A probe
+in the observation's `fields` map. BACnet enrichment also adds
+`bacnet.object_name`, `bacnet.vendor_name`, `bacnet.application_software`,
+`bacnet.firmware`, `bacnet.model_name`, `bacnet.description`, and
+`bacnet.location` when returned. FDT entries appear as `bacnet.fdt.0`,
+`bacnet.fdt.1`, and so on, with IP, port, TTL, and remaining timeout.
+Only `safety: safe` is accepted. A probe
 with no applicable port falls back to the generic byte. TFTP and SSDP replies
 have lower confidence because they lack a transaction token.
 

@@ -407,8 +407,8 @@ func Extract(p Probe, response []byte) map[string]string {
 				}
 			}
 		case "bacnet.fdt_entries":
-			if validBACnetFDT(response) {
-				fields[field] = strconv.Itoa((len(response) - 4) / 10)
+			for name, value := range BACnetFDTFields(response) {
+				fields[name] = value
 			}
 		}
 	}

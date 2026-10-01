@@ -113,17 +113,107 @@ func TestUDPBACnetForeignDeviceTableConfirmsOpen(t *testing.T) {
 	}
 	fdt.Ports = []uint16{port}
 	go func() {
-		var buf [16]byte
-		n, addr, err := server.ReadFromUDP(buf[:])
-		if err == nil && n == 4 && buf[1] == 6 {
-			response := []byte{0x81, 0x07, 0, 14, 217, 75, 94, 18, 0x62, 0x2d, 0, 30, 0, 34}
-			_, _ = server.WriteToUDP(response, addr)
+		var buf [32]byte
+		for {
+			n, addr, err := server.ReadFromUDP(buf[:])
+			if err != nil {
+				return
+			}
+			if n == 4 && buf[1] == 6 {
+				response := []byte{0x81, 0x07, 0, 14, 217, 75, 94, 18, 0x62, 0x2d, 0, 30, 0, 34}
+				_, _ = server.WriteToUDP(response, addr)
+			} else if n == 17 && buf[9] == 12 {
+				response := []byte{0x81, 0x0a, 0, 9, 1, 0, 0x60, buf[8], 0}
+				if buf[16] == 75 {
+					response = []byte{0x81, 0x0a, 0, 23, 1, 0, 0x30, buf[8], 12,
+						12, 2, 0x20, 8, 1, 0x19, 75, 0x3e, 0xc4, 2, 0x20, 8, 1, 0x3f}
+				}
+				_, _ = server.WriteToUDP(response, addr)
+			}
 		}
 	}()
 	got := probeUDPCampaign(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: port, transport: "udp"},
 		time.Second, []probe.Probe{fdt}, 0, []byte("secret"), newProbeLimiter(0))
-	if got.State != "open" || got.Service != "bacnet" || got.Probe != "bacnet-fdt" || got.Fields["bacnet.fdt_entries"] != "1" {
+	if got.State != "open" || got.Service != "bacnet" || got.Probe != "bacnet-fdt" ||
+		got.Fields["bacnet.device_id"] != "2099201" || got.Fields["bacnet.fdt_entries"] != "1" ||
+		got.Fields["bacnet.fdt.0"] != "217.75.94.18:25133:ttl=30:timeout=34" {
 		t.Fatalf("FDT response should confirm BACnet open port: %+v", got)
+	}
+}
+
+func TestUDPBACnetReadsDeviceMetadataAfterOpening(t *testing.T) {
+	server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Skipf("loopback unavailable: %v", err)
+	}
+	defer server.Close()
+	port := uint16(server.LocalAddr().(*net.UDPAddr).Port)
+	all, err := probe.Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var read probe.Probe
+	for _, p := range probe.ForPort(all, 47808) {
+		if p.Matcher == "bacnet-read" {
+			read = p
+		}
+	}
+	if read.Name == "" {
+		t.Fatal("Device read probe missing")
+	}
+	read.Ports = []uint16{port}
+	properties := map[byte]string{
+		77:  "Site01'PkMajer",
+		121: "Siemens Building Technologies",
+		12:  `JK CONTROL\SK\Banska Bystrica\TBB_PkMajer\PkMajer`,
+		44:  "FW=V6.00.314 / SBC=11.01 / FLI=06.00 / BBI=13.06 / CIO=01.20 / STF=01.20",
+		70:  "PXC22.1-E.D / HW=V6.00",
+		28:  "PXC Contr. 01",
+		58:  "Banska Bystrica",
+	}
+	go func() {
+		var buf [128]byte
+		for {
+			n, peer, err := server.ReadFromUDP(buf[:])
+			if err != nil {
+				return
+			}
+			if n == 4 && buf[1] == 6 {
+				_, _ = server.WriteToUDP([]byte{0x81, 7, 0, 14, 217, 75, 94, 18, 0x62, 0x2d, 0, 30, 0, 34}, peer)
+				continue
+			}
+			if n != 17 || buf[9] != 12 {
+				continue
+			}
+			property := buf[16]
+			response := []byte{0x81, 0x0a, 0, 0, 1, 0, 0x30, buf[8], 12,
+				12, 2, 0x20, 8, 1, 0x19, property, 0x3e}
+			switch property {
+			case 75:
+				response = append(response, 0xc4, 2, 0x20, 8, 1)
+			case 120:
+				response = append(response, 0x22, 0, 7)
+			default:
+				value, ok := properties[property]
+				if !ok {
+					continue
+				}
+				response = append(response, 0x75, byte(len(value)+1), 0)
+				response = append(response, value...)
+			}
+			response = append(response, 0x3f)
+			binary.BigEndian.PutUint16(response[2:4], uint16(len(response)))
+			_, _ = server.WriteToUDP(response, peer)
+		}
+	}()
+	got := probeUDPCampaign(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: port, transport: "udp"},
+		300*time.Millisecond, []probe.Probe{read}, 0, []byte("secret"), newProbeLimiter(0))
+	if got.State != "open" || got.Service != "bacnet" || got.Fields["bacnet.device_id"] != "2099201" ||
+		got.Fields["bacnet.object_name"] != properties[77] || got.Fields["bacnet.vendor_name"] != properties[121] ||
+		got.Fields["bacnet.application_software"] != properties[12] || got.Fields["bacnet.firmware"] != properties[44] ||
+		got.Fields["bacnet.model_name"] != properties[70] || got.Fields["bacnet.description"] != properties[28] ||
+		got.Fields["bacnet.fdt.0"] != "217.75.94.18:25133:ttl=30:timeout=34" || got.PacketsTX != 10 {
+		t.Fatalf("BACnet enrichment missing: %+v", got)
 	}
 }
 

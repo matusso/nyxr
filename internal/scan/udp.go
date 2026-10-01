@@ -272,6 +272,9 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 					o.Probe = matched.probe.Name
 					o.Fields = probe.Extract(matched.probe, buf[:n])
 					o.State, o.Confidence, o.Reason, o.RTT = "open", confidence, reason, time.Since(matched.sent)
+					if isBACnetMatcher(matched.probe.Matcher) {
+						enrichBACnet(ctx, conn, addr, t.target, t.port, timeout, secret, limiter, &o)
+					}
 					return o
 				}
 				unknownResponse = true
