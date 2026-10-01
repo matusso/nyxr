@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: teamspeak3-init
+transport: udp
+ports: [9987]
+tags: [teamspeak3, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "545333494e49543100650000880a397b0f005b5572efdc78326b0000000000000000"
+timeout: 1s
+match:
+  - type: teamspeak

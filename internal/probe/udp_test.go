@@ -13,8 +13,8 @@ func TestBuiltinsAndTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ForPort(all, 53)) != 2 || len(ForPort(all, 123)) != 1 ||
-		len(ForPort(all, 161)) != 2 || len(ForEveryPort(all, 40000)) != len(all) {
+	if len(ForPort(all, 53)) != 4 || len(ForPort(all, 123)) != 3 ||
+		len(ForPort(all, 161)) != 5 || len(ForEveryPort(all, 40000)) != len(all) {
 		t.Fatalf("unexpected common/deep UDP catalog selection")
 	}
 	dns := ForPort(all, 53)[0]
@@ -34,7 +34,7 @@ func TestBuiltinsAndTokens(t *testing.T) {
 		t.Fatalf("NTP payload has %d bytes", len(nRequest))
 	}
 	nResponse := make([]byte, 48)
-	nResponse[0] = 0x24 // version 4, server mode
+	nResponse[0] = (nRequest[0] & 0x38) | 4 // same version, server mode
 	copy(nResponse[24:32], nRequest[40:48])
 	if !Match(ntp, nRequest, nResponse) {
 		t.Fatal("matching NTP response rejected")
@@ -43,14 +43,23 @@ func TestBuiltinsAndTokens(t *testing.T) {
 	if Match(ntp, nRequest, nResponse) {
 		t.Fatal("wrong NTP token accepted")
 	}
-	snmp := ForPort(all, 161)[0]
+	var snmp Probe
+	for _, p := range ForPort(all, 161) {
+		if p.Matcher == "snmp" {
+			snmp = p
+		}
+	}
 	sRequest := Prepare(snmp, 0x12345678)
 	sResponse := bytes.Clone(sRequest)
-	sResponse[13] = 0xa2 // GetResponse-PDU
+	offset, _, ok := snmpRequestIDOffset(sRequest, 1)
+	if !ok {
+		t.Fatal("invalid SNMP request")
+	}
+	sResponse[offset-4] = 0xa2 // GetResponse-PDU
 	if !Match(snmp, sRequest, sResponse) {
 		t.Fatal("matching SNMP response rejected")
 	}
-	sResponse[17] ^= 1
+	sResponse[offset] ^= 1
 	if Match(snmp, sRequest, sResponse) {
 		t.Fatal("wrong SNMP request ID accepted")
 	}

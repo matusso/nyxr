@@ -24,6 +24,7 @@ const (
 	ProbeTLS        = "tls"        // handshake and certificate chain, then the service inside
 	ProbeHTTP       = "http"       // GET / over plain TCP or TLS
 	ProbeDNS        = "dns"        // CHAOS version.bind TXT over TCP
+	ProbeSOCKS      = "socks"      // SOCKS4/5 identity and SOCKS5 UDP relay allocation
 	ProbeModbus     = "modbus"     // Read Device Identification (function 43/14)
 	ProbeEtherNetIP = "ethernetip" // ListIdentity encapsulation request
 	ProbeNmap       = "nmap"       // match a connect banner against an imported nmap-service-probes database
@@ -31,7 +32,7 @@ const (
 
 // Names lists every probe in the order they are documented.
 func Names() []string {
-	return []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDNS, ProbeModbus, ProbeEtherNetIP, ProbeNmap}
+	return []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDNS, ProbeSOCKS, ProbeModbus, ProbeEtherNetIP, ProbeNmap}
 }
 
 // Per-probe time budgets. Config.Timeout caps each of them.
@@ -40,6 +41,7 @@ var probeTimeouts = map[string]time.Duration{
 	ProbeTLS:        5 * time.Second,
 	ProbeHTTP:       5 * time.Second,
 	ProbeDNS:        3 * time.Second,
+	ProbeSOCKS:      3 * time.Second,
 	ProbeModbus:     3 * time.Second,
 	ProbeEtherNetIP: 3 * time.Second,
 }
@@ -91,7 +93,7 @@ func (c Config) Validate() error {
 	for _, list := range [][]string{c.Probes, c.Fallback} {
 		for _, p := range list {
 			if !known[p] {
-				return fmt.Errorf("unknown service probe %q (known: banner, ssh, tls, http, dns, modbus, ethernetip, nmap)", p)
+				return fmt.Errorf("unknown service probe %q (known: banner, ssh, tls, http, dns, socks, modbus, ethernetip, nmap)", p)
 			}
 		}
 	}

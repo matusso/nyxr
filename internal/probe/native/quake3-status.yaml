@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: quake3-status
+transport: udp
+ports: [26000,27960]
+tags: [quake3, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "ffffffff676574737461747573"
+timeout: 1s
+match:
+  - type: quake

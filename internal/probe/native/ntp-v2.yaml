@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: ntp-v2
+transport: udp
+ports: [123]
+tags: [ntp, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "130000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+timeout: 1s
+match:
+  - type: ntp

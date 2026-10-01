@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: gamespy-status
+transport: udp
+ports: [23000,27900,28900]
+tags: [gamespy, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "5c7374617475735c"
+timeout: 1s
+match:
+  - type: gamespy

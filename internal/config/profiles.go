@@ -95,7 +95,7 @@ var profiles = []Profile{
 	{
 		Name: "udp-common", Description: "UDP payloads associated with each selected port",
 		Availability: StatusAvailable,
-		Ports:        "53,69,111,123,161,1900,2049,3478,5060,5353,5355,5683,11211,47808", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
+		Ports:        "53,67,69,88,111,123,137,161,389,427,500,523,623,1604,1701,1812,1813,1900,2049,3478,5060,5353,5355,5683,9987,11211,23000,27015,27900,27960,28900,47808", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
 	},
 	{
 		Name: "udp", Description: "Compatibility profile using udp-common selection",
@@ -105,7 +105,7 @@ var profiles = []Profile{
 	{
 		Name: "udp-deep", Description: "Try every available UDP payload on each selected port",
 		Availability: StatusAvailable,
-		Ports:        "53,69,111,123,161,1900,2049,3478,5060,5353,5355,5683,11211,47808", Protocols: "udp", Timeout: "2s", Rate: 25, Workers: 16, UDPRetries: 1,
+		Ports:        "53,67,69,88,111,123,137,161,389,427,500,523,623,1604,1701,1812,1813,1900,2049,3478,5060,5353,5355,5683,9987,11211,23000,27015,27900,27960,28900,47808", Protocols: "udp", Timeout: "2s", Rate: 25, Workers: 16, UDPRetries: 1,
 	},
 	{
 		Name: "ot-safe", Description: "Allowlisted, low-rate Modbus and EtherNet/IP identity reads",
@@ -123,16 +123,16 @@ var profiles = []Profile{
 	},
 
 	{
-		Name: "service", Description: "Top 100 TCP ports, then banner/SSH/TLS/HTTP/DNS identification",
+		Name: "service", Description: "Top 100 TCP ports, then banner/SSH/TLS/HTTP/DNS/SOCKS identification",
 		Availability: StatusAvailable,
 		Ports:        "top100", Protocols: "tcp", Timeout: "1s", Rate: 100, Workers: 64,
-		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns", Fallback: "http", Timeout: "5s", Workers: 16, Rate: 50},
+		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks", Fallback: "http", Timeout: "5s", Workers: 16, Rate: 50},
 	},
 	{
 		Name: "deep", Description: "Discovery plus TLS/HTTP/SSH/DNS interrogation, trying TLS and HTTP on every open port",
 		Availability: StatusAvailable,
 		Ports:        "top100", Protocols: "tcp", Timeout: "1s", Rate: 100, Workers: 64,
-		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns", Fallback: "tls,http", Timeout: "8s", Workers: 32, Rate: 50},
+		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks", Fallback: "tls,http", Timeout: "8s", Workers: 32, Rate: 50},
 	},
 	{
 		Name: "web", Description: "HTTP/HTTPS/TLS focused service detection",
@@ -144,7 +144,7 @@ var profiles = []Profile{
 		Name: "full", Description: "All TCP ports plus full deep service detection",
 		Availability: StatusAvailable,
 		Ports:        "all", Protocols: "tcp", Timeout: "1s", Rate: 1000, Workers: 256,
-		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns", Fallback: "tls,http", Timeout: "8s", Workers: 32, Rate: 50},
+		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks", Fallback: "tls,http", Timeout: "8s", Workers: 32, Rate: 50},
 	},
 
 	// Planned profiles depend on engines that later roadmap phases deliver.

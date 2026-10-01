@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: nbns-node-status
+transport: udp
+ports: [137]
+tags: [nbns, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "00000000000100000000000020434b4141414141414141414141414141414141414141414141414141414141410000210001"
+timeout: 1s
+match:
+  - type: nbns

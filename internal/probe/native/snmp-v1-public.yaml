@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: snmp-v1-public
+transport: udp
+ports: [161]
+tags: [snmp, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "302902010004067075626c6963a01c020400000000020100020100300e300c06082b060102010101000500"
+timeout: 1s
+match:
+  - type: snmpv1

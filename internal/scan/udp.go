@@ -26,12 +26,25 @@ func isBACnetMatcher(matcher string) bool {
 }
 
 func isUntokenedMatcher(matcher string) bool {
-	return matcher == "tftp" || matcher == "ssdp" || matcher == "bacnet" || matcher == "bacnet-fdt"
+	switch matcher {
+	case "tftp", "ssdp", "bacnet", "bacnet-fdt", "kerberos", "l2tp", "radius", "citrix", "db2", "source", "quake", "gamespy", "teamspeak":
+		return true
+	}
+	return false
 }
 
 // BACnet I-Am may be broadcast to UDP/47808. One listener owns that port at a
 // time so replies cannot be consumed by a concurrent target campaign.
 var bacnetListenerSlot = func() chan struct{} {
+	slot := make(chan struct{}, 1)
+	slot <- struct{}{}
+	return slot
+}()
+
+// DHCP offers target the client reply port rather than the source port chosen
+// for a normal UDP scan. Serialize attempts to bind UDP/68; if the OS DHCP
+// client owns it, the campaign falls back to its ordinary socket.
+var dhcpListenerSlot = func() chan struct{} {
 	slot := make(chan struct{}, 1)
 	slot <- struct{}{}
 	return slot
@@ -97,15 +110,25 @@ func probeUDPCampaignWithICMPMode(ctx context.Context, t task, timeout time.Dura
 	addr := &net.UDPAddr{IP: net.IP(t.target.AsSlice()), Port: int(t.port), Zone: t.target.Zone()}
 	var conn *net.UDPConn
 	var err error
-	unconnected, bacnet := false, false
+	unconnected, bacnet, dhcp := false, false, false
 	for _, p := range selected {
 		bacnet = bacnet || isBACnetMatcher(p.Matcher)
-		unconnected = unconnected || p.Matcher == "tftp" || isBACnetMatcher(p.Matcher)
+		dhcp = dhcp || p.Matcher == "dhcp" && t.port == 67 && t.target.Is4()
+		unconnected = unconnected || p.Matcher == "tftp" || isBACnetMatcher(p.Matcher) || dhcp
 	}
 	if bacnet && t.port == 47808 {
 		select {
 		case <-bacnetListenerSlot:
 			defer func() { bacnetListenerSlot <- struct{}{} }()
+		case <-ctx.Done():
+			o.State, o.Reason = "error", ctx.Err().Error()
+			return o
+		}
+	}
+	if dhcp {
+		select {
+		case <-dhcpListenerSlot:
+			defer func() { dhcpListenerSlot <- struct{}{} }()
 		case <-ctx.Done():
 			o.State, o.Reason = "error", ctx.Err().Error()
 			return o
@@ -119,9 +142,12 @@ func probeUDPCampaignWithICMPMode(ctx context.Context, t task, timeout time.Dura
 		listenAddr := &net.UDPAddr{}
 		if bacnet && t.port == 47808 {
 			listenAddr.Port = int(t.port)
+		} else if dhcp {
+			listenAddr.Port = 68
 		}
 		conn, err = net.ListenUDP(network, listenAddr)
-		if err != nil && bacnet && listenAddr.Port != 0 && errors.Is(err, syscall.EADDRINUSE) {
+		if err != nil && listenAddr.Port != 0 &&
+			(errors.Is(err, syscall.EADDRINUSE) || dhcp && errors.Is(err, syscall.EACCES)) {
 			listenAddr.Port = 0
 			conn, err = net.ListenUDP(network, listenAddr)
 		}
@@ -149,7 +175,9 @@ func probeUDPCampaignWithICMPMode(ctx context.Context, t task, timeout time.Dura
 	defer observer.unregister(flow)
 	stop := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Now()) })
 	defer stop()
-	var buf [4096]byte
+	// A CLDAP root DSE response can carry many attributes in one datagram.
+	// Keep the entire legal UDP payload available to protocol extractors.
+	var buf [65507]byte
 	var socketResponseProbe, socketResponseHex string
 	var socketResponseRTT time.Duration
 	var attempt uint32
@@ -303,7 +331,7 @@ probeLoop:
 					}
 					confidence, reason := 100, "validated "+matched.probe.Matcher+" response"
 					if isUntokenedMatcher(matched.probe.Matcher) {
-						confidence, reason = 85, "protocol-shaped UDP response from target; no transaction token"
+						confidence, reason = 85, "protocol-shaped UDP response with limited correlation"
 					} else {
 						o.Service = matched.probe.Matcher
 					}

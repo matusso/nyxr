@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: kerberos-as-req
+transport: udp
+ports: [88]
+tags: [kerberos, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "6a6d306ba103020105a20302010aa45f305da006030400408100a20e1b0c4e5958522e494e56414c4944a321301fa003020101a11830161b066b72627467741b0c4e5958522e494e56414c4944a511180f32303330303130313030303030305aa703020101a8083006020112020111"
+timeout: 1s
+match:
+  - type: kerberos

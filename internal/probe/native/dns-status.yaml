@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: dns-status
+transport: udp
+ports: [53]
+tags: [dns, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "000010000000000000000000"
+timeout: 1s
+match:
+  - type: dns-status

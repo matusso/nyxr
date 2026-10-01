@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: citrix-discovery
+transport: udp
+ports: [1604]
+tags: [citrix, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "1e00013002fda8e300000000000000000000000000000000000000000000"
+timeout: 1s
+match:
+  - type: citrix

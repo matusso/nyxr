@@ -56,7 +56,7 @@ _nyxr() {
                     COMPREPLY=($(compgen -W "$(command ls /sys/class/net 2>/dev/null || ifconfig -l 2>/dev/null)" -- "$cur"))
                     return 0 ;;
                 --service-probes|-service-probes)
-                    COMPREPLY=($(compgen -W "banner ssh tls http dns modbus ethernetip nmap banner,ssh,tls,http,dns modbus,ethernetip" -- "$cur"))
+                    COMPREPLY=($(compgen -W "banner ssh tls http dns socks modbus ethernetip nmap banner,ssh,tls,http,dns,socks modbus,ethernetip" -- "$cur"))
                     return 0 ;;
                 --service-fallback|-service-fallback)
                     COMPREPLY=($(compgen -W "http tls,http none" -- "$cur"))

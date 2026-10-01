@@ -66,7 +66,7 @@ _nyxr() {
                         '--nmap-udp-probes=[add UDP payloads from Nmap probe file]:probes file:_files' \
                         '--config=[YAML scan configuration]:config file:_files -g "*.(yaml|yml)"' \
                         '--service[deep service probes on open TCP ports]' \
-                        '--service-probes=[comma list of service probes]:probes:_values -s , probe banner ssh tls http dns modbus ethernetip nmap' \
+                        '--service-probes=[comma list of service probes]:probes:_values -s , probe banner ssh tls http dns socks modbus ethernetip nmap' \
                         '--allow-targets=[approved IPs or CIDRs]:allow targets:' \
                         '--service-fallback=[probes for unhinted silent ports, or none]:fallback:(http tls,http none)' \
                         '--service-timeout=[upper bound for each service probe]:duration (e.g. 3s):' \

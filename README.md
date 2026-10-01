@@ -83,10 +83,12 @@ packet; add `--json` for the machine-readable plan. UDP has three levels:
 empty datagram when none apply; `udp-deep` tries every available payload on
 each requested port until a reply validates a service or the catalog is
 exhausted. The existing `udp` profile uses the `udp-common` strategy for
-compatibility. The native catalog includes DNS, NTP, SNMPv2c and SNMPv3 engine
-discovery, TFTP, RPC NULL, SSDP, STUN, SIP OPTIONS, mDNS, LLMNR, CoAP GET,
-memcached version, and BACnet reads. `udp-deep` selects fourteen common UDP
-ports by default and retries each
+compatibility. The native catalog includes DNS status, lookup and CHAOS TXT;
+DHCP, NTPv2/v3/v4, NBNS, mDNS, LLMNR, Kerberos, CLDAP search, RADIUS
+authentication, IKE, L2TP, SNMPv1/v2c/v3, SSDP, SLP, BACnet, CoAP, RPC,
+IPMI, TFTP, Citrix, DB2, SIP, Source, Quake, GameSpy, TeamSpeak, STUN,
+memcached, and an empty datagram. `udp-deep` selects 32 common UDP ports by
+default and retries each
 probe once; `--ports` replaces the default port list. An empty UDP datagram is
 valid under [RFC 768](https://www.rfc-editor.org/rfc/rfc768), and a silent port
 remains `open|filtered` because [RFC 1122](https://www.rfc-editor.org/rfc/rfc1122)
@@ -123,12 +125,12 @@ the roadmap phase they need, rather than silently downgrading to a weaker scan.
 | `fast` | available | Top 100 TCP ports at higher concurrency |
 | `tcp` | available | TCP connect scan of common ports |
 | `udp-basic` | available | Empty UDP datagram; classify reply or ICMP response |
-| `udp-common` | available | Payloads associated with each port; fourteen default ports |
+| `udp-common` | available | Payloads associated with each port; 32 default ports |
 | `udp` | available | Compatibility name for `udp-common`; DNS and NTP ports by default |
-| `udp-deep` | available | Every available UDP payload on each port; fourteen default ports |
+| `udp-deep` | available | Every available UDP payload on each port; 32 default ports |
 | `ot-safe` | available | Allowlisted TCP connect scan plus Modbus/EtherNet/IP identity reads |
 | `custom` | available | Minimal profile; set protocols, ports and timeout explicitly |
-| `service` | available | Top 100 TCP ports, then banner/SSH/TLS/HTTP/DNS identification |
+| `service` | available | Top 100 TCP ports, then banner/SSH/TLS/HTTP/DNS/SOCKS identification |
 | `deep` | available | As `service`, and tries TLS and HTTP on every silent open port |
 | `web` | available | Common web ports with TLS and HTTP identification |
 | `full` | available | All TCP ports plus deep service identification |
@@ -240,11 +242,14 @@ match:
 ```
 
 Supported payload encodings are `ascii`, `hex`, `base64`, and `raw_file`
-(relative to the YAML file). Matchers are `any`, `dns`, `ntp`, `snmp`, `snmpv3`, `stun`,
-`tftp`, `ssdp`, `sip`, `coap`, `bacnet`, `bacnet-read`, `bacnet-fdt`, `rpc`,
-and `memcached`. The optional `schema` defaults to
+(relative to the YAML file). Matchers include `any`, `dns`, `dns-status`, `dhcp`,
+`nbns`, `kerberos`, `cldap`, `radius`, `ike`, `l2tp`, `snmpv1`, `ntp`, `snmp`,
+`snmpv3`, `stun`, `tftp`, `ssdp`, `sip`, `coap`, `bacnet`, `bacnet-read`,
+`bacnet-fdt`, `rpc`, `slp`, `ipmi`, `citrix`, `db2`, `source`, `quake`,
+`gamespy`, `teamspeak`, and `memcached`. The optional `schema` defaults to
 `nyxr/udp/v1` for older definitions; unknown versions are rejected. The
-`extract` list can request `dns.rcode`, `ntp.stratum`, `stun.message_type`,
+`extract` list can request `dns.rcode`, `dns.txt`, `cldap.attributes`,
+`ntp.stratum`, `stun.message_type`,
 `snmp.engine_id`, `tftp.error_code`, `ssdp.server`, `sip.status`, `coap.code`,
 `bacnet.device_id`, `bacnet.vendor_id`, or `bacnet.fdt_entries`; values appear
 in the observation's `fields` map. SNMPv3 engine discovery also adds
@@ -255,9 +260,10 @@ in the observation's `fields` map. SNMPv3 engine discovery also adds
 `bacnet.firmware`, `bacnet.model_name`, `bacnet.description`, and
 `bacnet.location` when returned. FDT entries appear as `bacnet.fdt.0`,
 `bacnet.fdt.1`, and so on, with IP, port, TTL, and remaining timeout.
-Only `safety: safe` is accepted. A probe
-with no applicable port falls back to the generic byte. TFTP and SSDP replies
-have lower confidence because they lack a transaction token.
+`cldap.attributes` records the root DSE attributes returned by a connectionless
+search, including directory naming contexts and capabilities when available.
+Only `safety: safe` is accepted. A probe with no applicable port falls back to
+the empty UDP datagram. Untokened protocol replies have lower confidence.
 
 The CLI and the API share one request document, `config.Request`: the CLI
 reads it from YAML and overlays flags, the API accepts the same field names as
@@ -297,8 +303,8 @@ queue with a fixed worker pool. Each port gets a service observation:
    identification string is reported as `ssh` with product and version
    (`OpenSSH` `9.6p1`); any other banner is kept as an unknown fingerprint.
 2. **port-hinted probes** for silent ports: `dns` (TCP/53, CHAOS
-   `version.bind`), `tls` then `http` on TLS ports such as 443/8443/993, and
-   `http` then `tls` on HTTP ports such as 80/8080.
+   `version.bind`), `socks` on TCP/1080, `tls` then `http` on TLS ports such
+   as 443/8443/993, and `http` then `tls` on HTTP ports such as 80/8080.
 3. **fallback probes** on other silent ports (`--service-fallback`; `http`
    for `service`, `tls,http` for `deep`, `web` and `full`, or `none`).
 
@@ -310,6 +316,14 @@ service inside TLS: HTTP (`https`, re-asking for HTTP/1.1 when ALPN chose h2)
 or a server-first banner such as IMAPS. HTTP reports status, `Server`
 (parsed into product/version), title, content type, location and
 authentication headers.
+
+The `socks` service probe identifies SOCKS4 or SOCKS5 on an open TCP port.
+For SOCKS5 servers that accept no-authentication negotiation, it requests a
+UDP association and records the relay address and port returned by the server.
+The relay exists for that TCP session and is reported as a transient allocated endpoint;
+the scanner does not infer that an unrelated static UDP port is open. TCP/1080
+is in the curated `top100` port set; use `--service-fallback socks` for other
+proxy ports.
 
 Every exchange is kept as evidence: probe, layer (`tcp` or `tls`), start time,
 duration, the bytes sent and received (4 KiB per direction by default, flagged
@@ -570,6 +584,18 @@ real NIC drop measurements are still pending.
 UDP port-unreachable reporting varies by operating system and firewall. A
 silent or rate-limited ICMP path remains `open|filtered`. Raw ICMP correlation
 has fixture tests but still needs privileged live runtime gates on Linux,
-macOS and Windows. IKE and IPMI need separate safety and protocol fixtures
-before joining the native probe catalog; BACnet has simulator fixtures but no
-live OT device gate yet.
+macOS and Windows. The new protocol matchers have packet fixtures but no live
+device gates. BACnet has simulator fixtures but no live OT device gate yet.
+
+The reference checklist names a few operations that cannot be represented by
+an ordinary UDP request. SOCKS4 and SOCKS5 start with a TCP connection; a
+SOCKS5 UDP association also needs that TCP session. LDAP bind is a TCP
+operation, so the UDP catalog uses a connectionless LDAP search instead.
+DHCPDISCOVER goes to server port 67; port 68 is the client reply port. The
+scanner listens on port 68 for offers when it can bind that port, and falls
+back to an ephemeral port when another process owns it. Packet capture can
+record offers but does not classify them by itself. The port 1813 RADIUS probe
+sends a deliberately unauthenticated accounting-shaped request. A protocol
+reply identifies RADIUS; silence remains `open|filtered`, since compliant
+servers may discard it without a shared secret. GameSpy and Quake port lists
+are hints; `udp-deep` tries those payloads on every selected port.

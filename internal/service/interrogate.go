@@ -20,6 +20,7 @@ var (
 	httpPorts = portSet(80, 81, 591, 2375, 3000, 3128, 5000, 5601, 5985, 7001, 7080, 8000, 8008, 8080,
 		8081, 8088, 8180, 8888, 9000, 9090, 9200, 10000)
 	dnsPorts        = portSet(53)
+	socksPorts      = portSet(1080)
 	modbusPorts     = portSet(502)
 	ethernetIPPorts = portSet(44818)
 )
@@ -42,6 +43,8 @@ func (e *Engine) plan(port uint16) []string {
 		order = []string{ProbeEtherNetIP}
 	case dnsPorts[port]:
 		order = []string{ProbeDNS}
+	case socksPorts[port]:
+		order = []string{ProbeSOCKS}
 	case tlsPorts[port]:
 		order = []string{ProbeTLS, ProbeHTTP}
 	case httpPorts[port]:
@@ -104,6 +107,8 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) observe.Observation 
 			o.Evidence = append(o.Evidence, ev)
 		case ProbeDNS:
 			matched = e.probeDNS(ctx, t, &o)
+		case ProbeSOCKS:
+			matched = e.probeSOCKS(ctx, t, &o)
 		case ProbeModbus:
 			matched = e.probeModbus(ctx, t, &o)
 		case ProbeEtherNetIP:

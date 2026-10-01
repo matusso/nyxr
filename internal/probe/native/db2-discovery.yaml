@@ -1,0 +1,12 @@
+schema: nyxr/udp/v1
+name: db2-discovery
+transport: udp
+ports: [523]
+tags: [db2, discovery]
+safety: safe
+payload:
+  encoding: hex
+  data: "444232474554414444520053514c303830313000"
+timeout: 1s
+match:
+  - type: db2
