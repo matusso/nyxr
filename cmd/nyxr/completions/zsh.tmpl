@@ -32,7 +32,7 @@ _nyxr() {
             commands=(
                 'scan:run a scan'
                 'profiles:list scan profiles'
-                'decode:decode an Ethernet pcap or pcapng to JSON'
+                'decode:summarize hosts and open ports in a pcap or pcapng'
                 'sniff:capture and decode live frames'
                 'history:list or query stored scans, assets and evidence'
                 'probe:import and summarize an nmap-service-probes file'
@@ -89,7 +89,12 @@ _nyxr() {
                     _arguments '--json[JSON output]' && ret=0
                     ;;
                 decode)
-                    _arguments '1:pcap or pcapng file:_files -g "*.(pcap|cap|pcapng)"' && ret=0
+                    _arguments \
+                        '--tui[browse and inspect packets interactively]' \
+                        '--all[also list closed and filtered ports]' \
+                        '--packets[list every decoded packet]' \
+                        '--json[one JSON object per decoded packet]' \
+                        '1:pcap or pcapng file:_files -g "*.(pcap|cap|pcapng)"' && ret=0
                     ;;
                 sniff)
                     _arguments \

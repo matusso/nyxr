@@ -86,7 +86,11 @@ _nyxr() {
             COMPREPLY=($(compgen -W "--json" -- "$cur"))
             ;;
         decode)
-            COMPREPLY=($(compgen -f -- "$cur"))
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=($(compgen -W "--tui --all --packets --json" -- "$cur"))
+            else
+                COMPREPLY=($(compgen -f -- "$cur"))
+            fi
             ;;
         sniff)
             case "$prev" in

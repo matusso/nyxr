@@ -14,7 +14,7 @@ complete -c nyxr -f
 
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a scan -d 'Run a scan'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a profiles -d 'List scan profiles'
-complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a decode -d 'Decode an Ethernet pcap or pcapng to JSON'
+complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a decode -d 'Summarize hosts and open ports in a pcap or pcapng'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a sniff -d 'Capture and decode live frames'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a history -d 'List or query stored scans, assets and evidence'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a probe -d 'Import and summarize an nmap-service-probes file'
@@ -66,6 +66,10 @@ complete -c nyxr -n '__fish_seen_subcommand_from profiles' -l json -d 'JSON outp
 
 # decode
 complete -c nyxr -n '__fish_seen_subcommand_from decode' -F
+complete -c nyxr -n '__fish_seen_subcommand_from decode' -l tui -d 'Browse and inspect packets interactively'
+complete -c nyxr -n '__fish_seen_subcommand_from decode' -l all -d 'Also list closed and filtered ports'
+complete -c nyxr -n '__fish_seen_subcommand_from decode' -l packets -d 'List every decoded packet'
+complete -c nyxr -n '__fish_seen_subcommand_from decode' -l json -d 'One JSON object per decoded packet'
 
 # sniff
 complete -c nyxr -n '__fish_seen_subcommand_from sniff' -l interface -x -a '(__fish_print_interfaces)' -d 'Network interface'

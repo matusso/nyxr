@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"os"
 	"testing"
 	"time"
 )
@@ -62,5 +63,53 @@ func TestBlockSizeMatchesEncoding(t *testing.T) {
 				t.Fatalf("data %d comment %q: wrote %d, BlockSize %d", n, comment, got, want)
 			}
 		}
+	}
+}
+
+func TestReaderRecordsCarryPCAPNGMetadata(t *testing.T) {
+	frame := tcpFrame(t, target, scanner, 2, 1, true, true)
+	ts := time.Unix(1700000000, 123456789)
+	var file bytes.Buffer
+	w, err := NewPCAPNGWriter(&file, "eth0", 65535, "nyxr")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.WritePacket(ts, frame, len(frame)+10, DirectionRX, 42, "syn-ack from target"); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	r, err := NewReader(&file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec, err := r.NextRecord()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(rec.Data, frame) || !rec.Timestamp.Equal(ts) || rec.Length != len(frame)+10 ||
+		rec.Direction != DirectionRX || rec.PacketID != 42 || rec.Comment != "syn-ack from target" {
+		t.Fatalf("record %+v", rec)
+	}
+}
+
+func TestReaderRecordsCarryPCAPTimestamps(t *testing.T) {
+	f, err := os.Open("../../tests/pcaps/phase0.pcap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	r, err := NewReader(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.NextRecord()
+	rec, err := r.NextRecord()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Timestamp.Unix() != 1 || rec.Length != len(rec.Data) {
+		t.Fatalf("second record %+v", rec)
 	}
 }
