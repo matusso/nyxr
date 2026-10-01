@@ -7,6 +7,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,9 +16,11 @@ import (
 
 	"github.com/matusso/nyxr/internal/capture"
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/netmon"
 	"github.com/matusso/nyxr/internal/packet"
 	"github.com/matusso/nyxr/internal/packetd"
 	"github.com/matusso/nyxr/internal/packetio"
+	"github.com/matusso/nyxr/internal/pipeline"
 	"github.com/matusso/nyxr/internal/scan"
 	"github.com/matusso/nyxr/internal/ui"
 )
@@ -138,6 +142,7 @@ Flags:
   --json                newline-delimited JSON output
   --dry-run             resolve and print the plan without sending packets
   --no-progress         hide the progress bar (shown on stderr when it is a tty)
+  --open                show only open ports and responsive hosts (--db still stores all)
   --allow-targets list  approved IP/CIDR targets (required for ot-safe)
   --research-kind name  tcp, udp, icmp, sctp or ip (research profile only)
   --ip-protocol n      IP protocol number for research IP scans
@@ -188,6 +193,43 @@ func (o progressOptions) start(tasks int, disabled bool) *ui.Progress {
 	return ui.NewProgress(o.w, tasks, o.w != nil && !disabled, ui.New(o.w, o.noColor))
 }
 
+// monitorTraffic shows interface traffic under the bar: the scan's raw
+// interface when one is set, loopback when every target is local, and
+// otherwise the sum over every interface that is up.
+func monitorTraffic(bar *ui.Progress, cfg config.Config) {
+	if !bar.Enabled() {
+		return
+	}
+	device := cfg.Interface
+	if device == "" && allLoopback(cfg.Targets) {
+		device = loopbackInterface()
+	}
+	label := device
+	if label == "" {
+		label = "all interfaces"
+	}
+	bar.Monitor(label, func() (netmon.Counters, error) { return netmon.Read(device) })
+}
+
+func allLoopback(targets []netip.Addr) bool {
+	for _, t := range targets {
+		if !t.IsLoopback() {
+			return false
+		}
+	}
+	return len(targets) > 0
+}
+
+func loopbackInterface() string {
+	ifaces, _ := net.Interfaces()
+	for _, ifc := range ifaces {
+		if ifc.Flags&net.FlagLoopback != 0 {
+			return ifc.Name
+		}
+	}
+	return ""
+}
+
 func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOptions) error {
 	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -216,6 +258,7 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	jsonFlag := fs.Bool("json", false, "newline-delimited JSON output")
 	dryRunFlag := fs.Bool("dry-run", false, "resolve and print the plan without scanning")
 	noProgressFlag := fs.Bool("no-progress", false, "hide the progress bar")
+	openFlag := fs.Bool("open", false, "show only open ports and responsive hosts")
 	allowTargetsFlag := fs.String("allow-targets", "", "comma-separated approved IPs or CIDRs")
 	researchKindFlag := fs.String("research-kind", "", "tcp, udp, icmp, sctp or ip")
 	ipProtocolFlag := fs.String("ip-protocol", "", "IP protocol number")
@@ -301,14 +344,18 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	}
 	bar := progress.start(resolved.Config.Plan().Tasks, *noProgressFlag)
 	defer bar.Done()
+	monitorTraffic(bar, resolved.Config)
 	out = bar.Wrap(out)
 	if resolved.UsesPipeline() || *stages.db != "" {
-		return runPipeline(out, resolved, *stages.db, open, *jsonFlag, style, bar)
+		return runPipeline(out, resolved, *stages.db, open, *jsonFlag, *openFlag, style, bar)
 	}
 
 	encoder := json.NewEncoder(out)
 	return scan.RunWithIO(context.Background(), resolved.Config, func(o scan.Observation) error {
 		bar.Step(o.State == "open" || o.State == "responsive")
+		if *openFlag && !pipeline.IsOpen(o.State) {
+			return nil
+		}
 		if *jsonFlag {
 			return encoder.Encode(o)
 		}

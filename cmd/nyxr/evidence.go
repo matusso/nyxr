@@ -128,7 +128,7 @@ func emitStagePlan(out io.Writer, r config.Resolved, db string, asJSON bool, sty
 }
 
 // runPipeline uses pipeline.FromResolved, the mapping the API also uses.
-func runPipeline(out io.Writer, r config.Resolved, db string, open packetio.Opener, asJSON bool, style *ui.Styler, bar *ui.Progress) error {
+func runPipeline(out io.Writer, r config.Resolved, db string, open packetio.Opener, asJSON, openOnly bool, style *ui.Styler, bar *ui.Progress) error {
 	ctx := context.Background()
 	opts := pipeline.FromResolved(r)
 	opts.OpenLive = open
@@ -140,11 +140,14 @@ func runPipeline(out io.Writer, r config.Resolved, db string, open packetio.Open
 		}
 		opts.Nmap = nm
 	}
+	var display pipeline.Sink = pipeline.NewTextSink(out).WithStyle(style)
 	if asJSON {
-		opts.Sinks = append(opts.Sinks, pipeline.NewJSONSink(out))
-	} else {
-		opts.Sinks = append(opts.Sinks, pipeline.NewTextSink(out).WithStyle(style))
+		display = pipeline.NewJSONSink(out)
 	}
+	if openOnly {
+		display = pipeline.NewOpenOnlySink(display)
+	}
+	opts.Sinks = append(opts.Sinks, display)
 	if db != "" {
 		store, err := storage.Open(ctx, db)
 		if err != nil {

@@ -10,12 +10,18 @@ import (
 	"time"
 
 	"golang.org/x/term"
+
+	"github.com/matusso/nyxr/internal/netmon"
 )
 
 // Progress draws a one-line, rich-style progress bar on a terminal, normally
 // stderr, while results stream to the output writer:
 //
 //	⠹ scanning ━━━━━━━━━━━╸━━━━━━━━━━━━━━━━━━  33%  100/300 • 2 found • 25/s • 0:04 • eta 0:08
+//
+// With Monitor set, a second line shows the interface traffic:
+//
+//	net en0  ↑ 1.2k pkt/s  96.0 KB/s • ↓ 800 pkt/s  64.0 KB/s • sent 1.2 MB • recv 960 KB
 //
 // Writes through the writer returned by Wrap clear the bar first and redraw it
 // afterwards, so result lines and the bar never interleave on a shared
@@ -36,6 +42,8 @@ type Progress struct {
 	lastTick  time.Duration
 	start     time.Time
 	drawn     bool
+	lines     int // lines of the drawn block
+	net       netMonitor
 	stopped   bool
 	stop      chan struct{}
 	ticker    sync.WaitGroup
@@ -50,7 +58,21 @@ const (
 	// rateWindow is the time constant of the exponential rate average: long
 	// enough to ride out bursts, short enough to follow a changed rate limit.
 	rateWindow = 3 * time.Second
+	// netRateWindow smooths the traffic rates, which jitter more than the
+	// task rate because packets arrive in bursts.
+	netRateWindow = time.Second
 )
+
+// netMonitor tracks interface traffic counters for the second bar line.
+type netMonitor struct {
+	read  func() (netmon.Counters, error)
+	label string
+	ok    bool // a first sample was taken
+	last  netmon.Counters
+	total netmon.Counters // bytes moved since the bar started
+	tick  time.Duration
+	rate  [4]float64 // smoothed tx packets, rx packets, tx bytes, rx bytes per second
+}
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
@@ -94,9 +116,18 @@ func (p *Progress) run() {
 	for {
 		select {
 		case <-t.C:
+			var c netmon.Counters
+			var err error
+			if p.net.read != nil {
+				c, err = p.net.read()
+			}
 			p.mu.Lock()
 			p.frame++
-			p.sampleLocked(time.Since(p.start))
+			elapsed := time.Since(p.start)
+			p.sampleLocked(elapsed)
+			if p.net.read != nil {
+				p.net.sample(c, err, elapsed)
+			}
 			p.drawLocked()
 			p.mu.Unlock()
 		case <-p.stop:
@@ -121,6 +152,42 @@ func (p *Progress) sampleLocked(elapsed time.Duration) {
 		p.rate += alpha * (inst - p.rate)
 	}
 	p.lastDone, p.lastTick = p.done, elapsed
+}
+
+// Monitor adds a line with the packet and byte rates that read reports,
+// sampled on every tick. label names the monitored interface. Call it right
+// after NewProgress, before the scan starts.
+func (p *Progress) Monitor(label string, read func() (netmon.Counters, error)) {
+	if !p.Enabled() || read == nil {
+		return
+	}
+	p.mu.Lock()
+	p.net = netMonitor{read: read, label: label}
+	p.mu.Unlock()
+}
+
+// sample folds a counter reading into the smoothed rates and the running
+// totals. A failed read turns the monitor off; counters that go backwards (an
+// interface reset) restart from the new reading.
+func (m *netMonitor) sample(c netmon.Counters, err error, elapsed time.Duration) {
+	if err != nil {
+		*m = netMonitor{}
+		return
+	}
+	reset := c.TxPackets < m.last.TxPackets || c.RxPackets < m.last.RxPackets ||
+		c.TxBytes < m.last.TxBytes || c.RxBytes < m.last.RxBytes
+	dt := (elapsed - m.tick).Seconds()
+	if m.ok && !reset && dt > 0 {
+		d := netmon.Counters{TxPackets: c.TxPackets - m.last.TxPackets, RxPackets: c.RxPackets - m.last.RxPackets,
+			TxBytes: c.TxBytes - m.last.TxBytes, RxBytes: c.RxBytes - m.last.RxBytes}
+		m.total.TxBytes += d.TxBytes
+		m.total.RxBytes += d.RxBytes
+		alpha := dt / (netRateWindow.Seconds() + dt)
+		for i, v := range [4]uint64{d.TxPackets, d.RxPackets, d.TxBytes, d.RxBytes} {
+			m.rate[i] += alpha * (float64(v)/dt - m.rate[i])
+		}
+	}
+	m.ok, m.last, m.tick = true, c, elapsed
 }
 
 // Step records one finished task; found marks a positive result (an open
@@ -179,9 +246,18 @@ func (pw progressWriter) Write(b []byte) (int, error) {
 
 func (p *Progress) clearLocked() {
 	if p.drawn {
-		fmt.Fprint(p.w, "\r\x1b[K")
+		fmt.Fprint(p.w, p.homeLocked()+"\x1b[J")
 		p.drawn = false
 	}
+}
+
+// homeLocked returns the escape that moves the cursor from the end of the
+// drawn block to the start of its first line.
+func (p *Progress) homeLocked() string {
+	if p.drawn && p.lines > 1 {
+		return fmt.Sprintf("\x1b[%dA\r", p.lines-1)
+	}
+	return "\r"
 }
 
 func (p *Progress) drawLocked() {
@@ -192,7 +268,13 @@ func (p *Progress) drawLocked() {
 	if p.width != nil {
 		cols = p.width()
 	}
-	fmt.Fprint(p.w, "\r"+p.render(time.Since(p.start), cols)+"\x1b[K")
+	out := p.homeLocked() + p.render(time.Since(p.start), cols) + "\x1b[K"
+	p.lines = 1
+	if line := p.renderNet(cols); line != "" {
+		out += "\n" + line
+		p.lines = 2
+	}
+	fmt.Fprint(p.w, out+"\x1b[J")
 	p.drawn = true
 }
 
@@ -277,6 +359,52 @@ func (p *Progress) render(elapsed time.Duration, cols int) string {
 			b.WriteString(s.Dim(sep))
 		}
 		b.WriteString(sg.colored)
+	}
+	return b.String()
+}
+
+// renderNet formats the traffic line to fit cols columns, or returns "" when
+// no monitor is set or it has no sample yet. Segments are dropped from the
+// right as the terminal narrows.
+func (p *Progress) renderNet(cols int) string {
+	m := &p.net
+	if m.read == nil || !m.ok {
+		return ""
+	}
+	s := p.style
+	type segment struct{ text, colored string }
+	rates := func(arrow string, pkts, bytes float64, color func(string) string) segment {
+		t := arrow + " " + formatCount(pkts) + " pkt/s  " + formatBytes(bytes) + "/s"
+		return segment{t, color(arrow) + " " + s.Bold(formatCount(pkts)) + s.Dim(" pkt/s  ") + s.Bold(formatBytes(bytes)) + s.Dim("/s")}
+	}
+	sent := "sent " + formatBytes(float64(m.total.TxBytes))
+	recv := "recv " + formatBytes(float64(m.total.RxBytes))
+	segs := []segment{
+		rates("↑", m.rate[0], m.rate[2], s.Cyan),
+		rates("↓", m.rate[1], m.rate[3], s.Green),
+		{sent, s.Dim(sent)},
+		{recv, s.Dim(recv)},
+	}
+	head := "  " + s.Dim("net")
+	headWidth := 5
+	if m.label != "" {
+		head += " " + s.Bold(m.label)
+		headWidth += 1 + visibleWidth(m.label)
+	}
+	const sep = " • "
+	width := headWidth
+	var b strings.Builder
+	b.WriteString(head)
+	for i, sg := range segs {
+		gap, colored := 2, "  "
+		if i > 0 {
+			gap, colored = 3, s.Dim(sep)
+		}
+		if width+gap+visibleWidth(sg.text) > cols-1 {
+			break
+		}
+		width += gap + visibleWidth(sg.text)
+		b.WriteString(colored + sg.colored)
 	}
 	return b.String()
 }
@@ -399,6 +527,32 @@ func formatRate(r float64) string {
 	default:
 		return fmt.Sprintf("%.1f/s", r)
 	}
+}
+
+// formatCount prints a per-second count with a k/M suffix.
+func formatCount(r float64) string {
+	switch {
+	case r >= 1e6:
+		return fmt.Sprintf("%.1fM", r/1e6)
+	case r >= 1e3:
+		return fmt.Sprintf("%.1fk", r/1e3)
+	default:
+		return fmt.Sprintf("%.0f", r)
+	}
+}
+
+// formatBytes prints a byte amount with a decimal unit, e.g. 1.2 MB.
+func formatBytes(n float64) string {
+	units := []string{"B", "KB", "MB", "GB", "TB"}
+	i := 0
+	for n >= 1000 && i < len(units)-1 {
+		n /= 1000
+		i++
+	}
+	if i == 0 || n >= 100 {
+		return fmt.Sprintf("%.0f %s", n, units[i])
+	}
+	return fmt.Sprintf("%.1f %s", n, units[i])
 }
 
 // groupDigits writes n with thousands separators, e.g. 65,535.

@@ -372,6 +372,106 @@ async function profilesPage() {
       h("td", { class: "wrap" }, p.Availability === "planned" ? "planned: needs " + p.Requires : p.Description))))];
 }
 
+function packetsPage() {
+  const interfaceInput = h("input", { type: "text", placeholder: "eth0, en0…", autocomplete: "off" });
+  const status = h("span", { class: "muted" }, "idle");
+  const count = h("span", { class: "muted" }, "0 packets");
+  const rows = h("tbody", {});
+  const hexInput = h("textarea", { class: "packet-hex", spellcheck: "false", placeholder: "Ethernet frame as hex bytes" });
+  const editorInfo = h("span", { class: "muted" }, "Select a packet to clone it into the editor.");
+  const sendStatus = h("span", {});
+  let watch = null, total = 0, selected = null;
+
+  const setHex = (value, label) => {
+    hexInput.value = (value.match(/.{1,2}/g) || []).join(" ");
+    selected = label;
+    updateEditor();
+    hexInput.focus();
+  };
+  const updateEditor = () => {
+    const clean = hexInput.value.replace(/\s/g, "");
+    editorInfo.textContent = `${selected || "New frame"} · ${Math.floor(clean.length / 2)} bytes`;
+  };
+  hexInput.addEventListener("input", updateEditor);
+  const submit = async (value, device = interfaceInput.value.trim()) => {
+    sendStatus.replaceChildren("");
+    try {
+      const result = await api("/packets/send", { body: { interface: device, hex: value } });
+      sendStatus.replaceChildren(h("span", { class: "live" }, `${result.status}: ${result.bytes} bytes`));
+    } catch (e) { sendStatus.replaceChildren(h("span", { class: "error" }, e.message)); }
+  };
+  const addPacket = (p, device) => {
+    total++;
+    count.textContent = `${total} packets · latest 500 shown`;
+    const label = `#${total} ${p.summary}`;
+    const clone = h("button", { type: "button", class: "secondary", onclick: () => setHex(p.hex, label) }, "clone");
+    const resend = h("button", { type: "button", class: "secondary", onclick: () => submit(p.hex, device) }, "resend");
+    const row = h("tr", { class: "new" }, h("td", {}, total), h("td", {}, fmtTime(p.timestamp)),
+      h("td", { class: "wrap" }, p.summary), h("td", {}, p.length),
+      h("td", {}, h("div", { class: "packet-actions" }, clone, resend)));
+    rows.prepend(row);
+    while (rows.children.length > 500) rows.lastChild.remove();
+  };
+  const stopWatch = () => {
+    if (watch) watch.abort();
+    watch = null;
+    status.replaceChildren("stopped");
+    start.disabled = false;
+    stop.disabled = true;
+  };
+  const start = h("button", { type: "button", onclick: async () => {
+    const device = interfaceInput.value.trim();
+    if (!device) { status.replaceChildren(h("span", { class: "error" }, "Enter an interface.")); return; }
+    const controller = new AbortController();
+    watch = controller;
+    pageAbort.signal.addEventListener("abort", stopWatch, { once: true });
+    start.disabled = true;
+    stop.disabled = false;
+    status.replaceChildren(h("span", { class: "live" }, "connecting"));
+    try {
+      const res = await api("/packets/watch?interface=" + encodeURIComponent(device), { raw: true, signal: controller.signal });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
+      status.replaceChildren(h("span", { class: "live" }, "watching " + device));
+      const reader = res.body.getReader(), decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let end;
+        while ((end = buffer.indexOf("\n\n")) >= 0) {
+          const block = buffer.slice(0, end);
+          buffer = buffer.slice(end + 2);
+          const type = block.match(/^event: (.+)$/m)?.[1];
+          const data = block.match(/^data: (.+)$/m)?.[1];
+          if (!type || !data) continue;
+          const item = JSON.parse(data);
+          if (type === "packet") addPacket(item, device);
+          else if (type === "sampled") status.replaceChildren(h("span", { class: "live" }, `watching ${device} · ${item.skipped} skipped at display cap`));
+          else if (type === "error") throw new Error(item.error);
+        }
+      }
+      if (!controller.signal.aborted) status.replaceChildren(h("span", { class: "error" }, "watch ended"));
+    } catch (e) {
+      if (e.name !== "AbortError" && !controller.signal.aborted) status.replaceChildren(h("span", { class: "error" }, e.message));
+    } finally {
+      if (watch === controller) {
+        watch = null;
+        start.disabled = false;
+        stop.disabled = true;
+      }
+    }
+  } }, "start watching");
+  const stop = h("button", { type: "button", class: "secondary", disabled: true, onclick: stopWatch }, "stop");
+  const clear = h("button", { type: "button", class: "secondary", onclick: () => { rows.replaceChildren(); total = 0; count.textContent = "0 packets"; } }, "clear");
+  const sendEdited = h("button", { type: "button", onclick: () => submit(hexInput.value) }, "send edited frame");
+  return [h("h1", {}, "packets"), h("p", { class: "muted" }, "Watch live Ethernet frames, clone one into the hex editor, then send or resend one frame. Watching needs packetd; sending also needs --allow-packet-send."),
+    h("div", { class: "bar packet-toolbar" }, h("label", {}, "interface ", interfaceInput), start, stop, clear, status, count),
+    h("div", { class: "scroll packet-list" }, h("table", {}, h("thead", {}, h("tr", {}, ["#", "time", "packet", "bytes", ""].map(x => h("th", {}, x)))), rows)),
+    h("h2", {}, "packet editor"), editorInfo, hexInput,
+    h("div", { class: "bar" }, sendEdited, sendStatus)];
+}
+
 function login(retry) {
   const t = h("input", { type: "password", placeholder: "API token", autocomplete: "current-password" });
   main.replaceChildren(h("h1", {}, "token required"),
@@ -393,6 +493,7 @@ async function route() {
   else if (hash === "/assets") page = assetsPage();
   else if (hash === "/services") page = servicesPage();
   else if (hash === "/profiles") page = profilesPage();
+  else if (hash === "/packets") page = packetsPage();
   else page = Promise.resolve([h("p", { class: "error" }, "no such page")]);
   const mine = pageAbort;
   try {

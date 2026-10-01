@@ -2,9 +2,12 @@ package ui
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/matusso/nyxr/internal/netmon"
 )
 
 func TestProgressRender(t *testing.T) {
@@ -54,6 +57,43 @@ func TestProgressSmoothedRate(t *testing.T) {
 	p.sampleLocked(2 * time.Second)
 	if p.rate <= 0 || p.rate >= 100 {
 		t.Fatalf("stalled rate = %v, want it to decay below 100", p.rate)
+	}
+}
+
+func TestProgressNetLine(t *testing.T) {
+	p := &Progress{style: Plain(), total: 10}
+	p.net = netMonitor{read: func() (netmon.Counters, error) { return netmon.Counters{}, nil }, label: "en0"}
+	if got := p.renderNet(120); got != "" {
+		t.Fatalf("net line before the first sample: %q", got)
+	}
+	p.net.sample(netmon.Counters{TxPackets: 100, RxPackets: 50, TxBytes: 10_000, RxBytes: 5_000}, nil, 0)
+	p.net.sample(netmon.Counters{TxPackets: 1100, RxPackets: 850, TxBytes: 1_010_000, RxBytes: 805_000}, nil, time.Second)
+	got := p.renderNet(120)
+	want := "  net en0  ↑ 500 pkt/s  500 KB/s • ↓ 400 pkt/s  400 KB/s • sent 1.0 MB • recv 800 KB"
+	if got != want {
+		t.Fatalf("net line:\n got %q\nwant %q", got, want)
+	}
+	for _, cols := range []int{80, 40, 12} {
+		if w := visibleWidth(p.renderNet(cols)); w >= cols {
+			t.Errorf("cols %d: net line width %d overflows", cols, w)
+		}
+	}
+	// Counters going backwards restart the baseline but keep the totals.
+	p.net.sample(netmon.Counters{TxBytes: 10}, nil, 2*time.Second)
+	if p.net.total.TxBytes != 1_000_000 {
+		t.Fatalf("total after reset = %d", p.net.total.TxBytes)
+	}
+	p.net.sample(netmon.Counters{}, errors.New("gone"), 3*time.Second)
+	if p.renderNet(120) != "" {
+		t.Fatal("a failed read must hide the net line")
+	}
+}
+
+func TestFormatBytes(t *testing.T) {
+	for n, want := range map[float64]string{0: "0 B", 999: "999 B", 1500: "1.5 KB", 123_456: "123 KB", 2_500_000_000: "2.5 GB"} {
+		if got := formatBytes(n); got != want {
+			t.Errorf("formatBytes(%v) = %q, want %q", n, got, want)
+		}
 	}
 }
 

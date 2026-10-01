@@ -61,6 +61,7 @@ nyxr scan --profile ot-safe --allow-targets 192.0.2.0/24 --json 192.0.2.10
 nyxr scan --profile iot --fingerprint --json 192.0.2.10
 nyxr scan --profile udp --ports 47808 --fingerprint --json 192.0.2.10
 nyxr scan --profile fast --ports top100 192.0.2.0/24
+nyxr scan --profile fast --ports top100 --open 192.0.2.0/24
 nyxr scan --profile udp-deep --dry-run 192.0.2.0/28
 nyxr scan --profile service --db nyxr.db 192.0.2.0/28
 nyxr scan --profile web --json 192.0.2.10
@@ -75,6 +76,8 @@ Targets may be IP addresses, hostnames, CIDRs, or inclusive IP ranges. A scan
 is limited to 65,536 unique addresses. Ports accept commas and inclusive ranges
 (`80,443,8000-8100`) or a named set: `top100` for a curated list of common TCP
 ports, or `all` for `1-65535`. Use `--json` for newline-delimited observations.
+`--open` shows only open ports and responsive hosts, hiding closed and
+filtered results from text and JSON output; `--db` still stores everything.
 `--dry-run` resolves the configuration and prints the plan — profile, target
 count, ports, protocols, pacing and scheduled task count — without sending any
 packet; add `--json` for the machine-readable plan. UDP has three levels:
@@ -422,7 +425,8 @@ disk.
 
 `nyxr serve` runs the REST API, live scan events and an embedded web UI
 (dashboard, scan creation with dry-run plan, running and past scans with live
-results, assets, services, profiles, packet evidence and pcapng download):
+results, assets, services, profiles, live packet watching, packet editing and
+resending, packet evidence and pcapng download):
 
 ```sh
 nyxr serve --db nyxr.db                      # http://127.0.0.1:8484
@@ -442,6 +446,8 @@ NYXR_API_TOKEN=$(openssl rand -hex 16) nyxr serve --db nyxr.db --listen 0.0.0.0:
 | `GET /api/v1/scans/{id}/events` | Server-Sent Events: `observation`, `packet-evidence`, `scan` |
 | `GET /api/v1/scans/{id}/pcapng` | capture file, for captures in `--evidence-dir` only |
 | `GET /api/v1/assets`, `GET /api/v1/observations` | asset inventory and cross-scan queries |
+| `GET /api/v1/packets/watch?interface=eth0` | live Ethernet frames as Server-Sent Events; requires `--packetd` |
+| `POST /api/v1/packets/send` | submit one hex Ethernet frame on an interface; requires `--packetd --allow-packet-send` |
 
 ```sh
 curl -s -H 'Content-Type: application/json' localhost:8484/api/v1/scans \
@@ -471,6 +477,16 @@ cross-origin without a preflight, and the server approves no CORS requests.
 The UI is served with a strict same-origin CSP and renders every scanned value
 as text. Authentication beyond one shared token, RBAC, approvals and audit
 trails are Phase 9 work.
+
+The **packets** page opens a live watch on a packetd-allowed interface. It
+keeps the latest 500 frames in the browser and displays up to 100 frames per
+second; a busy interface reports skipped display frames. Select **clone** to
+copy a captured frame into the hex editor, **send edited frame** to submit it,
+or **resend** to submit its original bytes. Start the server with
+`--packetd SOCKET --allow-packet-send` to enable transmission. The send API
+accepts one 14–9216 byte frame per request and returns `submitted` after
+packetd accepts the write; packetd's interface and source-MAC policy can still
+reject it before transmission. Capture rows are not saved on the server.
 
 ### Privilege separation with nyxr-packetd
 
