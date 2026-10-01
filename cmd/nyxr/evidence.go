@@ -10,7 +10,6 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/matusso/nyxr/internal/config"
@@ -19,6 +18,7 @@ import (
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/pipeline"
 	"github.com/matusso/nyxr/internal/storage"
+	"github.com/matusso/nyxr/internal/ui"
 )
 
 // optionalBool distinguishes an absent flag from an explicit false.
@@ -94,40 +94,41 @@ func (s *stageFlags) overlay(r *config.Request) error {
 	return nil
 }
 
-func emitStagePlan(out io.Writer, r config.Resolved, db string, asJSON bool) error {
+func emitStagePlan(out io.Writer, r config.Resolved, db string, asJSON bool, style *ui.Styler) error {
 	plan := r.Plan()
 	plan.DB = db
 	if asJSON {
 		return json.NewEncoder(out).Encode(plan)
 	}
-	if err := emitPlan(out, plan.Plan, false); err != nil {
+	if err := emitPlan(out, plan.Plan, false, style); err != nil {
 		return err
 	}
+	key := func(k string) string { return style.Key(fmt.Sprintf("%-11s", k)) + " " }
 	if p := plan.Service; p != nil {
 		fallback := "none"
 		if len(p.Fallback) > 0 {
 			fallback = strings.Join(p.Fallback, ", ")
 		}
-		fmt.Fprintf(out, "service     %s (fallback %s)\n", strings.Join(p.Probes, ", "), fallback)
-		fmt.Fprintf(out, "svc-timeout %s, %d workers, %s\n", p.Timeout, p.Workers, rateText(p.Rate))
+		fmt.Fprintf(out, "%s%s %s\n", key("service"), strings.Join(p.Probes, ", "), style.Dim("(fallback "+fallback+")"))
+		fmt.Fprintf(out, "%s%s\n", key("svc-timeout"), style.Dim(fmt.Sprintf("%s, %d workers, %s", p.Timeout, p.Workers, rateText(p.Rate))))
 		if p.NmapProbes != "" {
-			fmt.Fprintf(out, "nmap-probes %s\n", p.NmapProbes)
+			fmt.Fprintf(out, "%s%s\n", key("nmap-probes"), p.NmapProbes)
 		}
 	}
 	if plan.PCAPNG != "" {
-		fmt.Fprintf(out, "pcapng      %s (max %d MiB)\n", plan.PCAPNG, plan.PCAPNGMaxMB)
+		fmt.Fprintf(out, "%s%s %s\n", key("pcapng"), plan.PCAPNG, style.Dim(fmt.Sprintf("(max %d MiB)", plan.PCAPNGMaxMB)))
 	}
 	if db != "" {
-		fmt.Fprintf(out, "db          %s\n", db)
+		fmt.Fprintf(out, "%s%s\n", key("db"), db)
 	}
 	if plan.Fingerprint {
-		fmt.Fprintln(out, "fingerprint enabled")
+		fmt.Fprintf(out, "%s%s\n", key("fingerprint"), style.Green("enabled"))
 	}
 	return nil
 }
 
 // runPipeline uses pipeline.FromResolved, the mapping the API also uses.
-func runPipeline(out io.Writer, r config.Resolved, db string, open packetio.Opener, asJSON bool) error {
+func runPipeline(out io.Writer, r config.Resolved, db string, open packetio.Opener, asJSON bool, style *ui.Styler) error {
 	ctx := context.Background()
 	opts := pipeline.FromResolved(r)
 	opts.OpenLive = open
@@ -141,7 +142,7 @@ func runPipeline(out io.Writer, r config.Resolved, db string, open packetio.Open
 	if asJSON {
 		opts.Sinks = append(opts.Sinks, pipeline.NewJSONSink(out))
 	} else {
-		opts.Sinks = append(opts.Sinks, pipeline.NewTextSink(out))
+		opts.Sinks = append(opts.Sinks, pipeline.NewTextSink(out).WithStyle(style))
 	}
 	if db != "" {
 		store, err := storage.Open(ctx, db)
@@ -173,7 +174,7 @@ Flags:
 `)
 }
 
-func runHistory(args []string, out io.Writer) error {
+func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 	fs := flag.NewFlagSet("history", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.Usage = func() { historyUsage(out) }
@@ -219,7 +220,7 @@ func runHistory(args []string, out io.Writer) error {
 		if *jsonFlag {
 			return enc.Encode(map[string]int{"deleted_scans": n})
 		}
-		_, err = fmt.Fprintf(out, "deleted %d scans\n", n)
+		_, err = fmt.Fprintf(out, "deleted %s scans\n", style.Bold(fmt.Sprintf("%d", n)))
 		return err
 	case *assetsFlag:
 		assets, err := store.Assets(ctx)
@@ -234,18 +235,24 @@ func runHistory(args []string, out io.Writer) error {
 			}
 			return nil
 		}
-		w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ADDRESS\tPORT\tSTATE\tSERVICE\tPRODUCT\tLAST SEEN")
+		rows := [][]string{header(style, "ADDRESS", "PORT", "STATE", "SERVICE", "PRODUCT", "LAST SEEN")}
 		for _, a := range assets {
+			seen := style.Dim(a.LastSeen.Format(time.RFC3339))
 			if len(a.Ports) == 0 {
-				fmt.Fprintf(w, "%s\t-\t-\t-\t-\t%s\n", a.Address, a.LastSeen.Format(time.RFC3339))
+				rows = append(rows, []string{style.Bold(a.Address.String()), "-", "-", "-", "-", seen})
 			}
 			for _, p := range a.Ports {
-				fmt.Fprintf(w, "%s\t%d/%s\t%s\t%s\t%s\t%s\n", a.Address, p.Port, p.Transport, p.State, dash(p.Service),
-					dash(strings.TrimSpace(p.Product+" "+p.Version)), p.ObservedAt.Format(time.RFC3339))
+				rows = append(rows, []string{
+					style.Bold(a.Address.String()),
+					style.Cyan(fmt.Sprintf("%d/%s", p.Port, p.Transport)),
+					style.StateText(p.State),
+					dash(p.Service),
+					dash(strings.TrimSpace(p.Product + " " + p.Version)),
+					style.Dim(p.ObservedAt.Format(time.RFC3339)),
+				})
 			}
 		}
-		return w.Flush()
+		return style.Table(out, rows)
 	case *scanFlag != "" || *unknownFlag:
 		filter := storage.Filter{ScanID: *scanFlag, Address: addr, Unknown: *unknownFlag, Limit: *limitFlag}
 		if *unknownFlag {
@@ -255,7 +262,7 @@ func runHistory(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		var sink pipeline.Sink = pipeline.NewTextSink(out)
+		var sink pipeline.Sink = pipeline.NewTextSink(out).WithStyle(style)
 		if *jsonFlag {
 			sink = pipeline.NewJSONSink(out)
 		}
@@ -290,12 +297,43 @@ func runHistory(args []string, out io.Writer) error {
 			}
 			return nil
 		}
-		w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "SCAN\tPROFILE\tSTARTED\tSTATUS\tTARGETS\tOBSERVATIONS\tSERVICES")
+		rows := [][]string{header(style, "SCAN", "PROFILE", "STARTED", "STATUS", "TARGETS", "OBSERVATIONS", "SERVICES")}
 		for _, s := range scans {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%d\t%d\n", s.ID, s.Profile, s.Started.Format(time.RFC3339), s.Status, s.Targets, s.Observations, s.Services)
+			rows = append(rows, []string{
+				style.Bold(s.ID),
+				s.Profile,
+				style.Dim(s.Started.Format(time.RFC3339)),
+				statusText(style, s.Status),
+				fmt.Sprintf("%d", s.Targets),
+				fmt.Sprintf("%d", s.Observations),
+				fmt.Sprintf("%d", s.Services),
+			})
 		}
-		return w.Flush()
+		return style.Table(out, rows)
+	}
+}
+
+// header styles a table header row.
+func header(style *ui.Styler, cells ...string) []string {
+	out := make([]string, len(cells))
+	for i, c := range cells {
+		out[i] = style.Header(c)
+	}
+	return out
+}
+
+// statusText colors a stored scan's status: green completed, red failed,
+// yellow running.
+func statusText(style *ui.Styler, status string) string {
+	switch status {
+	case "completed":
+		return style.Green(status)
+	case "failed":
+		return style.Red(status)
+	case "running":
+		return style.Yellow(status)
+	default:
+		return status
 	}
 }
 
