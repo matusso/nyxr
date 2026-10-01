@@ -24,7 +24,10 @@ type Plan struct {
 	InterfaceRate int           `json:"interface_rate,omitempty"`
 	Workers       int           `json:"workers"`
 	UDPRetries    int           `json:"udp_retries,omitempty"`
+	UDPMode       UDPMode       `json:"udp_mode,omitempty"`
 	UDPProbes     []string      `json:"udp_probes,omitempty"`
+	NmapUDPSource string        `json:"nmap_udp_source,omitempty"`
+	NmapUDPSHA    string        `json:"nmap_udp_sha256,omitempty"`
 	TCPMode       string        `json:"tcp_mode"`
 	Interface     string        `json:"interface,omitempty"`
 	SourceIP      string        `json:"source_ip,omitempty"`
@@ -58,10 +61,12 @@ func (c Config) Plan() Plan {
 		Timeout:     c.Timeout.String(),
 		Rate:        c.Rate,
 		HostRate:    c.HostRate, SubnetRate: c.SubnetRate, InterfaceRate: c.InterfaceRate,
-		Workers:    c.Workers,
-		UDPRetries: c.UDPRetries,
-		TCPMode:    c.TCPMode,
-		Interface:  c.Interface,
+		Workers:       c.Workers,
+		UDPRetries:    c.UDPRetries,
+		UDPMode:       c.UDPMode,
+		NmapUDPSource: c.NmapUDPSource, NmapUDPSHA: c.NmapUDPSHA,
+		TCPMode:   c.TCPMode,
+		Interface: c.Interface,
 	}
 	if c.SourceIP.IsValid() {
 		p.SourceIP = c.SourceIP.String()

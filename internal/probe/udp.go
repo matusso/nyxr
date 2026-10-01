@@ -53,6 +53,7 @@ type Probe struct {
 	Name          string
 	Tags          []string
 	Ports         []uint16
+	PortsDeclared bool // imported probe has port hints, even if none match this scan
 	Payload       []byte
 	Matcher       string
 	Timeout       time.Duration
@@ -100,8 +101,10 @@ func (d Definition) Compile(baseDir string) (Probe, error) {
 		return Probe{}, errors.New("probe requires exactly one matcher")
 	}
 	matcher := d.Match[0].Type
-	if matcher != "dns" && matcher != "ntp" && matcher != "snmp" && matcher != "any" &&
-		matcher != "stun" && matcher != "tftp" && matcher != "ssdp" && matcher != "sip" && matcher != "coap" && matcher != "bacnet" {
+	if matcher != "dns" && matcher != "ntp" && matcher != "snmp" && matcher != "snmpv3" && matcher != "any" &&
+		matcher != "stun" && matcher != "tftp" && matcher != "ssdp" && matcher != "sip" && matcher != "coap" &&
+		matcher != "bacnet" && matcher != "bacnet-read" && matcher != "bacnet-fdt" &&
+		matcher != "rpc" && matcher != "memcached" {
 		return Probe{}, fmt.Errorf("unsupported matcher %q", matcher)
 	}
 	var payload []byte
@@ -142,6 +145,9 @@ func (d Definition) Compile(baseDir string) (Probe, error) {
 	if matcher == "snmp" && (len(payload) < 21 || payload[0] != 0x30 || payload[13] != 0xa0 || payload[15] != 0x02 || payload[16] != 0x04) {
 		return Probe{}, errors.New("SNMP matcher requires a v2c GET template with a four-byte request ID")
 	}
+	if matcher == "snmpv3" && !bytes.Equal(payload, snmpV3DiscoveryTemplate) {
+		return Probe{}, errors.New("SNMPv3 matcher requires a noAuthNoPriv engine discovery template")
+	}
 	if matcher == "stun" && (len(payload) != 20 || binary.BigEndian.Uint16(payload[:2]) != 1 || !bytes.Equal(payload[4:8], []byte{0x21, 0x12, 0xa4, 0x42})) {
 		return Probe{}, errors.New("STUN matcher requires a 20-byte binding request")
 	}
@@ -162,15 +168,30 @@ func (d Definition) Compile(baseDir string) (Probe, error) {
 	if matcher == "bacnet" && !bytes.Equal(payload, []byte{0x81, 0x0a, 0x00, 0x08, 0x01, 0x00, 0x10, 0x08}) {
 		return Probe{}, errors.New("BACnet matcher requires an unicast Who-Is request")
 	}
+	if matcher == "bacnet-read" && !bytes.Equal(payload, []byte{0x81, 0x0a, 0x00, 0x11, 0x01, 0x04, 0x00, 0x05, 0x00, 0x0c, 0x0c, 0x02, 0x3f, 0xff, 0xff, 0x19, 0x4b}) {
+		return Probe{}, errors.New("BACnet read matcher requires a Device object-identifier ReadProperty request")
+	}
+	if matcher == "bacnet-fdt" && !bytes.Equal(payload, []byte{0x81, 0x06, 0x00, 0x04}) {
+		return Probe{}, errors.New("BACnet FDT matcher requires a Read-Foreign-Device-Table request")
+	}
+	if matcher == "rpc" && (len(payload) != 40 || binary.BigEndian.Uint32(payload[4:8]) != 0 ||
+		binary.BigEndian.Uint32(payload[8:12]) != 2 || binary.BigEndian.Uint32(payload[20:24]) != 0 ||
+		!bytes.Equal(payload[24:], make([]byte, 16))) {
+		return Probe{}, errors.New("RPC matcher requires an ONC RPC NULL call with AUTH_NULL")
+	}
+	if matcher == "memcached" && !bytes.Equal(payload, []byte("\x00\x00\x00\x00\x00\x01\x00\x00version\r\n")) {
+		return Probe{}, errors.New("memcached matcher requires a UDP version request")
+	}
 	allowed := map[string]string{"dns.rcode": "dns", "ntp.stratum": "ntp", "stun.message_type": "stun",
 		"tftp.error_code": "tftp", "ssdp.server": "ssdp", "sip.status": "sip", "coap.code": "coap",
-		"bacnet.device_id": "bacnet", "bacnet.vendor_id": "bacnet"}
+		"bacnet.device_id": "bacnet", "bacnet.vendor_id": "bacnet", "bacnet.fdt_entries": "bacnet-fdt",
+		"snmp.engine_id": "snmpv3"}
 	if len(d.Extract) > 16 {
 		return Probe{}, errors.New("at most 16 extraction fields are allowed")
 	}
 	seen := make(map[string]bool)
 	for _, field := range d.Extract {
-		if allowed[field] != matcher || seen[field] {
+		if (allowed[field] != matcher && !(field == "bacnet.device_id" && matcher == "bacnet-read")) || seen[field] {
 			return Probe{}, fmt.Errorf("invalid or duplicate extraction field %q for %s", field, matcher)
 		}
 		seen[field] = true
@@ -212,11 +233,14 @@ func Builtins() ([]Probe, error) {
 	return probes, nil
 }
 
+// ForPort selects requests associated with a port for the common UDP profile.
 func ForPort(all []Probe, port uint16) []Probe {
 	selected := make([]Probe, 0, 2)
 	for _, p := range all {
 		if len(p.Ports) == 0 {
-			selected = append(selected, p)
+			if !p.PortsDeclared {
+				selected = append(selected, p)
+			}
 			continue
 		}
 		for _, candidate := range p.Ports {
@@ -227,9 +251,38 @@ func ForPort(all []Probe, port uint16) []Probe {
 		}
 	}
 	if len(selected) == 0 {
-		selected = append(selected, Probe{Name: "generic-byte", Payload: []byte{0}, Matcher: "any"})
+		return []Probe{{Name: "udp-empty", Matcher: "any"}}
 	}
 	return selected
+}
+
+// ForEveryPort orders all requests for the deep UDP profile. Port lists are
+// hints only; every request is tried if earlier ones do not identify a service.
+func ForEveryPort(all []Probe, port uint16) []Probe {
+	if len(all) == 0 {
+		return []Probe{{Name: "udp-empty", Matcher: "any"}}
+	}
+	selected := make([]Probe, 0, len(all))
+	var portless, other []Probe
+	for _, p := range all {
+		if len(p.Ports) == 0 {
+			portless = append(portless, p)
+			continue
+		}
+		preferred := false
+		for _, candidate := range p.Ports {
+			if candidate == port {
+				preferred = true
+				break
+			}
+		}
+		if preferred {
+			selected = append(selected, p)
+		} else {
+			other = append(other, p)
+		}
+	}
+	return append(append(selected, portless...), other...)
 }
 
 // Token derives a stateless validation value for protocol fields. The secret
@@ -254,6 +307,9 @@ func Prepare(p Probe, token uint64) []byte {
 		binary.BigEndian.PutUint64(payload[40:48], token)
 	case "snmp":
 		binary.BigEndian.PutUint32(payload[17:21], uint32(token)&0x7fffffff)
+	case "snmpv3":
+		binary.BigEndian.PutUint16(payload[9:11], uint16(token)&0x7fff)
+		binary.BigEndian.PutUint16(payload[50:52], uint16(token>>16)&0x7fff)
 	case "stun":
 		binary.BigEndian.PutUint64(payload[8:16], token)
 	case "sip":
@@ -261,6 +317,12 @@ func Prepare(p Probe, token uint64) []byte {
 	case "coap":
 		binary.BigEndian.PutUint16(payload[2:4], uint16(token>>48))
 		binary.BigEndian.PutUint64(payload[4:12], token)
+	case "bacnet-read":
+		payload[8] = byte(token)
+	case "rpc":
+		binary.BigEndian.PutUint32(payload[:4], uint32(token))
+	case "memcached":
+		binary.BigEndian.PutUint16(payload[:2], uint16(token))
 	}
 	return payload
 }
@@ -276,6 +338,9 @@ func Match(p Probe, request, response []byte) bool {
 		return len(request) >= 48 && len(response) >= 48 && response[0]&7 == 4 && bytes.Equal(request[40:48], response[24:32])
 	case "snmp":
 		return matchSNMP(request, response)
+	case "snmpv3":
+		_, ok := parseSNMPv3Report(request, response)
+		return ok
 	case "stun":
 		return len(request) == 20 && len(response) >= 20 && response[0] == 1 && (response[1] == 1 || response[1] == 0x11) &&
 			bytes.Equal(request[4:20], response[4:20])
@@ -291,6 +356,18 @@ func Match(p Probe, request, response []byte) bool {
 	case "bacnet":
 		_, _, ok := parseBACnetIAm(response)
 		return ok
+	case "bacnet-read":
+		return matchBACnetRead(request, response)
+	case "bacnet-fdt":
+		return matchBACnetFDT(response)
+	case "rpc":
+		return matchRPC(request, response)
+	case "memcached":
+		return len(request) == 17 && len(response) >= 17 &&
+			bytes.Equal(request[:2], response[:2]) &&
+			binary.BigEndian.Uint16(response[2:4]) == 0 &&
+			binary.BigEndian.Uint16(response[4:6]) == 1 &&
+			bytes.HasPrefix(response[8:], []byte("VERSION "))
 	case "any":
 		return true
 	default:
@@ -337,6 +414,12 @@ func Extract(p Probe, response []byte) map[string]string {
 			if len(response) >= 2 {
 				fields[field] = strconv.Itoa(int(response[1]))
 			}
+		case "snmp.engine_id":
+			if report, ok := parseSNMPv3Report(nil, response); ok {
+				for name, value := range report.fields() {
+					fields[name] = value
+				}
+			}
 		case "stun.message_type":
 			if len(response) >= 2 {
 				fields[field] = fmt.Sprintf("0x%04x", binary.BigEndian.Uint16(response[:2]))
@@ -361,10 +444,20 @@ func Extract(p Probe, response []byte) map[string]string {
 				fields[field] = fmt.Sprintf("%d.%02d", response[1]>>5, response[1]&31)
 			}
 		case "bacnet.device_id", "bacnet.vendor_id":
-			deviceID, vendorID, ok := parseBACnetIAm(response)
-			if ok {
-				fields["bacnet.device_id"] = strconv.FormatUint(uint64(deviceID), 10)
-				fields["bacnet.vendor_id"] = strconv.FormatUint(uint64(vendorID), 10)
+			if p.Matcher == "bacnet-read" {
+				if deviceID, ok := parseBACnetReadDeviceID(response); ok {
+					fields["bacnet.device_id"] = strconv.FormatUint(uint64(deviceID), 10)
+				}
+			} else {
+				deviceID, vendorID, ok := parseBACnetIAm(response)
+				if ok {
+					fields["bacnet.device_id"] = strconv.FormatUint(uint64(deviceID), 10)
+					fields["bacnet.vendor_id"] = strconv.FormatUint(uint64(vendorID), 10)
+				}
+			}
+		case "bacnet.fdt_entries":
+			for name, value := range BACnetFDTFields(response) {
+				fields[name] = value
 			}
 		}
 	}
@@ -410,6 +503,68 @@ func parseBACnetIAm(b []byte) (uint32, uint32, bool) {
 	} // segmentation
 	vendor, ok := read(2)
 	return object & 0x3fffff, vendor, ok && pos == len(b)
+}
+
+func validBACnetFDT(b []byte) bool {
+	return len(b) >= 4 && b[0] == 0x81 && b[1] == 0x07 &&
+		int(binary.BigEndian.Uint16(b[2:4])) == len(b) && (len(b)-4)%10 == 0
+}
+
+func matchBACnetFDT(b []byte) bool {
+	return validBACnetFDT(b) ||
+		(len(b) == 6 && b[0] == 0x81 && b[1] == 0 && b[2] == 0 && b[3] == 6 &&
+			binary.BigEndian.Uint16(b[4:6]) == 0x0040)
+}
+
+func matchBACnetRead(request, response []byte) bool {
+	if len(request) != 17 || len(response) < 9 || response[0] != 0x81 ||
+		response[1] != 0x0a || int(binary.BigEndian.Uint16(response[2:4])) != len(response) ||
+		response[4] != 1 || response[5] != 0 || response[7] != request[8] {
+		return false
+	}
+	switch response[6] >> 4 {
+	case 3, 5: // Complex-ACK or Error, both name the ReadProperty service.
+		return response[8] == 0x0c
+	case 6, 7: // Reject or Abort carries the matching invoke ID.
+		return len(response) >= 9
+	default:
+		return false
+	}
+}
+
+func parseBACnetReadDeviceID(b []byte) (uint32, bool) {
+	if len(b) != 23 || b[0] != 0x81 || b[1] != 0x0a ||
+		int(binary.BigEndian.Uint16(b[2:4])) != len(b) || b[4] != 1 || b[5] != 0 ||
+		b[6] != 0x30 || b[8] != 0x0c || b[9] != 0x0c || b[14] != 0x19 ||
+		b[15] != 0x4b || b[16] != 0x3e || b[17] != 0xc4 || b[22] != 0x3f {
+		return 0, false
+	}
+	object := binary.BigEndian.Uint32(b[18:22])
+	return object & 0x3fffff, object>>22 == 8
+}
+
+func matchRPC(request, response []byte) bool {
+	if len(request) != 40 || len(response) < 12 || !bytes.Equal(request[:4], response[:4]) ||
+		binary.BigEndian.Uint32(response[4:8]) != 1 {
+		return false
+	}
+	switch binary.BigEndian.Uint32(response[8:12]) {
+	case 0: // Accepted: opaque verifier, then an accept status.
+		if len(response) < 24 {
+			return false
+		}
+		verifierLen := binary.BigEndian.Uint32(response[16:20])
+		if verifierLen > 400 {
+			return false
+		}
+		statusAt := 20 + int((verifierLen+3)&^3)
+		if len(response) < statusAt+4 {
+			return false
+		}
+		return binary.BigEndian.Uint32(response[statusAt:statusAt+4]) == 0
+	default:
+		return false
+	}
 }
 
 func matchSNMP(request, response []byte) bool {

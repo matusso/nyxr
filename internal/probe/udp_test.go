@@ -2,6 +2,8 @@ package probe
 
 import (
 	"bytes"
+	"encoding/asn1"
+	"encoding/binary"
 	"strings"
 	"testing"
 )
@@ -11,8 +13,9 @@ func TestBuiltinsAndTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ForPort(all, 53)) != 2 || len(ForPort(all, 123)) != 1 || len(ForPort(all, 161)) != 1 {
-		t.Fatalf("unexpected builtins: %+v", all)
+	if len(ForPort(all, 53)) != 2 || len(ForPort(all, 123)) != 1 ||
+		len(ForPort(all, 161)) != 2 || len(ForEveryPort(all, 40000)) != len(all) {
+		t.Fatalf("unexpected common/deep UDP catalog selection")
 	}
 	dns := ForPort(all, 53)[0]
 	request := Prepare(dns, Token([]byte("secret"), "192.0.2.1", 53, dns.Name, 1))
@@ -53,12 +56,93 @@ func TestBuiltinsAndTokens(t *testing.T) {
 	}
 }
 
+func TestSNMPv3DiscoveryAndEngineIdentity(t *testing.T) {
+	all, err := Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var discovery Probe
+	for _, p := range ForPort(all, 161) {
+		if p.Matcher == "snmpv3" {
+			discovery = p
+		}
+	}
+	if discovery.Name == "" {
+		t.Fatal("SNMPv3 discovery probe missing")
+	}
+	request := Prepare(discovery, 0x12345678)
+	if len(request) != 60 || binary.BigEndian.Uint16(request[9:11]) != 0x5678 {
+		t.Fatalf("unexpected discovery request %x", request)
+	}
+	response := snmpV3ReportFixture(t, 0x5678)
+	if !Match(discovery, request, response) {
+		t.Fatalf("SNMPv3 Report rejected: %x", response)
+	}
+	fields := Extract(discovery, response)
+	if fields["snmp.version"] != "3" || fields["snmp.enterprise"] != "9" ||
+		fields["snmp.engine_id_format"] != "mac" || fields["snmp.engine_id_data"] != "54:a2:74:df:db:42" ||
+		fields["snmp.engine_boots"] != "2" || fields["snmp.engine_time"] != "685 days, 8:16:30" ||
+		fields["snmp.engine_id"] != "80:00:00:09:03:54:a2:74:df:db:42" {
+		t.Fatalf("unexpected SNMPv3 fields: %+v", fields)
+	}
+	request[9] ^= 1
+	if Match(discovery, request, response) {
+		t.Fatal("Report with wrong message ID accepted")
+	}
+	request[9] ^= 1
+	if Match(discovery, request, response[:len(response)-1]) {
+		t.Fatal("truncated Report accepted")
+	}
+}
+
+func snmpV3ReportFixture(t *testing.T, msgID int) []byte {
+	t.Helper()
+	mustMarshal := func(value any) []byte {
+		encoded, err := asn1.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return encoded
+	}
+	engine := []byte{0x80, 0, 0, 9, 3, 0x54, 0xa2, 0x74, 0xdf, 0xdb, 0x42}
+	usm := mustMarshal(struct {
+		Engine []byte
+		Boots  int
+		Time   int
+		User   []byte
+		Auth   []byte
+		Priv   []byte
+	}{engine, 2, 685*86400 + 8*3600 + 16*60 + 30, nil, nil, nil})
+	header := mustMarshal(struct {
+		ID    int
+		Size  int
+		Flags []byte
+		Model int
+	}{msgID, 65507, []byte{0}, 3})
+	unknownEngineIDs := mustMarshal(asn1.ObjectIdentifier{1, 3, 6, 1, 6, 3, 15, 1, 1, 4, 0})
+	unknownEngineIDs = append(unknownEngineIDs, mustMarshal(asn1.RawValue{Class: 1, Tag: 1, Bytes: []byte{1}})...)
+	varBind := mustMarshal(asn1.RawValue{Tag: 16, IsCompound: true, Bytes: unknownEngineIDs})
+	varBinds := mustMarshal(asn1.RawValue{Tag: 16, IsCompound: true, Bytes: varBind})
+	pduBody := append([]byte{2, 1, 1, 2, 1, 0, 2, 1, 0}, varBinds...)
+	pdu := mustMarshal(asn1.RawValue{Class: 2, Tag: 8, IsCompound: true, Bytes: pduBody})
+	scoped := mustMarshal(asn1.RawValue{Tag: 16, IsCompound: true, Bytes: append([]byte{4, 0, 4, 0}, pdu...)})
+	content := append(mustMarshal(3), header...)
+	content = append(content, mustMarshal(usm)...)
+	content = append(content, scoped...)
+	return mustMarshal(asn1.RawValue{Tag: 16, IsCompound: true, Bytes: content})
+}
+
 func TestBACnetWhoIsIdentity(t *testing.T) {
 	all, err := Builtins()
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := ForPort(all, 47808)[0]
+	var p Probe
+	for _, candidate := range ForPort(all, 47808) {
+		if candidate.Matcher == "bacnet" {
+			p = candidate
+		}
+	}
 	if p.Matcher != "bacnet" {
 		t.Fatalf("missing BACnet probe: %+v", p)
 	}
@@ -79,6 +163,101 @@ func TestBACnetWhoIsIdentity(t *testing.T) {
 	response[9] = 0 // not a Device object
 	if Match(p, p.Payload, response) {
 		t.Fatal("accepted non-device response")
+	}
+}
+
+func TestBACnetReadOnlyFallbackProbes(t *testing.T) {
+	all, err := Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := ForPort(all, 47808)
+	if len(selected) != 3 || selected[0].Matcher != "bacnet" ||
+		selected[1].Matcher != "bacnet-read" || selected[2].Matcher != "bacnet-fdt" {
+		t.Fatalf("expected BACnet probes first on the usual port, got %+v", selected)
+	}
+	var read, fdt Probe
+	for _, p := range selected {
+		switch p.Matcher {
+		case "bacnet-read":
+			read = p
+		case "bacnet-fdt":
+			fdt = p
+		}
+	}
+	if read.Name == "" || fdt.Name == "" {
+		t.Fatalf("missing BACnet fallback probes: %+v", selected)
+	}
+	request := Prepare(read, 0x1234)
+	for _, apdu := range []byte{0x30, 0x50} {
+		response := []byte{0x81, 0x0a, 0, 9, 1, 0, apdu, 0x34, 0x0c}
+		if !Match(read, request, response) {
+			t.Fatalf("read reply %02x rejected", apdu)
+		}
+		response[7] ^= 1
+		if Match(read, request, response) {
+			t.Fatal("read reply with wrong invoke ID accepted")
+		}
+	}
+	readResponse := []byte{0x81, 0x0a, 0, 23, 1, 0, 0x30, 0x34, 0x0c, 0x0c,
+		0x02, 0x3f, 0xff, 0xff, 0x19, 0x4b, 0x3e, 0xc4, 0, 0, 0, 0, 0x3f}
+	binary.BigEndian.PutUint32(readResponse[18:22], 8<<22|2099201)
+	if !Match(read, request, readResponse) || Extract(read, readResponse)["bacnet.device_id"] != "2099201" {
+		t.Fatalf("Device ID response rejected: %x", readResponse)
+	}
+	if !bytes.Equal(fdt.Payload, []byte{0x81, 0x06, 0, 4}) {
+		t.Fatalf("unexpected FDT request %x", fdt.Payload)
+	}
+	response := []byte{0x81, 0x07, 0, 14, 192, 0, 2, 1, 0xba, 0xc0, 0, 30, 0, 34}
+	if !Match(fdt, fdt.Payload, response) || Extract(fdt, response)["bacnet.fdt_entries"] != "1" {
+		t.Fatalf("valid FDT response rejected: %x", response)
+	}
+	if Match(fdt, fdt.Payload, response[:13]) || Match(fdt, fdt.Payload, []byte{0x81, 0x07, 0, 5, 0}) {
+		t.Fatal("malformed FDT response accepted")
+	}
+	if !Match(fdt, fdt.Payload, []byte{0x81, 0, 0, 6, 0, 0x40}) {
+		t.Fatal("FDT read failure still identifies a BACnet endpoint")
+	}
+}
+
+func TestRPCAndMemcachedUDPProbes(t *testing.T) {
+	all, err := Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, port := range []uint16{111, 2049} {
+		p := ForPort(all, port)[0]
+		if p.Matcher != "rpc" {
+			t.Fatalf("port %d lacks an RPC NULL probe", port)
+		}
+		request := Prepare(p, 0x12345678)
+		reply := []byte{0x12, 0x34, 0x56, 0x78, 0, 0, 0, 1, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+		if !Match(p, request, reply) {
+			t.Fatalf("port %d rejected matching RPC reply", port)
+		}
+		reply[3] ^= 1
+		if Match(p, request, reply) {
+			t.Fatal("RPC reply with wrong XID accepted")
+		}
+		reply[3] ^= 1
+		reply[23] = 1 // Program unavailable is not a match for the named service.
+		if Match(p, request, reply) {
+			t.Fatal("RPC error identified as the requested service")
+		}
+	}
+	memcached := ForPort(all, 11211)[0]
+	if memcached.Matcher != "memcached" {
+		t.Fatalf("missing memcached UDP probe: %+v", memcached)
+	}
+	request := Prepare(memcached, 0x1234)
+	reply := append([]byte{0x12, 0x34, 0, 0, 0, 1, 0, 0}, []byte("VERSION 1.6.0\r\n")...)
+	if !Match(memcached, request, reply) {
+		t.Fatal("memcached version reply rejected")
+	}
+	reply[0] ^= 1
+	if Match(memcached, request, reply) {
+		t.Fatal("memcached reply with wrong request ID accepted")
 	}
 }
 
@@ -106,7 +285,7 @@ func TestPhase2BuiltinsAndMatchers(t *testing.T) {
 	}
 	for _, port := range []uint16{69, 1900, 3478, 5060, 5353, 5355, 5683} {
 		selected := ForPort(all, port)
-		if len(selected) != 1 || selected[0].Name == "generic-byte" {
+		if len(selected) != 1 || selected[0].Name == "udp-empty" {
 			t.Fatalf("port %d: %+v", port, selected)
 		}
 	}

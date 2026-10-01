@@ -50,7 +50,8 @@ for raw socket features such as ICMP and packet capture.
 
 ```sh
 nyxr scan --ports 22,80,443 --protocols tcp --json 192.0.2.1
-nyxr scan --profile udp --ports 53,123 192.0.2.1
+nyxr scan --profile udp-basic --ports 53,123 192.0.2.1
+nyxr scan --profile udp-common --ports 53,123 192.0.2.1
 nyxr scan --profile udp-deep --udp-retries 1 --json 192.0.2.1
 nyxr scan --protocols udp --ports 9999 --send-hex "010203" 192.0.2.1
 nyxr scan --protocols udp --ports 9999 --payload my-probe.yaml 192.0.2.1
@@ -76,15 +77,24 @@ is limited to 65,536 unique addresses. Ports accept commas and inclusive ranges
 ports, or `all` for `1-65535`. Use `--json` for newline-delimited observations.
 `--dry-run` resolves the configuration and prints the plan — profile, target
 count, ports, protocols, pacing and scheduled task count — without sending any
-packet; add `--json` for the machine-readable plan. UDP/53 attempts DNS A then
-DNS NS, UDP/123 sends an NTP client request, and UDP/161 sends a read-only
-SNMPv2c `sysDescr.0` GET. Ports without a native probe receive a single byte. The
-`udp-deep` profile also scans ports 69, 1900, 3478, 5060, 5353, 5355, 5683
-and 47808 using read-only TFTP, SSDP, STUN, SIP OPTIONS, mDNS, LLMNR, CoAP GET
-and BACnet Who-Is
-probes, and retries each probe once. `--rate` limits application-level probe
+packet; add `--json` for the machine-readable plan. UDP has three levels:
+`udp-basic` sends an empty datagram and classifies a reply or ICMP error;
+`udp-common` uses payloads listed for each requested port, falling back to an
+empty datagram when none apply; `udp-deep` tries every available payload on
+each requested port until a reply validates a service or the catalog is
+exhausted. The existing `udp` profile uses the `udp-common` strategy for
+compatibility. The native catalog includes DNS, NTP, SNMPv2c and SNMPv3 engine
+discovery, TFTP, RPC NULL, SSDP, STUN, SIP OPTIONS, mDNS, LLMNR, CoAP GET,
+memcached version, and BACnet reads. `udp-deep` selects fourteen common UDP
+ports by default and retries each
+probe once; `--ports` replaces the default port list. An empty UDP datagram is
+valid under [RFC 768](https://www.rfc-editor.org/rfc/rfc768), and a silent port
+remains `open|filtered` because [RFC 1122](https://www.rfc-editor.org/rfc/rfc1122)
+only says a closed port should send ICMP Port Unreachable.
+`--rate` limits application-level probe
 sends, including UDP retries. A matching DNS transaction ID, NTP originate
-timestamp, SNMP request ID, STUN transaction ID, SIP Call-ID or CoAP token
+timestamp, SNMP request or message ID, STUN transaction ID, SIP Call-ID or
+CoAP token
 raises confidence;
 the token is derived from a per-scan secret. An unmatched UDP response is retained as an unknown
 fingerprint with a hex evidence sample. No response is `open|filtered` with
@@ -112,8 +122,10 @@ the roadmap phase they need, rather than silently downgrading to a weaker scan.
 | `discovery` | available | Common TCP ports, unprivileged connect scan (default) |
 | `fast` | available | Top 100 TCP ports at higher concurrency |
 | `tcp` | available | TCP connect scan of common ports |
-| `udp` | available | Protocol-aware UDP probes (DNS, NTP) |
-| `udp-deep` | available | Safe protocol probes on eleven common UDP ports, one extra retry each |
+| `udp-basic` | available | Empty UDP datagram; classify reply or ICMP response |
+| `udp-common` | available | Payloads associated with each port; fourteen default ports |
+| `udp` | available | Compatibility name for `udp-common`; DNS and NTP ports by default |
+| `udp-deep` | available | Every available UDP payload on each port; fourteen default ports |
 | `ot-safe` | available | Allowlisted TCP connect scan plus Modbus/EtherNet/IP identity reads |
 | `custom` | available | Minimal profile; set protocols, ports and timeout explicitly |
 | `service` | available | Top 100 TCP ports, then banner/SSH/TLS/HTTP/DNS identification |
@@ -178,12 +190,21 @@ the request/response bytes of each identity read.
 
 Modbus uses function 43/14 (basic Read Device Identification) on TCP/502;
 EtherNet/IP uses ListIdentity on TCP/44818. Both are read-only requests and
-return product/version fields with raw exchange evidence. BACnet uses a unicast
-Who-Is request on UDP/47808 in an explicit UDP scan or `udp-deep`, and parses
-unicast or broadcast I-Am device and vendor IDs. The scanner binds local
-UDP/47808 for this IPv4 probe, so that port must be free. A BACnet I-Am has no transaction token, so its
-confidence is lower than token-validated UDP replies. These probes have local
-simulator fixtures; behavior on real OT equipment remains to be validated.
+return product/version fields with raw exchange evidence. `udp-common` sends
+BACnet Who-Is on UDP/47808; `udp-deep` tries it on every requested UDP port.
+If Who-Is is silent, the scanner tries a read-only Device object-identifier
+query and a BBMD Foreign Device Table read. After a BACnet reply confirms the port is open,
+it reads Device name, vendor, application software, firmware, model, description,
+and location properties, plus the BBMD Foreign Device Table when available.
+Missing optional replies leave the validated open result intact. It parses
+unicast or broadcast I-Am device and vendor IDs. The scanner prefers local
+UDP/47808 for these IPv4 probes and uses
+an ephemeral source port if that port is busy. I-Am and FDT responses have no
+transaction token, so their confidence is lower than token-validated replies.
+These probes have local simulator fixtures. A live Siemens PXC22.1-E.D scan
+also returned its Device identifier, name, vendor, application software,
+firmware, model, description, and one FDT entry. The reported FDT timeout is
+the remaining time at the moment of the scan and may change between runs.
 
 `--fingerprint` combines matched service/UDP identities, MAC OUI prefixes and
 open port patterns into a `device` record when at least two independent signals
@@ -219,12 +240,22 @@ match:
 ```
 
 Supported payload encodings are `ascii`, `hex`, `base64`, and `raw_file`
-(relative to the YAML file). Matchers are `any`, `dns`, `ntp`, `snmp`, `stun`,
-`tftp`, `ssdp`, `sip`, and `coap`. The optional `schema` defaults to
+(relative to the YAML file). Matchers are `any`, `dns`, `ntp`, `snmp`, `snmpv3`, `stun`,
+`tftp`, `ssdp`, `sip`, `coap`, `bacnet`, `bacnet-read`, `bacnet-fdt`, `rpc`,
+and `memcached`. The optional `schema` defaults to
 `nyxr/udp/v1` for older definitions; unknown versions are rejected. The
 `extract` list can request `dns.rcode`, `ntp.stratum`, `stun.message_type`,
-`tftp.error_code`, `ssdp.server`, `sip.status`, or `coap.code`; values appear
-in the observation's `fields` map. Only `safety: safe` is accepted. A probe
+`snmp.engine_id`, `tftp.error_code`, `ssdp.server`, `sip.status`, `coap.code`,
+`bacnet.device_id`, `bacnet.vendor_id`, or `bacnet.fdt_entries`; values appear
+in the observation's `fields` map. SNMPv3 engine discovery also adds
+`snmp.version`, `snmp.enterprise`, `snmp.engine_id_format`,
+`snmp.engine_id_data`, `snmp.engine_boots`, `snmp.engine_time_seconds`, and
+`snmp.engine_time` from a valid Report. BACnet enrichment also adds
+`bacnet.object_name`, `bacnet.vendor_name`, `bacnet.application_software`,
+`bacnet.firmware`, `bacnet.model_name`, `bacnet.description`, and
+`bacnet.location` when returned. FDT entries appear as `bacnet.fdt.0`,
+`bacnet.fdt.1`, and so on, with IP, port, TTL, and remaining timeout.
+Only `safety: safe` is accepted. A probe
 with no applicable port falls back to the generic byte. TFTP and SSDP replies
 have lower confidence because they lack a transaction token.
 
@@ -323,6 +354,8 @@ nyxr probe import /usr/share/nmap/nmap-service-probes            # summarize a d
 nyxr probe import /usr/share/nmap/nmap-service-probes --json     # machine-readable
 nyxr scan --service --nmap-service-probes /usr/share/nmap/nmap-service-probes \
   --ports 21,25,80,110,143 192.0.2.10
+nyxr scan --profile udp-deep --nmap-udp-probes /usr/share/nmap/nmap-service-probes \
+  --ports 111,2049,47808 192.0.2.10
 ```
 
 `probe import` reports how many probes and match rules were read, how many
@@ -339,9 +372,18 @@ product and version. A hard match is reported at 90% confidence and a softmatch
 at 75%, each with the matching probe and rule line kept in the observation's
 `nmap.*` attributes and the banner retained as evidence. This sends no traffic
 beyond the banner the deep-probe stage already reads; the built-in matchers
-(SSH, TLS, HTTP, DNS) still take precedence. Sending Nmap's active probe
-payloads is not implemented yet, and `ot-safe` never permits the `nmap` probe.
-Remote API requests may not name a server-side probes file.
+(SSH, TLS, HTTP, DNS) still take precedence. `--nmap-udp-probes` separately
+adds usable UDP payloads from the same kind of file. `udp-common` uses its
+`ports` directives to select probes; portless probes apply to any port.
+`udp-deep` tries every imported probe on each requested port and uses the port
+directives only to prioritize them. Built-in UDP probes are also tried. Imported
+requests are limited to the maximum UDP payload size;
+empty and oversized requests are skipped. Any datagram returned to an imported
+request confirms an open UDP port, but without a
+protocol-specific matcher its service identity is unconfirmed. This option
+requires a local file and cannot be combined with a custom UDP payload.
+`ot-safe` never permits these UDP probes. Remote API requests may not name a
+server-side probes file.
 
 `--db file` stores the scan in SQLite through a cgo-free driver, so every
 release binary can open it. The schema is versioned with forward-only

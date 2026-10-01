@@ -1,0 +1,13 @@
+schema: nyxr/udp/v1
+name: bacnet-read-device
+transport: udp
+ports: [47808]
+tags: [bacnet]
+safety: safe
+payload:
+  encoding: hex
+  data: "810a001101040005000c0c023fffff194b"
+timeout: 750ms
+match:
+  - type: bacnet-read
+extract: [bacnet.device_id]

@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/probe"
 )
 
@@ -18,6 +19,14 @@ type sentProbe struct {
 	sent     time.Time
 	length   uint16
 	checksum uint16
+}
+
+func isBACnetMatcher(matcher string) bool {
+	return matcher == "bacnet" || matcher == "bacnet-read" || matcher == "bacnet-fdt"
+}
+
+func isUntokenedMatcher(matcher string) bool {
+	return matcher == "tftp" || matcher == "ssdp" || matcher == "bacnet" || matcher == "bacnet-fdt"
 }
 
 // BACnet I-Am may be broadcast to UDP/47808. One listener owns that port at a
@@ -37,7 +46,7 @@ func matchRecent(recent []sentProbe, response []byte) (sentProbe, bool) {
 		if !sent.sent.IsZero() && time.Since(sent.sent) > 5*time.Second {
 			continue
 		}
-		if (sent.probe.Matcher == "tftp" || sent.probe.Matcher == "ssdp" || sent.probe.Matcher == "bacnet") && i != len(recent)-1 {
+		if isUntokenedMatcher(sent.probe.Matcher) && i != len(recent)-1 {
 			continue
 		}
 		if sent.probe.Matcher != "any" && probe.Match(sent.probe, sent.request, response) {
@@ -54,22 +63,46 @@ func matchRecent(recent []sentProbe, response []byte) (sentProbe, bool) {
 }
 
 func probeUDPCampaign(ctx context.Context, t task, timeout time.Duration, all []probe.Probe, extraRetries int, secret []byte, limiter *probeLimiter) Observation {
-	return probeUDPCampaignWithICMP(ctx, t, timeout, all, extraRetries, secret, limiter, nil)
+	return probeUDPCampaignWithICMPMode(ctx, t, timeout, all, extraRetries, secret, limiter, nil, config.UDPDeep)
 }
 
 func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration, all []probe.Probe, extraRetries int, secret []byte, limiter *probeLimiter, observer *udpICMPObserver) Observation {
-	selected := probe.ForPort(all, t.port)
+	return probeUDPCampaignWithICMPMode(ctx, t, timeout, all, extraRetries, secret, limiter, observer, config.UDPDeep)
+}
+
+func probeUDPCampaignWithICMPMode(ctx context.Context, t task, timeout time.Duration, all []probe.Probe, extraRetries int, secret []byte, limiter *probeLimiter, observer *udpICMPObserver, mode config.UDPMode) Observation {
+	var selected []probe.Probe
+	switch mode {
+	case config.UDPBasic:
+		selected = []probe.Probe{{Name: "udp-empty", Matcher: "any"}}
+	case config.UDPDeep:
+		selected = probe.ForEveryPort(all, t.port)
+	default:
+		selected = probe.ForPort(all, t.port)
+	}
+	if !t.target.Is4() {
+		// BACnet/IP payloads in this catalog use IPv4 BVLC addressing.
+		filtered := selected[:0]
+		for _, p := range selected {
+			if !isBACnetMatcher(p.Matcher) {
+				filtered = append(filtered, p)
+			}
+		}
+		selected = filtered
+	}
+	if len(selected) == 0 {
+		selected = probe.ForPort(nil, t.port)
+	}
 	o := base(t, selected[0].Name)
 	addr := &net.UDPAddr{IP: net.IP(t.target.AsSlice()), Port: int(t.port), Zone: t.target.Zone()}
 	var conn *net.UDPConn
 	var err error
-	tftp := len(selected) == 1 && selected[0].Matcher == "tftp"
-	bacnet := len(selected) == 1 && selected[0].Matcher == "bacnet"
-	if bacnet {
-		if !t.target.Is4() {
-			o.State, o.Reason = "error", "BACnet/IP Who-Is currently supports IPv4 only"
-			return o
-		}
+	unconnected, bacnet := false, false
+	for _, p := range selected {
+		bacnet = bacnet || isBACnetMatcher(p.Matcher)
+		unconnected = unconnected || p.Matcher == "tftp" || isBACnetMatcher(p.Matcher)
+	}
+	if bacnet && t.port == 47808 {
 		select {
 		case <-bacnetListenerSlot:
 			defer func() { bacnetListenerSlot <- struct{}{} }()
@@ -78,16 +111,20 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 			return o
 		}
 	}
-	if tftp || bacnet {
+	if unconnected {
 		network := "udp4"
 		if t.target.Is6() {
 			network = "udp6"
 		}
 		listenAddr := &net.UDPAddr{}
-		if bacnet {
+		if bacnet && t.port == 47808 {
 			listenAddr.Port = int(t.port)
 		}
 		conn, err = net.ListenUDP(network, listenAddr)
+		if err != nil && bacnet && listenAddr.Port != 0 && errors.Is(err, syscall.EADDRINUSE) {
+			listenAddr.Port = 0
+			conn, err = net.ListenUDP(network, listenAddr)
+		}
 	} else {
 		conn, err = net.DialUDP("udp", nil, addr)
 	}
@@ -98,7 +135,7 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 	defer conn.Close()
 	local := conn.LocalAddr().(*net.UDPAddr)
 	localIP, _ := netip.AddrFromSlice(local.IP)
-	if tftp || bacnet {
+	if unconnected {
 		// An unconnected socket accepts TFTP's reply from a new transfer ID.
 		// A temporary dial asks the OS which source IP it will use.
 		route, routeErr := net.DialUDP("udp", nil, addr)
@@ -113,7 +150,8 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 	stop := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Now()) })
 	defer stop()
 	var buf [4096]byte
-	var unknownResponse bool
+	var socketResponseProbe, socketResponseHex string
+	var socketResponseRTT time.Duration
 	var attempt uint32
 	recent := make([]sentProbe, 0, 32)
 	checkICMP := func() bool {
@@ -123,6 +161,10 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 				for j := len(recent) - 1; j >= 0; j-- {
 					sent := recent[j]
 					if event.length == sent.length && event.checksum == sent.checksum {
+						if o.State == "open" {
+							o.PacketsRX++
+							break
+						}
 						o.State, o.Confidence, o.Reason = event.state, 95, event.reason
 						if event.state == "filtered" {
 							o.Confidence = 85
@@ -137,6 +179,7 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 		}
 		return false
 	}
+probeLoop:
 	for _, p := range selected {
 		probeTimeout := timeout
 		if p.Timeout > 0 && p.Timeout < probeTimeout {
@@ -165,12 +208,15 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 			}
 			start := time.Now()
 			var writeErr error
-			if tftp || bacnet {
+			if unconnected {
 				_, writeErr = conn.WriteToUDP(request, addr)
 			} else {
 				_, writeErr = conn.Write(request)
 			}
 			if err := writeErr; err != nil {
+				if o.State == "open" && (isUDPPortUnreachable(err) || isUDPFiltered(err)) {
+					continue probeLoop
+				}
 				if isUDPPortUnreachable(err) {
 					o.State, o.Confidence, o.Reason = "closed", 95, "ICMP port unreachable"
 				} else if isUDPFiltered(err) {
@@ -207,16 +253,24 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 				}
 				var n int
 				var peer *net.UDPAddr
-				if tftp || bacnet {
+				if unconnected {
 					n, peer, err = conn.ReadFromUDP(buf[:])
 				} else {
 					n, err = conn.Read(buf[:])
 				}
 				if isUDPPortUnreachable(err) {
+					if o.State == "open" {
+						o.PacketsRX++
+						continue probeLoop
+					}
 					o.State, o.Confidence, o.Reason, o.PacketsRX = "closed", 95, "ICMP port unreachable", o.PacketsRX+1
 					return o
 				}
 				if isUDPFiltered(err) {
+					if o.State == "open" {
+						o.PacketsRX++
+						continue probeLoop
+					}
 					o.State, o.Confidence, o.Reason, o.PacketsRX = "filtered", 85, "network/host unreachable (socket ICMP error)", o.PacketsRX+1
 					return o
 				}
@@ -227,7 +281,8 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 					o.State, o.Reason = "error", err.Error()
 					return o
 				}
-				if (tftp || bacnet) && (peer == nil || !peer.IP.Equal(addr.IP) || (bacnet && peer.Port != addr.Port)) {
+				if unconnected && (peer == nil || !peer.IP.Equal(addr.IP) ||
+					(peer.Port != addr.Port && p.Matcher != "tftp")) {
 					continue
 				}
 				o.PacketsRX++
@@ -238,10 +293,16 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 					o.ResponseHex = hex.EncodeToString(buf[:n])
 				}
 				if matched, ok := matchRecent(recent, buf[:n]); ok {
-					confidence, reason := 100, "validated "+matched.probe.Matcher+" response"
 					if matched.probe.Matcher == "any" {
-						confidence, reason = 80, "socket-scoped UDP response; probe identity unconfirmed"
-					} else if matched.probe.Matcher == "tftp" || matched.probe.Matcher == "ssdp" || matched.probe.Matcher == "bacnet" {
+						if o.Confidence < 80 {
+							o.State, o.Confidence, o.Reason = "open", 80, "socket-scoped UDP response; probe identity unconfirmed"
+							o.Probe, o.RTT = matched.probe.Name, time.Since(matched.sent)
+							socketResponseProbe, socketResponseRTT, socketResponseHex = o.Probe, o.RTT, o.ResponseHex
+						}
+						continue probeLoop
+					}
+					confidence, reason := 100, "validated "+matched.probe.Matcher+" response"
+					if isUntokenedMatcher(matched.probe.Matcher) {
 						confidence, reason = 85, "protocol-shaped UDP response from target; no transaction token"
 					} else {
 						o.Service = matched.probe.Matcher
@@ -249,29 +310,37 @@ func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration
 					if len(matched.probe.Tags) > 0 {
 						o.Service = matched.probe.Tags[0]
 					}
-					if matched.probe.Matcher == "tftp" || matched.probe.Matcher == "ssdp" || matched.probe.Matcher == "bacnet" {
+					if isBACnetMatcher(matched.probe.Matcher) {
+						o.Service = "bacnet"
+					} else if matched.probe.Matcher == "tftp" || matched.probe.Matcher == "ssdp" {
 						o.Service = matched.probe.Matcher
 					}
 					o.Probe = matched.probe.Name
 					o.Fields = probe.Extract(matched.probe, buf[:n])
 					o.State, o.Confidence, o.Reason, o.RTT = "open", confidence, reason, time.Since(matched.sent)
+					if isBACnetMatcher(matched.probe.Matcher) {
+						enrichBACnet(ctx, conn, addr, t.target, t.port, timeout, secret, limiter, &o)
+					}
 					return o
 				}
-				unknownResponse = true
-				o.RTT = time.Since(start)
+				if o.State != "open" {
+					o.State, o.Confidence, o.Reason = "open", 75, "UDP response with unknown fingerprint"
+					o.RTT = time.Since(start)
+					socketResponseProbe, socketResponseRTT, socketResponseHex = p.Name, o.RTT, o.ResponseHex
+				}
 			}
 			if checkICMP() {
 				return o
 			}
 		}
 	}
-	if unknownResponse {
-		o.State, o.Confidence, o.Reason = "open", 75, "UDP response with unknown fingerprint"
-	} else {
-		o.State, o.Confidence, o.Reason = "open|filtered", 30, "no UDP or ICMP response"
-		if !observer.available(t.target) {
-			o.Reason += " (raw ICMP unavailable; socket errors only)"
-		}
+	if o.State == "open" {
+		o.Probe, o.RTT, o.ResponseHex = socketResponseProbe, socketResponseRTT, socketResponseHex
+		return o
+	}
+	o.State, o.Confidence, o.Reason = "open|filtered", 30, "no UDP or ICMP response"
+	if !observer.available(t.target) {
+		o.Reason += " (raw ICMP unavailable; socket errors only)"
 	}
 	return o
 }

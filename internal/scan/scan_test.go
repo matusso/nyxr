@@ -1,8 +1,10 @@
 package scan
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"net"
 	"net/netip"
 	"testing"
@@ -44,7 +46,7 @@ func TestUDPReply(t *testing.T) {
 	go func() {
 		var buf [64]byte
 		n, addr, err := server.ReadFromUDP(buf[:])
-		if err == nil && n > 0 {
+		if err == nil && n == 0 {
 			_, _ = server.WriteToUDP([]byte{1}, addr)
 		}
 	}()
@@ -52,6 +54,282 @@ func TestUDPReply(t *testing.T) {
 	got := probeUDPCampaign(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: port, transport: "udp"}, time.Second, nil, 0, []byte("test-secret"), newProbeLimiter(0))
 	if got.State != "open" || got.PacketsRX != 1 {
 		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestUDPBasicAndCommonFallbackSendEmptyDatagram(t *testing.T) {
+	all, err := probe.Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []config.UDPMode{config.UDPBasic, config.UDPCommon} {
+		t.Run(string(mode), func(t *testing.T) {
+			server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+			if err != nil {
+				t.Skipf("loopback unavailable: %v", err)
+			}
+			defer server.Close()
+			go func() {
+				var buf [64]byte
+				n, peer, err := server.ReadFromUDP(buf[:])
+				if err == nil && n == 0 {
+					_, _ = server.WriteToUDP([]byte{1}, peer)
+				}
+			}()
+			port := uint16(server.LocalAddr().(*net.UDPAddr).Port)
+			got := probeUDPCampaignWithICMPMode(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: port, transport: "udp"},
+				100*time.Millisecond, all, 0, []byte("secret"), newProbeLimiter(0), nil, mode)
+			if got.State != "open" || got.PacketsTX != 1 || got.Probe != "udp-empty" {
+				t.Fatalf("%s sent unexpected probes: %+v", mode, got)
+			}
+		})
+	}
+}
+
+func TestUDPDeepFindsSNMPv3OnNonstandardPort(t *testing.T) {
+	server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Skipf("loopback unavailable: %v", err)
+	}
+	defer server.Close()
+	port := uint16(server.LocalAddr().(*net.UDPAddr).Port)
+	all, err := probe.Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := hex.DecodeString("3058020103300f02021234020300ffe3040100020103041e301c040b800000090354a274dfdb420201020204038787de040004000400302204000400a81c0201010201000201003011300f060a2b060106030f01010400410101")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		var buf [4096]byte
+		for {
+			n, peer, err := server.ReadFromUDP(buf[:])
+			if err != nil {
+				return
+			}
+			if n == 60 && bytes.HasPrefix(buf[:n], []byte{0x30, 0x3a, 2, 1, 3}) {
+				copy(report[9:11], buf[9:11])
+				_, _ = server.WriteToUDP(report, peer)
+			}
+		}
+	}()
+	got := probeUDPCampaignWithICMPMode(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: port, transport: "udp"},
+		40*time.Millisecond, all, 0, []byte("secret"), newProbeLimiter(0), nil, config.UDPDeep)
+	if got.State != "open" || got.Service != "snmp" || got.Probe != "snmp-v3-discovery" ||
+		got.Fields["snmp.engine_id_data"] != "54:a2:74:df:db:42" || got.Fields["snmp.engine_boots"] != "2" {
+		t.Fatalf("deep scan should identify SNMPv3 on port %d: %+v", port, got)
+	}
+}
+
+func TestUDPBACnetFallsBackWhenFirstProbeIsSilent(t *testing.T) {
+	server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Skipf("loopback unavailable: %v", err)
+	}
+	defer server.Close()
+	port := uint16(server.LocalAddr().(*net.UDPAddr).Port)
+	all, err := probe.Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var selected []probe.Probe
+	for _, p := range probe.ForPort(all, 47808) {
+		if p.Matcher == "bacnet" || p.Matcher == "bacnet-read" || p.Matcher == "bacnet-fdt" {
+			p.Timeout = 40 * time.Millisecond
+			selected = append(selected, p)
+		}
+	}
+	go func() {
+		var buf [64]byte
+		for {
+			n, addr, err := server.ReadFromUDP(buf[:])
+			if err != nil {
+				return
+			}
+			if n == 17 && buf[1] == 0x0a && buf[9] == 0x0c {
+				response := []byte{0x81, 0x0a, 0, 9, 1, 0, 0x30, buf[8], 0x0c}
+				_, _ = server.WriteToUDP(response, addr)
+			}
+		}
+	}()
+	got := probeUDPCampaign(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: port, transport: "udp"},
+		time.Second, selected, 0, []byte("secret"), newProbeLimiter(0))
+	if got.State != "open" || got.Service != "bacnet" || got.Probe != "bacnet-read-device" || got.Confidence != 100 {
+		t.Fatalf("BACnet read response should confirm open port: %+v", got)
+	}
+}
+
+func TestUDPBACnetForeignDeviceTableConfirmsOpen(t *testing.T) {
+	server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Skipf("loopback unavailable: %v", err)
+	}
+	defer server.Close()
+	port := uint16(server.LocalAddr().(*net.UDPAddr).Port)
+	all, err := probe.Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fdt probe.Probe
+	for _, p := range probe.ForPort(all, 47808) {
+		if p.Matcher == "bacnet-fdt" {
+			fdt = p
+		}
+	}
+	if fdt.Name == "" {
+		t.Fatal("FDT probe missing")
+	}
+	fdt.Ports = []uint16{port}
+	go func() {
+		var buf [32]byte
+		for {
+			n, addr, err := server.ReadFromUDP(buf[:])
+			if err != nil {
+				return
+			}
+			if n == 4 && buf[1] == 6 {
+				response := []byte{0x81, 0x07, 0, 14, 217, 75, 94, 18, 0x62, 0x2d, 0, 30, 0, 34}
+				_, _ = server.WriteToUDP(response, addr)
+			} else if n == 17 && buf[9] == 12 {
+				response := []byte{0x81, 0x0a, 0, 9, 1, 0, 0x60, buf[8], 0}
+				if buf[16] == 75 {
+					response = []byte{0x81, 0x0a, 0, 23, 1, 0, 0x30, buf[8], 12,
+						12, 2, 0x20, 8, 1, 0x19, 75, 0x3e, 0xc4, 2, 0x20, 8, 1, 0x3f}
+				}
+				_, _ = server.WriteToUDP(response, addr)
+			}
+		}
+	}()
+	got := probeUDPCampaign(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: port, transport: "udp"},
+		time.Second, []probe.Probe{fdt}, 0, []byte("secret"), newProbeLimiter(0))
+	if got.State != "open" || got.Service != "bacnet" || got.Probe != "bacnet-fdt" ||
+		got.Fields["bacnet.device_id"] != "2099201" || got.Fields["bacnet.fdt_entries"] != "1" ||
+		got.Fields["bacnet.fdt.0"] != "217.75.94.18:25133:ttl=30:timeout=34" {
+		t.Fatalf("FDT response should confirm BACnet open port: %+v", got)
+	}
+}
+
+func TestUDPBACnetReadsDeviceMetadataAfterOpening(t *testing.T) {
+	server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Skipf("loopback unavailable: %v", err)
+	}
+	defer server.Close()
+	port := uint16(server.LocalAddr().(*net.UDPAddr).Port)
+	all, err := probe.Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var read probe.Probe
+	for _, p := range probe.ForPort(all, 47808) {
+		if p.Matcher == "bacnet-read" {
+			read = p
+		}
+	}
+	if read.Name == "" {
+		t.Fatal("Device read probe missing")
+	}
+	properties := map[byte]string{
+		77:  "Site01'PkMajer",
+		121: "Siemens Building Technologies",
+		12:  `JK CONTROL\SK\Banska Bystrica\TBB_PkMajer\PkMajer`,
+		44:  "FW=V6.00.314 / SBC=11.01 / FLI=06.00 / BBI=13.06 / CIO=01.20 / STF=01.20",
+		70:  "PXC22.1-E.D / HW=V6.00",
+		28:  "PXC Contr. 01",
+		58:  "Banska Bystrica",
+	}
+	go func() {
+		var buf [128]byte
+		for {
+			n, peer, err := server.ReadFromUDP(buf[:])
+			if err != nil {
+				return
+			}
+			if n == 4 && buf[1] == 6 {
+				_, _ = server.WriteToUDP([]byte{0x81, 7, 0, 14, 217, 75, 94, 18, 0x62, 0x2d, 0, 30, 0, 34}, peer)
+				continue
+			}
+			if n != 17 || buf[9] != 12 {
+				continue
+			}
+			property := buf[16]
+			response := []byte{0x81, 0x0a, 0, 0, 1, 0, 0x30, buf[8], 12,
+				12, 2, 0x20, 8, 1, 0x19, property, 0x3e}
+			switch property {
+			case 75:
+				response = append(response, 0xc4, 2, 0x20, 8, 1)
+			case 120:
+				response = append(response, 0x22, 0, 7)
+			default:
+				value, ok := properties[property]
+				if !ok {
+					continue
+				}
+				response = append(response, 0x75, byte(len(value)+1), 0)
+				response = append(response, value...)
+			}
+			response = append(response, 0x3f)
+			binary.BigEndian.PutUint16(response[2:4], uint16(len(response)))
+			_, _ = server.WriteToUDP(response, peer)
+		}
+	}()
+	got := probeUDPCampaign(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: port, transport: "udp"},
+		300*time.Millisecond, []probe.Probe{read}, 0, []byte("secret"), newProbeLimiter(0))
+	if got.State != "open" || got.Service != "bacnet" || got.Fields["bacnet.device_id"] != "2099201" ||
+		got.Fields["bacnet.object_name"] != properties[77] || got.Fields["bacnet.vendor_name"] != properties[121] ||
+		got.Fields["bacnet.application_software"] != properties[12] || got.Fields["bacnet.firmware"] != properties[44] ||
+		got.Fields["bacnet.model_name"] != properties[70] || got.Fields["bacnet.description"] != properties[28] ||
+		got.Fields["bacnet.fdt.0"] != "217.75.94.18:25133:ttl=30:timeout=34" || got.PacketsTX != 10 {
+		t.Fatalf("BACnet enrichment missing: %+v", got)
+	}
+}
+
+func TestUDPCampaignTriesOffPortProbesAndAcceptsTFTPTransferPort(t *testing.T) {
+	server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Skipf("loopback unavailable: %v", err)
+	}
+	defer server.Close()
+	transfer, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Skipf("loopback unavailable: %v", err)
+	}
+	defer transfer.Close()
+	all, err := probe.Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dns, tftp probe.Probe
+	for _, p := range all {
+		switch p.Name {
+		case "dns-a":
+			dns = p
+		case "tftp-read":
+			tftp = p
+		}
+	}
+	if dns.Name == "" || tftp.Name == "" {
+		t.Fatal("missing native probes")
+	}
+	go func() {
+		var buf [64]byte
+		for {
+			n, peer, err := server.ReadFromUDP(buf[:])
+			if err != nil {
+				return
+			}
+			if n >= 2 && buf[0] == 0 && buf[1] == 1 {
+				_, _ = transfer.WriteToUDP([]byte{0, 5, 0, 1, 'x', 0}, peer)
+			}
+		}
+	}()
+	port := uint16(server.LocalAddr().(*net.UDPAddr).Port)
+	got := probeUDPCampaign(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: port, transport: "udp"},
+		100*time.Millisecond, []probe.Probe{dns, tftp}, 0, []byte("secret"), newProbeLimiter(0))
+	if got.State != "open" || got.Service != "tftp" || got.Probe != "tftp-read" ||
+		got.PacketsTX != 2 || got.Fields["tftp.error_code"] != "1" {
+		t.Fatalf("off-port TFTP probe failed: %+v", got)
 	}
 }
 

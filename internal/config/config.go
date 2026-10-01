@@ -32,7 +32,10 @@ type Config struct {
 	Workers       int
 	Profile       string
 	UDPProbes     []probe.Probe
+	UDPMode       UDPMode
 	UDPRetries    int
+	NmapUDPSource string // local source path for imported UDP payloads
+	NmapUDPSHA    string // SHA-256 of the imported file
 	TCPMode       string // connect (default) or syn
 	Interface     string // required for raw Ethernet SYN scans
 	SourceIP      netip.Addr
@@ -40,6 +43,14 @@ type Config struct {
 	NextHopMAC    net.HardwareAddr
 	Research      *ResearchConfig
 }
+
+type UDPMode string
+
+const (
+	UDPBasic  UDPMode = "basic"
+	UDPCommon UDPMode = "common"
+	UDPDeep   UDPMode = "deep"
+)
 
 // ResearchConfig is deliberately separate from ordinary scan modes. Only a
 // validated research profile can carry raw header or malformed controls.
@@ -64,6 +75,12 @@ func (c Config) Validate() error {
 	}
 	if len(c.Targets) == 0 || (!c.TCP && !c.UDP && !c.ICMP && !c.ARP && !c.NDP) {
 		return errors.New("at least one target and protocol are required")
+	}
+	if c.UDPMode != "" && c.UDPMode != UDPBasic && c.UDPMode != UDPCommon && c.UDPMode != UDPDeep {
+		return fmt.Errorf("unknown UDP mode %q", c.UDPMode)
+	}
+	if c.UDPMode == UDPBasic && len(c.UDPProbes) != 0 {
+		return errors.New("udp-basic does not use payload probes")
 	}
 	if c.Profile == "ot-safe" && len(c.AllowTargets) == 0 {
 		return errors.New("ot-safe requires --allow-targets")
@@ -130,8 +147,8 @@ func (c Config) Validate() error {
 			}
 		}
 	}
-	if c.UDPRetries < 0 || c.UDPRetries > 5 || len(c.UDPProbes) > 256 {
-		return errors.New("UDP retries must be 0..5 and custom probes at most 256")
+	if c.UDPRetries < 0 || c.UDPRetries > 5 {
+		return errors.New("UDP retries must be 0..5")
 	}
 	if c.TCPMode != "" && c.TCPMode != "connect" && c.TCPMode != "syn" {
 		return fmt.Errorf("unknown TCP mode %q", c.TCPMode)
