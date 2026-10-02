@@ -68,7 +68,7 @@ _nyxr() {
                     return 0 ;;
             esac
             if [[ "$cur" == -* ]]; then
-                COMPREPLY=($(compgen -W "--profile --ports --protocols --timeout --rate --workers --udp-retries --tcp-mode --interface --source-ip --source-mac --next-hop-mac --allow-targets --payload --send-hex --send-base64 --payload-file --nmap-udp-probes --config --service --service-probes --service-fallback --service-timeout --service-workers --service-rate --nmap-service-probes --nse-scripts --nse-timeout --pcapng --pcapng-max-mb --db --no-db --fingerprint --packetd --known-open --json --dry-run --help" -- "$cur"))
+                COMPREPLY=($(compgen -W "--profile --ports --protocols --timeout --rate --workers --udp-retries --tcp-mode --interface --source-ip --source-mac --next-hop-mac --allow-targets --payload --send-hex --send-base64 --payload-file --nmap-udp-probes --config --service --service-probes --service-fallback --service-timeout --service-workers --service-rate --nmap-service-probes --nse-scripts --nse-timeout --pcapng --pcapng-max-mb --no-last-pcapng --db --no-db --fingerprint --packetd --known-open --json --dry-run --help" -- "$cur"))
             fi
             ;;
         probe)
@@ -87,7 +87,7 @@ _nyxr() {
             ;;
         decode)
             if [[ "$cur" == -* ]]; then
-                COMPREPLY=($(compgen -W "--tui --all --packets --json" -- "$cur"))
+                COMPREPLY=($(compgen -W "--last --tui --all --packets --json" -- "$cur"))
             else
                 COMPREPLY=($(compgen -f -- "$cur"))
             fi

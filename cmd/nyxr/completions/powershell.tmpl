@@ -59,7 +59,7 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
             if ($wordToComplete.StartsWith('-')) {
                 & $emit @('--profile', '--ports', '--protocols', '--timeout', '--rate', '--workers', '--udp-retries', '--tcp-mode', '--interface', '--source-ip', '--source-mac', '--next-hop-mac',
                     '--payload', '--send-hex', '--send-base64', '--payload-file', '--nmap-udp-probes', '--config',
-                    '--service', '--service-probes', '--service-fallback', '--service-timeout', '--service-workers', '--service-rate', '--nmap-service-probes', '--nse-scripts', '--nse-timeout', '--pcapng', '--pcapng-max-mb', '--db', '--no-db', '--allow-targets',
+                    '--service', '--service-probes', '--service-fallback', '--service-timeout', '--service-workers', '--service-rate', '--nmap-service-probes', '--nse-scripts', '--nse-timeout', '--pcapng', '--pcapng-max-mb', '--no-last-pcapng', '--db', '--no-db', '--allow-targets',
                     '--fingerprint', '--packetd', '--known-open', '--json', '--dry-run', '--help') 'ParameterName'
             }
         }
@@ -68,7 +68,7 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
             & $emit @('import') 'ParameterValue'
         }
         'profiles' { & $emit @('--json') 'ParameterName' }
-        'decode' { if ($wordToComplete -like '-*') { & $emit @('--tui', '--all', '--packets', '--json') 'ParameterName' } }
+        'decode' { if ($wordToComplete -like '-*') { & $emit @('--last', '--tui', '--all', '--packets', '--json') 'ParameterName' } }
         'sniff' {
             if ($prev -match '^--?interface$') {
                 & $emit @([System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces() | ForEach-Object { $_.Name })

@@ -144,6 +144,7 @@ plain-language note on each header field.
 ```sh
 nyxr decode --all capture.pcapng
 nyxr decode --tui capture.pcapng
+nyxr decode --last      # the last --interface scan, kept in ~/.nyxr/last.pcapng
 ```
 
 <img src="docs/images/decode-tui.png" alt="Terminal packet browser with decoded layers and hex dump" width="900">
