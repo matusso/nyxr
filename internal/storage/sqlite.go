@@ -309,6 +309,13 @@ func (s *Store) AddPacketEvidence(ctx context.Context, batch []observe.PacketEvi
 
 const scanColumns = `id, schema, profile, started_at, finished_at, status, error, targets, observations, services, capture`
 
+// ScanCount returns the full history size without loading scan records.
+func (s *Store) ScanCount(ctx context.Context) (int, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM scans`).Scan(&count)
+	return count, err
+}
+
 // Scans lists the newest scans first.
 func (s *Store) Scans(ctx context.Context, limit int) ([]observe.Scan, error) {
 	if limit <= 0 {

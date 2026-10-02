@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/netip"
 	"net/http/httptest"
+	"net/netip"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -121,6 +121,37 @@ func TestSecurityGuards(t *testing.T) {
 	res, body := e.do(t, "GET", "/", "")
 	if res.StatusCode != 200 || !strings.Contains(string(body), "app.js") || !strings.Contains(res.Header.Get("Content-Security-Policy"), "default-src 'self'") {
 		t.Fatalf("UI: %d %q", res.StatusCode, res.Header.Get("Content-Security-Policy"))
+	}
+}
+
+func TestStatsReflectStoredInventory(t *testing.T) {
+	e := newEnv(t, ManagerConfig{}, testToken)
+	now := time.Now().UTC()
+	sc := observe.Scan{ID: "stats-scan", Profile: "tcp", Started: now, Status: "completed", Targets: 1}
+	if err := e.store.BeginScan(context.Background(), sc); err != nil {
+		t.Fatal(err)
+	}
+	addr := netip.MustParseAddr("192.0.2.42")
+	port := observe.Observation{Timestamp: now, Target: addr, Transport: "tcp", Port: 443, State: "open"}
+	service := observe.Observation{Kind: observe.KindService, Timestamp: now.Add(time.Second), Target: addr,
+		Transport: "tcp", Port: 443, State: "open", Service: "https", Fingerprint: observe.FingerprintMatched}
+	port.Stamp(sc.ID)
+	service.Stamp(sc.ID)
+	if err := e.store.AddObservations(context.Background(), []observe.Observation{port, service}); err != nil {
+		t.Fatal(err)
+	}
+	res, body := e.do(t, "GET", "/api/v1/stats", "")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("stats: %d %s", res.StatusCode, body)
+	}
+	var stats map[string]int
+	if err := json.Unmarshal(body, &stats); err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]int{"scans": 1, "running": 0, "hosts": 1, "open_ports": 1, "services": 1} {
+		if stats[key] != want {
+			t.Errorf("stats[%s] = %d, want %d", key, stats[key], want)
+		}
 	}
 }
 

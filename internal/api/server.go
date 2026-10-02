@@ -67,6 +67,7 @@ func Handler(cfg ServerConfig) http.Handler {
 	}
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/v1/version", s.version)
+	api.HandleFunc("GET /api/v1/stats", s.stats)
 	api.HandleFunc("GET /api/v1/profiles", s.profiles)
 	api.HandleFunc("POST /api/v1/plan", s.plan)
 	api.HandleFunc("GET /api/v1/scans", s.listScans)
@@ -170,6 +171,34 @@ func decodeRequest(r *http.Request) (config.Request, error) {
 
 func (s *server) version(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"version": s.cfg.Version, "schema": observe.SchemaVersion})
+}
+
+func (s *server) stats(w http.ResponseWriter, r *http.Request) {
+	scans, err := s.cfg.Store.ScanCount(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	assets, err := s.cfg.Store.Assets(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	open, services := 0, 0
+	for _, a := range assets {
+		for _, p := range a.Ports {
+			if p.State == "open" {
+				open++
+				if p.Service != "" {
+					services++
+				}
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]int{
+		"scans": scans, "running": len(s.cfg.Manager.Running()), "hosts": len(assets),
+		"open_ports": open, "services": services,
+	})
 }
 
 func (s *server) profiles(w http.ResponseWriter, r *http.Request) {

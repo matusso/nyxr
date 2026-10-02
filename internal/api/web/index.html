@@ -3,24 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>nyxr</title>
+<title>NYXR — Network Intelligence</title>
 <link rel="stylesheet" href="style.css">
 <script src="app.js" defer></script>
 </head>
 <body>
-<header>
-  <a class="brand" href="#/">nyxr</a>
-  <nav>
-    <a href="#/">dashboard</a>
-    <a href="#/scans">scans</a>
-    <a href="#/new">new scan</a>
-    <a href="#/assets">assets</a>
-    <a href="#/services">services</a>
-    <a href="#/packets">packets</a>
-    <a href="#/profiles">profiles</a>
+<header class="sidebar">
+  <a class="brand" href="#/" aria-label="NYXR dashboard"><span class="brand-mark">N<span>✦</span></span><span class="brand-copy">NYXR<small>NETWORK INTELLIGENCE</small></span></a>
+  <div class="nav-label">WORKSPACE</div>
+  <nav aria-label="Main navigation">
+    <a href="#/"><span class="nav-icon" aria-hidden="true">◫</span>Overview</a>
+    <a href="#/scans"><span class="nav-icon" aria-hidden="true">⌁</span>Scans</a>
+    <a href="#/new"><span class="nav-icon" aria-hidden="true">＋</span>New scan</a>
+    <a href="#/assets"><span class="nav-icon" aria-hidden="true">⬡</span>Assets</a>
+    <a href="#/services"><span class="nav-icon" aria-hidden="true">≋</span>Services</a>
+    <a href="#/packets"><span class="nav-icon" aria-hidden="true">▤</span>Packets</a>
+    <a href="#/profiles"><span class="nav-icon" aria-hidden="true">▦</span>Profiles</a>
   </nav>
-  <span id="version"></span>
+  <div class="sidebar-foot"><span class="system-dot" aria-hidden="true"></span><span>LOCAL SYSTEM<small id="version">Connecting…</small></span></div>
 </header>
-<main id="main"><p class="muted">loading…</p></main>
+<div class="workspace">
+  <div class="topbar"><span class="topbar-path">NYXR <span>/</span> <strong id="current-page">Overview</strong></span><span class="topbar-local"><span class="system-dot" aria-hidden="true"></span> SELF HOSTED · SQLITE</span></div>
+  <main id="main"><p class="muted">Loading interface…</p></main>
+</div>
 </body>
 </html>
