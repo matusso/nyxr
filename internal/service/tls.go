@@ -87,7 +87,11 @@ func (e *Engine) httpInsideTLS(ctx context.Context, t Target, tc *tls.Conn, o *o
 	ev, matched := e.probeHTTP(ctx, t, tc, "tls", o)
 	o.Evidence = append(o.Evidence, ev)
 	if matched {
-		o.Service, o.Probe = "https", ProbeTLS+"+"+ProbeHTTP
+		if ev.Matched == ProbeDatabase {
+			o.Probe = ProbeTLS + "+" + ProbeDatabase
+		} else {
+			o.Service, o.Probe = "https", ProbeTLS+"+"+ProbeHTTP
+		}
 		o.Reason = "TLS handshake completed; " + o.Reason
 	} else {
 		o.Service, o.Reason = service, reason+"; no HTTP response inside TLS"

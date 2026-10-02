@@ -30,24 +30,45 @@ the discovery consumer, never the packet receive path.
 
 ## How a port is identified
 
-For each open port, nyxr tries these steps in order and stops at the first
-match:
+For each open port, nyxr first listens for a banner. It then keeps a
+probability distribution over protocol families and chooses each active probe
+from the current evidence:
 
 1. **Banner.** Connect and wait for the server to speak first. An
    [RFC 4253](https://www.rfc-editor.org/rfc/rfc4253) identification string is
-   reported as `ssh` with product and version (for example `OpenSSH 9.6p1`). Any
-   other banner is kept as an `unknown` fingerprint.
-2. **Port-hinted probes** for ports that stay silent:
+   reported as `ssh` with product and version (for example `OpenSSH 9.6p1`). An
+   unrecognized banner is retained for the planner and final evidence.
+2. **Port hints** raise the initial probability of familiar protocols and
+   make their probes eligible. They do not assert an identity:
 
-   | Port | Probes |
+   | Port | Candidate probes |
    | --- | --- |
    | TCP/53 | `dns` (CHAOS `version.bind`) |
    | TCP/1080 | `socks` |
-   | TLS ports such as 443, 8443, 993 | `tls`, then `http` |
-   | HTTP ports such as 80, 8080 | `http`, then `tls` |
+   | TLS ports such as 443, 8443, 993 | `tls`, `http` |
+   | HTTP ports such as 80, 8080 | `http`, `tls` |
 
-3. **Fallback probes** on other silent ports, set by `--service-fallback`:
+3. **Fallback probes** on other ports, set by `--service-fallback`:
    `http` for `service`; `tls,http` for `deep`, `web` and `full`; or `none`.
+
+After each active response, Nyxr updates `P(protocol family | evidence)` using
+the probe's match likelihood. It estimates each untried probe's expected
+reduction in Shannon entropy and divides that gain by the probe's relative
+cost. The highest scoring eligible probe runs next. The likelihoods and costs
+are explicit estimates in the planner, so these probabilities are planning
+signals, not empirically calibrated product or version confidence. A validated
+response still supplies the service identity and its separate confidence.
+
+Response shape can add a safe follow-up that was not in the initial candidate
+set. A RESP error to an HTTP request makes a Redis PING eligible, including on
+an unusual port. A TLS listener's “HTTP request to an HTTPS server” error
+causes a TLS handshake instead of a false plain-HTTP match. Each probe runs at
+most once. The target's enabled probes and fallback setting still bound the
+active work.
+
+When an HTTP response itself contains a recognizable database identity (for
+example an Elasticsearch product header), Nyxr extracts it from that exchange
+without sending a second GET, including when HTTP is carried inside TLS.
 
 A service is claimed only from a matched response, never from the port number.
 Unrecognized or absent responses produce `fingerprint: "unknown"` with the raw
@@ -101,6 +122,11 @@ Every exchange is kept with the observation:
 | Timing | Start time and duration |
 | Bytes | Request and response, up to 4 KiB per direction, flagged when truncated |
 | Result | The matcher that recognized the response, or the error |
+
+Service records also include `service_hypotheses` (the final family
+probabilities) and `probe_decisions` (the selected probe, expected information
+gain in bits, cost-adjusted score, and probabilities at selection time). These
+make the adaptive path inspectable in JSON and stored history.
 
 The web UI shows these exchanges under each service observation, and
 `nyxr history --scan <id> --json` returns them from the database. `nyxr history

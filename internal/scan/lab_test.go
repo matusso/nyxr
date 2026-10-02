@@ -52,12 +52,16 @@ func TestSYNResponderFaults(t *testing.T) {
 		name, mode, state string
 		behavior          lab.Behavior
 		targets           int
+		// Cases that need a reply get a generous timeout: the reply crosses
+		// several goroutines and loaded CI runners can exceed a few ms.
+		// Cases that expect a timeout keep it short.
+		timeout time.Duration
 	}{
-		{"open-duplicate", "open", "open", lab.Behavior{Duplicates: 1}, 1},
-		{"closed", "closed", "closed", lab.Behavior{Latency: time.Millisecond}, 1},
-		{"mismatch", "open", "filtered", lab.Behavior{ProtocolMismatch: true}, 1},
-		{"lost", "open", "filtered", lab.Behavior{DropEvery: 1}, 1},
-		{"icmp-limited", "icmp", "filtered", lab.Behavior{ICMPLimit: 1}, 2},
+		{"open-duplicate", "open", "open", lab.Behavior{Duplicates: 1}, 1, 2 * time.Second},
+		{"closed", "closed", "closed", lab.Behavior{Latency: time.Millisecond}, 1, 2 * time.Second},
+		{"mismatch", "open", "filtered", lab.Behavior{ProtocolMismatch: true}, 1, 15 * time.Millisecond},
+		{"lost", "open", "filtered", lab.Behavior{DropEvery: 1}, 1, 15 * time.Millisecond},
+		{"icmp-limited", "icmp", "filtered", lab.Behavior{ICMPLimit: 1}, 2, 500 * time.Millisecond},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fake := lab.NewSYNResponder(tc.mode, tc.behavior)
@@ -65,7 +69,7 @@ func TestSYNResponderFaults(t *testing.T) {
 			for i := range targets {
 				targets[i] = netip.MustParseAddr("198.51.100.20")
 			}
-			cfg := config.Config{Targets: targets, Ports: []uint16{443}, TCP: true, TCPMode: "syn", Timeout: 15 * time.Millisecond, Workers: 1, NextHopMAC: net.HardwareAddr{6, 5, 4, 3, 2, 1}}
+			cfg := config.Config{Targets: targets, Ports: []uint16{443}, TCP: true, TCPMode: "syn", Timeout: tc.timeout, Workers: 1, NextHopMAC: net.HardwareAddr{6, 5, 4, 3, 2, 1}}
 			var got []Observation
 			err := runSYNWithIO(context.Background(), cfg, func(o Observation) error { got = append(got, o); return nil }, fake, net.HardwareAddr{1, 2, 3, 4, 5, 6}, netip.MustParseAddr("192.0.2.10"))
 			if err != nil || len(got) != tc.targets {

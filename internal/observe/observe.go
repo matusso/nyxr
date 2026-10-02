@@ -39,28 +39,32 @@ const (
 // that justify it. The discovery fields keep their original JSON names so
 // existing consumers of nyxr output continue to work.
 type Observation struct {
-	Schema          string            `json:"schema,omitempty"`
-	Kind            string            `json:"kind,omitempty"`
-	ScanID          string            `json:"scan_id,omitempty"`
-	Timestamp       time.Time         `json:"timestamp"`
-	Target          netip.Addr        `json:"target"`
-	Transport       string            `json:"transport"`
-	Port            uint16            `json:"port,omitempty"`
-	State           string            `json:"state"`
-	Confidence      int               `json:"confidence"`
-	Reason          string            `json:"reason"`
-	Probe           string            `json:"probe"`
-	Service         string            `json:"service,omitempty"`
-	Product         string            `json:"product,omitempty"`
-	Version         string            `json:"version,omitempty"`
-	Fingerprint     string            `json:"fingerprint,omitempty"`
-	MAC             string            `json:"mac,omitempty"`
-	RTT             time.Duration     `json:"rtt_ns"`
-	PacketsTX       int               `json:"packets_tx"`
-	PacketsRX       int               `json:"packets_rx"`
-	ProbesAttempted []string          `json:"probes_attempted,omitempty"`
-	ResponseHex     string            `json:"response_hex,omitempty"`
-	Fields          map[string]string `json:"fields,omitempty"`
+	Schema          string        `json:"schema,omitempty"`
+	Kind            string        `json:"kind,omitempty"`
+	ScanID          string        `json:"scan_id,omitempty"`
+	Timestamp       time.Time     `json:"timestamp"`
+	Target          netip.Addr    `json:"target"`
+	Transport       string        `json:"transport"`
+	Port            uint16        `json:"port,omitempty"`
+	State           string        `json:"state"`
+	Confidence      int           `json:"confidence"`
+	Reason          string        `json:"reason"`
+	Probe           string        `json:"probe"`
+	Service         string        `json:"service,omitempty"`
+	Product         string        `json:"product,omitempty"`
+	Version         string        `json:"version,omitempty"`
+	Fingerprint     string        `json:"fingerprint,omitempty"`
+	MAC             string        `json:"mac,omitempty"`
+	RTT             time.Duration `json:"rtt_ns"`
+	PacketsTX       int           `json:"packets_tx"`
+	PacketsRX       int           `json:"packets_rx"`
+	ProbesAttempted []string      `json:"probes_attempted,omitempty"`
+	// ServiceHypotheses is the planner's posterior over protocol families.
+	// It is separate from Confidence, which describes the validated claim.
+	ServiceHypotheses []ServiceHypothesis `json:"service_hypotheses,omitempty"`
+	ProbeDecisions    []ProbeDecision     `json:"probe_decisions,omitempty"`
+	ResponseHex       string              `json:"response_hex,omitempty"`
+	Fields            map[string]string   `json:"fields,omitempty"`
 	// Attributes holds protocol fields such as http.server or ssh.software.
 	Attributes map[string]string `json:"attributes,omitempty"`
 	TLS        *TLS              `json:"tls,omitempty"`
@@ -68,6 +72,22 @@ type Observation struct {
 	// Evidence lists every deep-probe exchange, matched or not.
 	Evidence []Evidence     `json:"evidence,omitempty"`
 	Signals  []DeviceSignal `json:"signals,omitempty"`
+}
+
+// ServiceHypothesis records a posterior probability after the last response.
+type ServiceHypothesis struct {
+	Family      string  `json:"family"`
+	Probability float64 `json:"probability"`
+}
+
+// ProbeDecision explains why the planner selected an active exchange.
+// InformationGain is in bits; Score divides it by relative execution cost.
+type ProbeDecision struct {
+	Probe           string  `json:"probe"`
+	InformationGain float64 `json:"information_gain"`
+	Score           float64 `json:"score"`
+	// Hypotheses is the posterior available when this probe was chosen.
+	Hypotheses []ServiceHypothesis `json:"hypotheses"`
 }
 
 // NSEResult preserves both Nmap's readable output and its structured XML.

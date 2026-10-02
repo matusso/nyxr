@@ -50,10 +50,18 @@ func (e *Engine) probeHTTP(ctx context.Context, t Target, conn net.Conn, layer s
 	// The retained response may be shorter than what is parsed.
 	data, err := readHTTP(rc)
 	e.finish(&ev, rc, err)
+	if plaintextToTLSError(data) {
+		return ev, false
+	}
 	if !parseHTTP(o, data) {
 		return ev, false
 	}
 	ev.Matched = ProbeHTTP
+	// An HTTP response can also carry a stronger database identity. Reuse
+	// these bytes instead of scheduling a duplicate GET for the DB matcher.
+	if e.enabled[ProbeDatabase] && matchHTTPDatabase(data, o) {
+		ev.Matched = ProbeDatabase
+	}
 	if ev.Error == "timeout" {
 		ev.Error = "" // keep-alive servers may ignore Connection: close
 	}
