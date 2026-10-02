@@ -4,6 +4,7 @@
 nyxr scan [flags] target [target...]   run a scan
 nyxr profiles [--json]                 list scan profiles
 nyxr decode [--tui] capture.pcap[ng]   summarize hosts and open ports, or browse packets
+nyxr decode [--tui] --last             decode the last scan's capture (~/.nyxr/last.pcapng)
 nyxr sniff --interface eth0 [flags]    capture and decode live frames
 nyxr history [--db file] [flags]       list or query stored scans, assets and evidence
 nyxr probe import file [--json]        import and summarize an nmap-service-probes file
@@ -102,6 +103,7 @@ Guide: [Research packets](../guide/research-packets.md).
 | `--fingerprint` | Classify devices from independent observations |
 | `--pcapng FILE` | Capture scan traffic on `--interface` as pcapng evidence |
 | `--pcapng-max-mb N` | pcapng size budget (default 1024) |
+| `--no-last-pcapng` | Do not keep this scan's traffic in `~/.nyxr/last.pcapng` (see `decode --last`) |
 | `--db FILE` | SQLite database (default `~/.nyxr/nyxr.db`) |
 | `--no-db` | Do not store the scan |
 
@@ -120,6 +122,7 @@ Summarize a pcap or pcapng capture (Ethernet link type).
 
 | Flag | Meaning |
 | --- | --- |
+| `--last` | Decode `~/.nyxr/last.pcapng`, the traffic of the last scan, instead of a file |
 | `--all` | Also list closed and filtered ports |
 | `--packets` | List every decoded packet |
 | `--json` | One JSON object per decoded packet |

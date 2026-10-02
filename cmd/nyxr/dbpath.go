@@ -54,19 +54,23 @@ func prepareDB(path string) (handoff func(), err error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
+	return func() { giveToInvoker(dir, path, path+"-wal", path+"-shm") }, nil
+}
+
+// giveToInvoker hands files nyxr created under sudo to the invoking user,
+// and dir too when it is nyxr's own ~/.nyxr. Without sudo it does nothing.
+func giveToInvoker(dir string, paths ...string) {
 	uid, okU := sudoID("SUDO_UID")
 	gid, okG := sudoID("SUDO_GID")
 	if !okU || !okG || os.Geteuid() != 0 {
-		return func() {}, nil
+		return
 	}
-	return func() {
-		if filepath.Base(dir) == ".nyxr" {
-			_ = os.Chown(dir, uid, gid)
-		}
-		for _, p := range []string{path, path + "-wal", path + "-shm"} {
-			_ = os.Lchown(p, uid, gid)
-		}
-	}, nil
+	if filepath.Base(dir) == ".nyxr" {
+		_ = os.Chown(dir, uid, gid)
+	}
+	for _, p := range paths {
+		_ = os.Lchown(p, uid, gid)
+	}
 }
 
 // openStore opens the database at path, creating its directory first.

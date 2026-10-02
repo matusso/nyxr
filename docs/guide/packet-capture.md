@@ -5,6 +5,7 @@ capture into hosts and ports, and browse captures packet by packet in the
 terminal.
 
 - [Capture scan evidence](#capture-scan-evidence)
+- [The last scan's capture](#the-last-scans-capture)
 - [Summarize a capture](#summarize-a-capture)
 - [Browse packets in the terminal](#browse-packets-in-the-terminal)
 - [Sniff an interface](#sniff-an-interface)
@@ -35,6 +36,33 @@ Timestamps are taken when user space receives the frame.
 
 Through the API, `pcapng` must be a bare `*.pcapng` file name; the server
 places it in its `--evidence-dir`, and the web UI offers it for download.
+
+## The last scan's capture
+
+Every CLI scan with `--interface` also keeps its traffic in
+`~/.nyxr/last.pcapng`, so you can look at what happened even when you forgot
+`--pcapng`:
+
+```sh
+sudo nyxr scan --interface eth0 192.0.2.10
+nyxr decode --last
+nyxr decode --tui --last
+```
+
+- **Only the newest scan.** Each scan replaces the file. A scan that cannot
+  capture (a connect scan without `--interface`, or one without capture
+  privileges) removes it, so `--last` never shows an older scan by mistake.
+- **No duplicate capture.** With `--pcapng FILE`, `last.pcapng` is a hard link
+  to (or, across file systems, a copy of) that file.
+- **Best effort.** If the capture cannot start, nyxr prints a warning and
+  the scan runs as usual. It keeps no packet evidence records and uses the
+  default 1 GiB size budget.
+- **Readable without sudo.** Under `sudo`, the file is handed to the invoking
+  user, like the database.
+- **Opt out** with `--no-last-pcapng`; the existing file is then left alone.
+
+`nyxr decode --last` takes no file argument. `nyxr decode last` decodes a file
+named `last` in the current directory, as with any other file name.
 
 ## Summarize a capture
 

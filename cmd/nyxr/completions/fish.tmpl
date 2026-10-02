@@ -56,6 +56,7 @@ complete -c nyxr -n '__fish_seen_subcommand_from scan' -l pcapng -r -F -d 'Write
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l pcapng-max-mb -x -d 'Pcapng size budget in MiB'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l db -r -F -d 'SQLite database (default ~/.nyxr/nyxr.db)'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l no-db -d 'Do not store the scan'
+complete -c nyxr -n '__fish_seen_subcommand_from scan' -l no-last-pcapng -d 'Do not keep this scan in ~/.nyxr/last.pcapng'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l json -d 'Newline-delimited JSON output'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l dry-run -d 'Print the plan without sending packets'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l fingerprint -d 'Classify devices from independent observations'
@@ -68,6 +69,7 @@ complete -c nyxr -n '__fish_seen_subcommand_from profiles' -l json -d 'JSON outp
 
 # decode
 complete -c nyxr -n '__fish_seen_subcommand_from decode' -F
+complete -c nyxr -n '__fish_seen_subcommand_from decode' -l last -d 'Decode the last scan capture, ~/.nyxr/last.pcapng'
 complete -c nyxr -n '__fish_seen_subcommand_from decode' -l tui -d 'Browse and inspect packets interactively'
 complete -c nyxr -n '__fish_seen_subcommand_from decode' -l all -d 'Also list closed and filtered ports'
 complete -c nyxr -n '__fish_seen_subcommand_from decode' -l packets -d 'List every decoded packet'
