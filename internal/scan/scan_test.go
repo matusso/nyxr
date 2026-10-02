@@ -90,7 +90,7 @@ func TestUDPBasicAndCommonFallbackSendEmptyDatagram(t *testing.T) {
 	}
 }
 
-func TestUDPDeepFindsSNMPv3OnNonstandardPort(t *testing.T) {
+func TestUDPFullFindsSNMPv3OnNonstandardPort(t *testing.T) {
 	server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
 	if err != nil {
 		t.Skipf("loopback unavailable: %v", err)
@@ -119,7 +119,7 @@ func TestUDPDeepFindsSNMPv3OnNonstandardPort(t *testing.T) {
 		}
 	}()
 	got := probeUDPCampaignWithICMPMode(context.Background(), task{target: netip.MustParseAddr("127.0.0.1"), port: port, transport: "udp"},
-		40*time.Millisecond, all, 0, []byte("secret"), newProbeLimiter(0), nil, config.UDPDeep)
+		40*time.Millisecond, all, 0, []byte("secret"), newProbeLimiter(0), nil, config.UDPFull)
 	if got.State != "open" || got.Service != "snmp" || got.Probe != "snmp-v3-discovery" ||
 		got.Fields["snmp.engine_id_data"] != "54:a2:74:df:db:42" || got.Fields["snmp.engine_boots"] != "2" {
 		t.Fatalf("deep scan should identify SNMPv3 on port %d: %+v", port, got)

@@ -139,12 +139,14 @@ func RunWithIO(parent context.Context, cfg config.Config, emit func(Observation)
 			if cfg.ICMP && !send(task{target: target, transport: "icmp"}) {
 				return
 			}
-			for _, port := range cfg.Ports {
-				if cfg.TCP && cfg.Includes(target, "tcp", port) && !send(task{target: target, port: port, transport: "tcp"}) {
-					return
+			for _, transport := range []string{"tcp", "udp"} {
+				if (transport == "tcp" && !cfg.TCP) || (transport == "udp" && !cfg.UDP) {
+					continue
 				}
-				if cfg.UDP && cfg.Includes(target, "udp", port) && !send(task{target: target, port: port, transport: "udp"}) {
-					return
+				for _, port := range cfg.PortsFor(transport) {
+					if cfg.Includes(target, transport, port) && !send(task{target: target, port: port, transport: transport}) {
+						return
+					}
 				}
 			}
 		}

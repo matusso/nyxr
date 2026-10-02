@@ -131,7 +131,7 @@ func TestNmapServiceProbesEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	rate := 0
-	cfg, err := config.Build(config.Options{Targets: []string{"127.0.0.1"}, Profile: "service",
+	cfg, err := config.Build(config.Options{Targets: []string{"127.0.0.1"}, Profile: "tcp-common",
 		Ports: strconv.Itoa(int(open)), Rate: &rate})
 	if err != nil {
 		t.Fatal(err)
@@ -174,7 +174,7 @@ func serviceConfig(t *testing.T, port uint16, extra ...uint16) (config.Config, c
 		ports = append(ports, strconv.Itoa(int(p)))
 	}
 	rate := 0
-	cfg, err := config.Build(config.Options{Targets: []string{"127.0.0.1"}, Profile: "service", Ports: strings.Join(ports, ","), Rate: &rate})
+	cfg, err := config.Build(config.Options{Targets: []string{"127.0.0.1"}, Profile: "tcp-common", Ports: strings.Join(ports, ","), Rate: &rate})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +289,7 @@ func synFrame(t *testing.T, src, dst netip.Addr, sport, dport uint16, ack bool) 
 func TestCaptureEvidenceLinkedAfterObservations(t *testing.T) {
 	target := netip.MustParseAddr("192.0.2.9")
 	local := netip.MustParseAddr("192.0.2.1")
-	cfg, err := config.Build(config.Options{Targets: []string{target.String()}, Profile: "tcp", Ports: "443"})
+	cfg, err := config.Build(config.Options{Targets: []string{target.String()}, Profile: "tcp-basic", Ports: "443"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -330,7 +330,7 @@ func TestCaptureEvidenceLinkedAfterObservations(t *testing.T) {
 }
 
 func TestCaptureRequiresInterface(t *testing.T) {
-	cfg, _ := config.Build(config.Options{Targets: []string{"192.0.2.9"}, Profile: "tcp"})
+	cfg, _ := config.Build(config.Options{Targets: []string{"192.0.2.9"}, Profile: "tcp-basic"})
 	var out bytes.Buffer
 	summary, err := Run(context.Background(), cfg, Options{Capture: &CaptureOptions{Path: "x.pcapng"}, Sinks: []Sink{NewTextSink(&out)},
 		Discover: func(context.Context, config.Config, func(scan.Observation) error) error {
@@ -350,7 +350,7 @@ type failingSink struct{ JSONSink }
 func (failingSink) Observation(observe.Observation) error { return errors.New("disk full") }
 
 func TestSinkErrorStopsDiscovery(t *testing.T) {
-	cfg, _ := config.Build(config.Options{Targets: []string{"192.0.2.9"}, Profile: "tcp", Ports: "1-100"})
+	cfg, _ := config.Build(config.Options{Targets: []string{"192.0.2.9"}, Profile: "tcp-basic", Ports: "1-100"})
 	var emitted int
 	_, err := Run(context.Background(), cfg, Options{
 		Sinks: []Sink{&failingSink{*NewJSONSink(io.Discard)}},

@@ -11,30 +11,33 @@ import (
 // prints it for --dry-run so an operator can confirm the scope, protocols and
 // pacing before any packet is sent.
 type Plan struct {
-	Profile       string        `json:"profile"`
-	Targets       int           `json:"targets"`
-	SampleTargets []string      `json:"sample_targets,omitempty"`
-	AllowTargets  []string      `json:"allow_targets,omitempty"`
-	Ports         int           `json:"ports"`
-	PortSummary   string        `json:"port_summary,omitempty"`
-	Protocols     []string      `json:"protocols"`
-	Timeout       string        `json:"timeout"`
-	Rate          int           `json:"rate"`
-	HostRate      int           `json:"host_rate,omitempty"`
-	SubnetRate    int           `json:"subnet_rate,omitempty"`
-	InterfaceRate int           `json:"interface_rate,omitempty"`
-	Workers       int           `json:"workers"`
-	UDPRetries    int           `json:"udp_retries,omitempty"`
-	UDPMode       UDPMode       `json:"udp_mode,omitempty"`
-	UDPProbes     []string      `json:"udp_probes,omitempty"`
-	NmapUDPSource string        `json:"nmap_udp_source,omitempty"`
-	NmapUDPSHA    string        `json:"nmap_udp_sha256,omitempty"`
-	TCPMode       string        `json:"tcp_mode"`
-	Interface     string        `json:"interface,omitempty"`
-	SourceIP      string        `json:"source_ip,omitempty"`
-	SourceMAC     string        `json:"source_mac,omitempty"`
-	NextHopMAC    string        `json:"next_hop_mac,omitempty"`
-	Research      *ResearchPlan `json:"research,omitempty"`
+	Profile       string   `json:"profile"`
+	Targets       int      `json:"targets"`
+	SampleTargets []string `json:"sample_targets,omitempty"`
+	AllowTargets  []string `json:"allow_targets,omitempty"`
+	Ports         int      `json:"ports"`
+	PortSummary   string   `json:"port_summary,omitempty"`
+	// UDPPorts and UDPPortSummary are set only when UDP uses its own list.
+	UDPPorts       int           `json:"udp_ports,omitempty"`
+	UDPPortSummary string        `json:"udp_port_summary,omitempty"`
+	Protocols      []string      `json:"protocols"`
+	Timeout        string        `json:"timeout"`
+	Rate           int           `json:"rate"`
+	HostRate       int           `json:"host_rate,omitempty"`
+	SubnetRate     int           `json:"subnet_rate,omitempty"`
+	InterfaceRate  int           `json:"interface_rate,omitempty"`
+	Workers        int           `json:"workers"`
+	UDPRetries     int           `json:"udp_retries,omitempty"`
+	UDPMode        UDPMode       `json:"udp_mode,omitempty"`
+	UDPProbes      []string      `json:"udp_probes,omitempty"`
+	NmapUDPSource  string        `json:"nmap_udp_source,omitempty"`
+	NmapUDPSHA     string        `json:"nmap_udp_sha256,omitempty"`
+	TCPMode        string        `json:"tcp_mode"`
+	Interface      string        `json:"interface,omitempty"`
+	SourceIP       string        `json:"source_ip,omitempty"`
+	SourceMAC      string        `json:"source_mac,omitempty"`
+	NextHopMAC     string        `json:"next_hop_mac,omitempty"`
+	Research       *ResearchPlan `json:"research,omitempty"`
 	// KnownOpen marks a rescan limited to ports stored as open.
 	KnownOpen bool `json:"known_open,omitempty"`
 	// Tasks is the number of scheduled probe tasks (targets x protocols x
@@ -56,14 +59,16 @@ type ResearchPlan struct {
 // Plan builds the summary from a resolved Config.
 func (c Config) Plan() Plan {
 	p := Plan{
-		Profile:     c.Profile,
-		Targets:     c.TargetCount(),
-		Ports:       len(c.Ports),
-		PortSummary: summarizePorts(c.Ports),
-		Protocols:   c.protocolList(),
-		Timeout:     c.Timeout.String(),
-		Rate:        c.Rate,
-		HostRate:    c.HostRate, SubnetRate: c.SubnetRate, InterfaceRate: c.InterfaceRate,
+		Profile:        c.Profile,
+		Targets:        c.TargetCount(),
+		Ports:          len(c.Ports),
+		PortSummary:    summarizePorts(c.Ports),
+		UDPPorts:       len(c.UDPPorts),
+		UDPPortSummary: summarizePorts(c.UDPPorts),
+		Protocols:      c.protocolList(),
+		Timeout:        c.Timeout.String(),
+		Rate:           c.Rate,
+		HostRate:       c.HostRate, SubnetRate: c.SubnetRate, InterfaceRate: c.InterfaceRate,
 		Workers:       c.Workers,
 		UDPRetries:    c.UDPRetries,
 		UDPMode:       c.UDPMode,
@@ -103,7 +108,7 @@ func (c Config) Plan() Plan {
 		perTarget += len(c.Ports)
 	}
 	if c.UDP {
-		perTarget += len(c.Ports)
+		perTarget += len(c.PortsFor("udp"))
 	}
 	if c.ICMP {
 		perTarget++

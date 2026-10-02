@@ -56,7 +56,11 @@ type Profile struct {
 	// Requires explains the prerequisite when Availability is planned.
 	Requires string
 
-	Ports      string
+	Ports string
+	// UDPPorts, when set, replaces Ports for UDP so a mixed profile can scan
+	// every TCP port without sending UDP to all of them. An explicit --ports
+	// applies to both protocols.
+	UDPPorts   string
 	Protocols  string
 	Timeout    string
 	Rate       int
@@ -68,85 +72,55 @@ type Profile struct {
 }
 
 // profiles is the ordered catalog. The order controls how `nyxr profiles`
-// lists them. Every profile named in docs/architecture/design.md §18 appears
-// here so the set is complete and self-documenting; ones whose engine does
-// not exist yet are marked planned rather than omitted.
+// lists them. The tcp-* and udp-* families grow in depth from basic (find
+// open ports) through common (identify what answers on common ports) to full
+// (every port or every payload); full combines both transports. Profiles
+// whose engine does not exist yet are marked planned rather than omitted.
 var profiles = []Profile{
 	{
-		Name: "discovery", Description: "Common TCP ports, unprivileged connect scan",
+		Name: "tcp-basic", Description: "Top 100 TCP ports, connect scan, open ports only (the default)",
 		Availability: StatusAvailable,
-		Ports:        "22,80,443", Protocols: "tcp", Timeout: "1s", Rate: 100, Workers: 64,
+		Ports:        "top100", Protocols: "tcp", Timeout: "1s", Rate: 300, Workers: 128,
 	},
 	{
-		Name: "fast", Description: "Top 100 TCP ports at higher concurrency (connect scan)",
+		Name: "tcp-common", Description: "Top 1000 TCP ports, then banner/SSH/TLS/HTTP/DNS/SOCKS identification",
 		Availability: StatusAvailable,
-		Ports:        "top100", Protocols: "tcp", Timeout: "700ms", Rate: 1000, Workers: 256,
+		Ports:        "top1000", Protocols: "tcp", Timeout: "1s", Rate: 500, Workers: 256,
+		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks", Fallback: "tls,http", Timeout: "5s", Workers: 32, Rate: 50},
 	},
 	{
-		Name: "tcp", Description: "TCP connect scan of common ports",
-		Availability: StatusAvailable,
-		Ports:        "22,80,443", Protocols: "tcp", Timeout: "1s", Rate: 100, Workers: 64,
-	},
-	{
-		Name: "udp-basic", Description: "Empty UDP datagram with response and ICMP classification",
-		Availability: StatusAvailable,
-		Ports:        "53,123", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
-	},
-	{
-		Name: "udp-common", Description: "UDP payloads associated with each selected port",
-		Availability: StatusAvailable,
-		Ports:        "53,67,69,88,111,123,137,161,389,427,500,523,623,1604,1701,1812,1813,1900,2049,3478,5060,5353,5355,5683,9987,11211,23000,27015,27900,27960,28900,47808", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
-	},
-	{
-		Name: "udp", Description: "Compatibility profile using udp-common selection",
-		Availability: StatusAvailable,
-		Ports:        "53,123", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
-	},
-	{
-		Name: "udp-deep", Description: "Try every available UDP payload on each selected port",
-		Availability: StatusAvailable,
-		Ports:        "53,67,69,88,111,123,137,161,389,427,500,523,623,1604,1701,1812,1813,1900,2049,3478,5060,5353,5355,5683,9987,11211,23000,27015,27900,27960,28900,47808", Protocols: "udp", Timeout: "2s", Rate: 25, Workers: 16, UDPRetries: 1,
-	},
-	{
-		Name: "ot-safe", Description: "Allowlisted, low-rate Modbus and EtherNet/IP identity reads",
-		Availability: StatusAvailable,
-		Ports:        "80,443,502,44818", Protocols: "tcp", Timeout: "3s", Rate: 5, Workers: 4,
-		Enforce: Enforcement{TCPOnly: true, ReadOnly: true, MaxRate: 5, MaxWorkers: 4, MinTimeout: 3 * time.Second},
-		Service: &ServiceDefaults{Probes: "modbus,ethernetip", Fallback: "none", Timeout: "3s", Workers: 4, Rate: 5},
-	},
-	{
-		Name: "custom", Description: "Minimal profile; supply protocols, ports and timeout explicitly",
-		Availability: StatusAvailable,
-		// Ports/Protocols/Timeout are intentionally empty so the caller must
-		// choose them; rate and workers keep usable defaults.
-		Rate: 100, Workers: 64,
-	},
-
-	{
-		Name: "service", Description: "Top 100 TCP ports, then banner/SSH/TLS/HTTP/DNS/SOCKS identification",
-		Availability: StatusAvailable,
-		Ports:        "top100", Protocols: "tcp", Timeout: "1s", Rate: 100, Workers: 64,
-		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks", Fallback: "http", Timeout: "5s", Workers: 16, Rate: 50},
-	},
-	{
-		Name: "deep", Description: "Discovery plus TLS/HTTP/SSH/DNS interrogation, trying TLS and HTTP on every open port",
-		Availability: StatusAvailable,
-		Ports:        "top100", Protocols: "tcp", Timeout: "1s", Rate: 100, Workers: 64,
-		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks", Fallback: "tls,http", Timeout: "8s", Workers: 32, Rate: 50},
-	},
-	{
-		Name: "web", Description: "HTTP/HTTPS/TLS focused service detection",
-		Availability: StatusAvailable,
-		Ports:        "80,443,3000,5000,8000,8008,8080,8081,8443,8888,9000,9443", Protocols: "tcp", Timeout: "1s", Rate: 100, Workers: 64,
-		Service: &ServiceDefaults{Probes: "tls,http", Fallback: "tls,http", Timeout: "5s", Workers: 16, Rate: 50},
-	},
-	{
-		Name: "full", Description: "All TCP ports plus full deep service detection",
+		Name: "tcp-full", Description: "All 65535 TCP ports, then full service identification",
 		Availability: StatusAvailable,
 		Ports:        "all", Protocols: "tcp", Timeout: "1s", Rate: 1000, Workers: 256,
 		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks", Fallback: "tls,http", Timeout: "8s", Workers: 32, Rate: 50},
 	},
-
+	{
+		Name: "udp-basic", Description: "Empty UDP datagram per port with response and ICMP classification",
+		Availability: StatusAvailable,
+		Ports:        "udp", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
+	},
+	{
+		Name: "udp-common", Description: "UDP payloads associated with each selected port",
+		Availability: StatusAvailable,
+		Ports:        "udp", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
+	},
+	{
+		Name: "udp-full", Description: "Every available UDP payload on each selected port, one retry",
+		Availability: StatusAvailable,
+		Ports:        "udp", Protocols: "udp", Timeout: "2s", Rate: 25, Workers: 16, UDPRetries: 1,
+	},
+	{
+		Name: "full", Description: "tcp-full plus udp-common: all TCP ports with service identification and common UDP ports",
+		Availability: StatusAvailable,
+		Ports:        "all", UDPPorts: "udp", Protocols: "tcp,udp", Timeout: "1500ms", Rate: 1000, Workers: 256,
+		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks", Fallback: "tls,http", Timeout: "8s", Workers: 32, Rate: 50},
+	},
+	{
+		Name: "web", Description: "Common HTTP/HTTPS ports, trying TLS and HTTP on each open one",
+		Availability: StatusAvailable,
+		Ports:        "web", Protocols: "tcp", Timeout: "1s", Rate: 200, Workers: 64,
+		Service: &ServiceDefaults{Probes: "tls,http", Fallback: "tls,http", Timeout: "5s", Workers: 16, Rate: 50},
+	},
 	{Name: "database", Description: "SQL, NoSQL, graph, search and cache service identification",
 		Availability: StatusAvailable,
 		Ports:        "database", Protocols: "tcp", Timeout: "1s", Rate: 100, Workers: 64,
@@ -154,8 +128,35 @@ var profiles = []Profile{
 	{Name: "iot", Description: "Device fingerprinting from safe service and discovery signals",
 		Availability: StatusAvailable, Ports: "22,80,443,502,8080,8443,44818", Protocols: "tcp", Timeout: "2s", Rate: 20, Workers: 16,
 		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,modbus,ethernetip", Fallback: "none", Timeout: "4s", Workers: 8, Rate: 20}},
+	{
+		Name: "ot-safe", Description: "Allowlisted, low-rate Modbus and EtherNet/IP identity reads",
+		Availability: StatusAvailable,
+		Ports:        "80,443,502,44818", Protocols: "tcp", Timeout: "3s", Rate: 5, Workers: 4,
+		Enforce: Enforcement{TCPOnly: true, ReadOnly: true, MaxRate: 5, MaxWorkers: 4, MinTimeout: 3 * time.Second},
+		Service: &ServiceDefaults{Probes: "modbus,ethernetip", Fallback: "none", Timeout: "3s", Workers: 4, Rate: 5},
+	},
 	{Name: "research", Description: "Allowlisted, low-rate raw packet experiments",
 		Availability: StatusAvailable, Ports: "80", Protocols: "tcp", Timeout: "1s", Rate: 5, Workers: 1},
+	{
+		Name: "custom", Description: "Minimal profile; supply protocols, ports and timeout explicitly",
+		Availability: StatusAvailable,
+		// Ports/Protocols/Timeout are intentionally empty so the caller must
+		// choose them; rate and workers keep usable defaults.
+		Rate: 100, Workers: 64,
+	},
+}
+
+// renamedProfiles maps names from the earlier catalog to their replacement so
+// an old script or configuration file fails with a pointer, not a bare
+// "unknown profile".
+var renamedProfiles = map[string]string{
+	"discovery": "tcp-basic",
+	"fast":      "tcp-basic",
+	"tcp":       "tcp-basic",
+	"service":   "tcp-common",
+	"deep":      "tcp-common",
+	"udp":       "udp-common",
+	"udp-deep":  "udp-full",
 }
 
 // Profiles returns the catalog in display order. The slice is a copy so callers
@@ -177,4 +178,4 @@ func LookupProfile(name string) (Profile, bool) {
 }
 
 // DefaultProfile is used when no profile is selected.
-const DefaultProfile = "discovery"
+const DefaultProfile = "tcp-basic"

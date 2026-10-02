@@ -24,8 +24,7 @@ func TestProfilesCatalog(t *testing.T) {
 			t.Fatalf("profile %q has invalid availability %q", p.Name, p.Availability)
 		}
 	}
-	// Every profile named in the product brief must be registered.
-	for _, want := range []string{"discovery", "fast", "tcp", "udp", "udp-basic", "udp-common", "udp-deep", "service", "deep", "iot", "ot-safe", "web", "database", "full", "research", "custom"} {
+	for _, want := range []string{"tcp-basic", "tcp-common", "tcp-full", "udp-basic", "udp-common", "udp-full", "full", "web", "database", "iot", "ot-safe", "research", "custom"} {
 		if !names[want] {
 			t.Fatalf("profile %q is not registered", want)
 		}
@@ -33,13 +32,18 @@ func TestProfilesCatalog(t *testing.T) {
 	if available < 5 {
 		t.Fatalf("expected several available profiles, got %d", available)
 	}
+	for old, replacement := range renamedProfiles {
+		if names[old] || !names[replacement] {
+			t.Fatalf("renamed profile %q -> %q is inconsistent with the catalog", old, replacement)
+		}
+	}
 	if _, ok := LookupProfile("does-not-exist"); ok {
 		t.Fatal("LookupProfile should not find a missing profile")
 	}
 }
 
 func TestPlan(t *testing.T) {
-	cfg, err := Build(Options{Targets: []string{"192.0.2.0/30"}, Profile: "tcp", Ports: "80,443"})
+	cfg, err := Build(Options{Targets: []string{"192.0.2.0/30"}, Profile: "tcp-basic", Ports: "80,443"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -67,7 +67,7 @@ func synFrame(t *testing.T, src, dst netip.Addr, sport, dport uint16, ack bool) 
 
 func rawResolved(t *testing.T, target netip.Addr) config.Resolved {
 	t.Helper()
-	cfg, err := config.Build(config.Options{Targets: []string{target.String()}, Profile: "tcp", Ports: "443"})
+	cfg, err := config.Build(config.Options{Targets: []string{target.String()}, Profile: "tcp-basic", Ports: "443"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestScanReplacesLastPCAPNGUnlessDisabled(t *testing.T) {
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
 	ln.Close()
-	scanArgs := []string{"scan", "--profile", "tcp", "--ports", fmt.Sprint(port), "--no-db", "--json", "127.0.0.1"}
+	scanArgs := []string{"scan", "--profile", "tcp-basic", "--ports", fmt.Sprint(port), "--no-db", "--json", "127.0.0.1"}
 
 	path := writeStaleLast(t)
 	var out bytes.Buffer

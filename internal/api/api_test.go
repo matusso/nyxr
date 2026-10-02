@@ -127,7 +127,7 @@ func TestSecurityGuards(t *testing.T) {
 func TestStatsReflectStoredInventory(t *testing.T) {
 	e := newEnv(t, ManagerConfig{}, testToken)
 	now := time.Now().UTC()
-	sc := observe.Scan{ID: "stats-scan", Profile: "tcp", Started: now, Status: "completed", Targets: 1}
+	sc := observe.Scan{ID: "stats-scan", Profile: "tcp-basic", Started: now, Status: "completed", Targets: 1}
 	if err := e.store.BeginScan(context.Background(), sc); err != nil {
 		t.Fatal(err)
 	}
@@ -366,7 +366,7 @@ func readSSE(t *testing.T, r io.Reader) []sseEvent {
 func TestOpenAssetsScopeAndKnownOpenPlan(t *testing.T) {
 	e := newEnv(t, ManagerConfig{}, testToken)
 	now := time.Now().UTC()
-	sc := observe.Scan{ID: "seed", Profile: "fast", Started: now, Status: "running", Targets: 2}
+	sc := observe.Scan{ID: "seed", Profile: "tcp-basic", Started: now, Status: "running", Targets: 2}
 	if err := e.store.BeginScan(context.Background(), sc); err != nil {
 		t.Fatal(err)
 	}

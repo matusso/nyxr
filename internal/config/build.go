@@ -142,6 +142,9 @@ func Build(o Options) (Config, error) {
 	}
 	profile, ok := LookupProfile(name)
 	if !ok {
+		if renamed, ok := renamedProfiles[name]; ok {
+			return Config{}, fmt.Errorf("profile %q was removed; use %q (run: nyxr profiles)", name, renamed)
+		}
 		return Config{}, fmt.Errorf("unknown profile %q (run: nyxr profiles)", name)
 	}
 	if profile.Availability == StatusPlanned {
@@ -175,6 +178,15 @@ func Build(o Options) (Config, error) {
 			return Config{}, err
 		}
 	}
+	var udpPorts []uint16
+	if udp && o.Ports == "" && profile.UDPPorts != "" {
+		if udpPorts, err = ResolvePorts(profile.UDPPorts); err != nil {
+			return Config{}, err
+		}
+		if !tcp {
+			ports, udpPorts = udpPorts, nil
+		}
+	}
 
 	timeoutInput := first(o.Timeout, defaultUnless(custom, profile.Timeout))
 	if timeoutInput == "" {
@@ -192,8 +204,8 @@ func Build(o Options) (Config, error) {
 	switch name {
 	case "udp-basic":
 		udpMode = UDPBasic
-	case "udp-deep":
-		udpMode = UDPDeep
+	case "udp-full":
+		udpMode = UDPFull
 	}
 	if !udp {
 		udpMode = ""
@@ -220,7 +232,7 @@ func Build(o Options) (Config, error) {
 		if err != nil {
 			return Config{}, err
 		}
-		imported, err := probe.FromNmapUDP(db, ports)
+		imported, err := probe.FromNmapUDP(db, Config{Ports: ports, UDPPorts: udpPorts}.PortsFor("udp"))
 		if err != nil {
 			return Config{}, err
 		}
@@ -276,7 +288,7 @@ func Build(o Options) (Config, error) {
 	}
 
 	cfg := Config{
-		Targets: targets, TargetStream: targetStream, AllowTargets: allowTargets, Ports: ports, TCP: tcp, UDP: udp, ICMP: icmp, ARP: arp, NDP: ndp,
+		Targets: targets, TargetStream: targetStream, AllowTargets: allowTargets, Ports: ports, UDPPorts: udpPorts, TCP: tcp, UDP: udp, ICMP: icmp, ARP: arp, NDP: ndp,
 		Timeout: timeout, Rate: rate, HostRate: valueOr(o.HostRate, 0), SubnetRate: valueOr(o.SubnetRate, 0),
 		InterfaceRate: valueOr(o.InterfaceRate, 0), Workers: workers, Profile: name,
 		UDPProbes: udpProbes, UDPMode: udpMode, UDPRetries: retries, NmapUDPSource: o.NmapUDPProbes, NmapUDPSHA: nmapUDPSHA,

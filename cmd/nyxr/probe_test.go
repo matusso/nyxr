@@ -90,7 +90,7 @@ func TestProbeImportErrors(t *testing.T) {
 func TestScanDryRunShowsNmapProbes(t *testing.T) {
 	path := writeProbes(t)
 	var out bytes.Buffer
-	err := run([]string{"scan", "--profile", "service", "--service", "--nmap-service-probes", path,
+	err := run([]string{"scan", "--profile", "tcp-common", "--service", "--nmap-service-probes", path,
 		"--ports", "21,80", "--dry-run", "192.0.2.10"}, &out)
 	if err != nil {
 		t.Fatal(err)

@@ -66,18 +66,19 @@ More in [Getting started](docs/getting-started.md).
 ## Usage
 
 ```sh
-nyxr scan 192.0.2.10                           # common TCP ports, unprivileged
-nyxr scan --profile service 192.0.2.0/24       # identify the services behind open ports
-nyxr scan --profile udp-common 192.0.2.10      # UDP with protocol payloads
-nyxr scan --profile web --json 192.0.2.10      # TLS and HTTP details as JSON
-nyxr scan --dry-run --profile deep 10.0.0.0/24 # show the plan, send nothing
+nyxr scan 192.0.2.10                                # top 100 TCP ports, unprivileged
+nyxr scan --profile tcp-common 192.0.2.0/24         # identify the services behind open ports
+nyxr scan --profile udp-common 192.0.2.10           # UDP with protocol payloads
+nyxr scan --profile web --json 192.0.2.10           # TLS and HTTP details as JSON
+nyxr scan --profile full 192.0.2.10                 # every TCP port plus common UDP
+nyxr scan --dry-run --profile tcp-full 10.0.0.0/24  # show the plan, send nothing
 
-nyxr history --assets --open                   # what is open right now, per host
-nyxr serve                                     # web UI at http://127.0.0.1:8484
+nyxr history --assets --open                        # what is open right now, per host
+nyxr serve                                          # web UI at http://127.0.0.1:8484
 ```
 
 ```text
-$ nyxr scan --profile service 192.0.2.10
+$ nyxr scan --profile tcp-common 192.0.2.10
 192.0.2.10:22    tcp   open           100% TCP connection established
 192.0.2.10:80    tcp   open           100% TCP connection established
 192.0.2.10:443   tcp   open           100% TCP connection established
@@ -88,7 +89,7 @@ scan 20261001T195109Z-c3b4a07e3884 completed: 6 observations, 3 services identif
 ```
 
 Targets can be IPs, hostnames, CIDRs or ranges. Ports accept lists, ranges and
-sets such as `top100`, `top1000`, `database` or `all`. Run `nyxr profiles` for
+sets such as `top100`, `top1000`, `web`, `udp`, `database` or `all`. Run `nyxr profiles` for
 the full profile catalog.
 
 ## Use cases
@@ -99,7 +100,7 @@ Sweep quickly, then spend time only on ports that answered. Results accumulate
 in `~/.nyxr/nyxr.db`.
 
 ```sh
-nyxr scan --profile fast --ports top1000 192.0.2.0/24
+nyxr scan --profile tcp-basic --ports top1000 192.0.2.0/24
 nyxr scan --known-open 192.0.2.0/24
 nyxr history --assets --open --scope 192.0.2.0/24
 ```
@@ -133,7 +134,7 @@ anything is sent.
 ```sh
 nyxr scan --profile ot-safe --allow-targets 192.0.2.0/24 --dry-run 192.0.2.10
 nyxr scan --profile ot-safe --allow-targets 192.0.2.0/24 192.0.2.10
-nyxr scan --profile udp --ports 47808 --fingerprint 192.0.2.10   # BACnet
+nyxr scan --profile udp-common --ports 47808 --fingerprint 192.0.2.10   # BACnet
 ```
 
 ### Explain a packet capture

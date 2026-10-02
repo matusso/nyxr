@@ -67,8 +67,8 @@ cross-builds, packaging and container builds.
 
 ## First scan
 
-Scan a host you are authorized to test. The default `discovery` profile is an
-unprivileged TCP connect scan of common ports:
+Scan a host you are authorized to test. The default `tcp-basic` profile is an
+unprivileged TCP connect scan of the top 100 ports:
 
 ```sh
 nyxr scan 192.0.2.10
@@ -77,13 +77,13 @@ nyxr scan 192.0.2.10
 Preview what a scan would do without sending a packet:
 
 ```sh
-nyxr scan --profile service --dry-run 192.0.2.0/28
+nyxr scan --profile tcp-common --dry-run 192.0.2.0/28
 ```
 
 Identify the services behind open ports:
 
 ```sh
-nyxr scan --profile service 192.0.2.10
+nyxr scan --profile tcp-common 192.0.2.10
 ```
 
 ```text

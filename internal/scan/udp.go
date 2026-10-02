@@ -76,11 +76,11 @@ func matchRecent(recent []sentProbe, response []byte) (sentProbe, bool) {
 }
 
 func probeUDPCampaign(ctx context.Context, t task, timeout time.Duration, all []probe.Probe, extraRetries int, secret []byte, limiter *probeLimiter) Observation {
-	return probeUDPCampaignWithICMPMode(ctx, t, timeout, all, extraRetries, secret, limiter, nil, config.UDPDeep)
+	return probeUDPCampaignWithICMPMode(ctx, t, timeout, all, extraRetries, secret, limiter, nil, config.UDPFull)
 }
 
 func probeUDPCampaignWithICMP(ctx context.Context, t task, timeout time.Duration, all []probe.Probe, extraRetries int, secret []byte, limiter *probeLimiter, observer *udpICMPObserver) Observation {
-	return probeUDPCampaignWithICMPMode(ctx, t, timeout, all, extraRetries, secret, limiter, observer, config.UDPDeep)
+	return probeUDPCampaignWithICMPMode(ctx, t, timeout, all, extraRetries, secret, limiter, observer, config.UDPFull)
 }
 
 func probeUDPCampaignWithICMPMode(ctx context.Context, t task, timeout time.Duration, all []probe.Probe, extraRetries int, secret []byte, limiter *probeLimiter, observer *udpICMPObserver, mode config.UDPMode) Observation {
@@ -88,7 +88,7 @@ func probeUDPCampaignWithICMPMode(ctx context.Context, t task, timeout time.Dura
 	switch mode {
 	case config.UDPBasic:
 		selected = []probe.Probe{{Name: "udp-empty", Matcher: "any"}}
-	case config.UDPDeep:
+	case config.UDPFull:
 		selected = probe.ForEveryPort(all, t.port)
 	default:
 		selected = probe.ForPort(all, t.port)

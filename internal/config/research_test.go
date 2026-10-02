@@ -38,7 +38,7 @@ func TestResearchPolicy(t *testing.T) {
 			t.Fatalf("accepted unsafe research options: %+v", copy)
 		}
 	}
-	o.Profile = "tcp"
+	o.Profile = "tcp-basic"
 	if _, err := Build(o); err == nil || !strings.Contains(err.Error(), "research") {
 		t.Fatalf("ordinary profile accepted research controls: %v", err)
 	}

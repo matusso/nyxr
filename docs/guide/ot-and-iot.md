@@ -57,10 +57,10 @@ BACnet is a UDP protocol, so it runs through the UDP profiles rather than
 `ot-safe`, which is TCP-only:
 
 ```sh
-nyxr scan --profile udp --ports 47808 --fingerprint --json 192.0.2.10
+nyxr scan --profile udp-common --ports 47808 --fingerprint --json 192.0.2.10
 ```
 
-`udp-common` sends a BACnet Who-Is on UDP/47808; `udp-deep` tries it on every
+`udp-common` sends a BACnet Who-Is on UDP/47808; `udp-full` tries it on every
 requested UDP port. The sequence is:
 
 1. **Who-Is.** Unicast or broadcast I-Am replies are parsed for the device and

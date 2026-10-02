@@ -13,7 +13,7 @@ terminal.
 ## Capture scan evidence
 
 ```sh
-sudo nyxr scan --profile deep --interface eth0 --pcapng scan.pcapng 192.0.2.10
+sudo nyxr scan --profile tcp-common --interface eth0 --pcapng scan.pcapng 192.0.2.10
 ```
 
 `--pcapng FILE` (with `--interface`) opens a separate capture handle and records

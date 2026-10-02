@@ -1046,18 +1046,17 @@ emit_finding()
 Provide opinionated profiles:
 
 ```text
-discovery
-fast
-tcp
-udp
-udp-deep
-service
-deep
-iot
-ot-safe
+tcp-basic
+tcp-common
+tcp-full
+udp-basic
+udp-common
+udp-full
+full
 web
 database
-full
+iot
+ot-safe
 research
 custom
 ```
@@ -1065,18 +1064,18 @@ custom
 Examples:
 
 ```bash
-nyxr scan 10.10.0.0/16 --profile fast
+nyxr scan 10.10.0.0/16 --profile tcp-basic
 ```
 
 ```bash
 nyxr scan 10.10.0.0/16 \
-  --profile udp-deep \
+  --profile udp-full \
   --ports 53,123,161,500,623,1900,47808
 ```
 
 ```bash
 nyxr scan host.example.com \
-  --profile deep
+  --profile tcp-common
 ```
 
 ---
