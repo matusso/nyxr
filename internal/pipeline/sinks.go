@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -98,43 +97,38 @@ func (s *TextSink) Observation(o observe.Observation) error {
 	if title := o.Attributes["http.title"]; title != "" {
 		details = append(details, fmt.Sprintf("title %q", title))
 	}
-	var binaryBanner []byte
-	for _, ev := range o.Evidence {
-		if ev.Probe == "banner" && ev.Layer == "tcp" && len(ev.Response) > 0 {
-			if readableBanner(ev.Response) {
-				if o.Fingerprint == observe.FingerprintUnknown {
-					limit := min(len(ev.Response), 256)
-					for limit < len(ev.Response) && limit > 0 && !utf8.RuneStart(ev.Response[limit]) {
-						limit--
-					}
-					preview := ev.Response[:limit]
-					label := "banner " + strconv.Quote(string(preview))
-					if len(ev.Response) > len(preview) || ev.Truncated {
-						label += "…"
-					}
-					details = append(details, label)
-				}
-			} else {
-				binaryBanner = ev.Response
-				label := fmt.Sprintf("binary banner (%d bytes)", len(ev.Response))
-				if ev.Truncated {
-					label += " (truncated)"
-				}
-				details = append(details, label)
-			}
-			break
+	unknown := o.Service == "" && o.Fingerprint == observe.FingerprintUnknown
+	if unknown {
+		if preview := firstReceivedPreview(o.Evidence); preview != "" {
+			details = append(details, preview)
+		} else {
+			details = append(details, o.Reason)
 		}
+	} else {
+		details = append(details, o.Reason)
 	}
-	details = append(details, o.Reason)
 	head := s.style.ServiceHead(o.Target.String(), o.Port, o.Transport, name, o.Confidence)
-	if _, err := fmt.Fprintf(s.w, "%s %s\n", head, s.style.JoinDetails(details)); err != nil {
-		return err
+	_, err := fmt.Fprintf(s.w, "%s %s\n", head, s.style.JoinDetails(details))
+	return err
+}
+
+// Show only the first received exchange, keeping terminal output to one line.
+// Full requests and responses remain in the observation evidence.
+func firstReceivedPreview(evidence []observe.Evidence) string {
+	for _, ev := range evidence {
+		if len(ev.Response) == 0 {
+			continue
+		}
+		label := ev.Probe + " response"
+		if ev.Probe == "banner" {
+			label = "banner"
+			if !readableBanner(ev.Response) {
+				label = "binary banner"
+			}
+		}
+		return fmt.Sprintf("%s [%d bytes] (%s)", label, len(ev.Response), hexPreview(ev.Response))
 	}
-	if len(binaryBanner) > 0 {
-		_, err := io.WriteString(s.w, hexBanner(binaryBanner))
-		return err
-	}
-	return nil
+	return ""
 }
 
 func readableBanner(data []byte) bool {
@@ -149,24 +143,17 @@ func readableBanner(data []byte) bool {
 	return true
 }
 
-// hexBanner follows the familiar offset: grouped-hex ASCII-gutter layout.
-func hexBanner(data []byte) string {
+// hexPreview renders at most 16 received bytes as space-separated hex.
+func hexPreview(data []byte) string {
 	var out strings.Builder
-	for offset := 0; offset < len(data); offset += 16 {
-		row := data[offset:min(offset+16, len(data))]
-		var groups, ascii strings.Builder
-		for i, b := range row {
-			if i > 0 && i%2 == 0 {
-				groups.WriteByte(' ')
-			}
-			fmt.Fprintf(&groups, "%02x", b)
-			if b >= 0x20 && b < 0x7f {
-				ascii.WriteByte(b)
-			} else {
-				ascii.WriteByte('.')
-			}
+	for i, b := range data[:min(len(data), 16)] {
+		if i > 0 {
+			out.WriteByte(' ')
 		}
-		fmt.Fprintf(&out, "  %08x: %-39s  %s\n", offset, groups.String(), ascii.String())
+		fmt.Fprintf(&out, "%02x", b)
+	}
+	if len(data) > 16 {
+		out.WriteString(" …")
 	}
 	return out.String()
 }
