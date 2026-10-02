@@ -22,7 +22,7 @@ func TestTextSinkShowsOnlyFirstReceivedBanner(t *testing.T) {
 	if err := NewTextSink(&out).Observation(o); err != nil {
 		t.Fatal(err)
 	}
-	want := "binary banner [14 bytes] (01 94 3e 68 83 72 94 df ee d6 e7 1b 8e 7a)"
+	want := "binary banner (14 bytes) [01 94 3e 68 83 72 94 df ee d6 e7 1b 8e 7a]"
 	if !strings.Contains(out.String(), want) || strings.Count(out.String(), "\n") != 1 ||
 		strings.Contains(out.String(), "http") || strings.Contains(out.String(), "sent") ||
 		strings.Contains(out.String(), "unrecognized banner retained") {
@@ -40,7 +40,7 @@ func TestTextSinkLimitsPreviewAndHidesDetectedBanner(t *testing.T) {
 	if err := NewTextSink(&out).Observation(o); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "binary banner [24 bytes] (53 53 48 2d 32 2e 30 2d 6d 6f 64 5f 73 66 74 70 …)") ||
+	if !strings.Contains(out.String(), "binary banner (24 bytes) [53 53 48 2d 32 2e 30 2d 6d 6f 64 5f 73 66 74 70 …]") ||
 		strings.Count(out.String(), "\n") != 1 || strings.Contains(out.String(), "00 00 02 b4") {
 		t.Fatalf("preview should stop after the first 16 received bytes:\n%s", out.String())
 	}
@@ -63,7 +63,7 @@ func TestTextSinkUsesReceivedProbeWhenNoBanner(t *testing.T) {
 	if err := NewTextSink(&out).Observation(o); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "http response [2 bytes] (00 ff)") ||
+	if !strings.Contains(out.String(), "http response (2 bytes) [00 ff]") ||
 		strings.Contains(out.String(), "47 45 54") || strings.Count(out.String(), "\n") != 1 {
 		t.Fatalf("only received bytes should appear inline:\n%s", out.String())
 	}
