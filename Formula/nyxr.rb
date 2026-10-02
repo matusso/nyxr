@@ -2,28 +2,28 @@
 class Nyxr < Formula
   desc "Network scanner with service identification and packet capture"
   homepage "https://github.com/matusso/nyxr"
-  version "0.6.0"
+  version "0.7.0"
   license "MIT"
 
   on_macos do
     on_arm do
-      url "https://github.com/matusso/nyxr/releases/download/v0.6.0/nyxr-v0.6.0-darwin-arm64.tar.gz"
-      sha256 "36f5bcc7fabad147e22e62dc265922be2ccfbcfbe579ee051a2b60438ab1e260"
+      url "https://github.com/matusso/nyxr/releases/download/v0.7.0/nyxr-v0.7.0-darwin-arm64.tar.gz"
+      sha256 "cea04604686d3070770255ae0532f049e87d6b7c9f29560ff7780bed5067019f"
     end
     on_intel do
-      url "https://github.com/matusso/nyxr/releases/download/v0.6.0/nyxr-v0.6.0-darwin-amd64.tar.gz"
-      sha256 "6791496b121d9fb311d8780632ac29e183d2ab4ee76cc68974079bcc0c6bff7c"
+      url "https://github.com/matusso/nyxr/releases/download/v0.7.0/nyxr-v0.7.0-darwin-amd64.tar.gz"
+      sha256 "de6e3787e8627d570bc620548f384486166f5db05fc062f3b791744d625a8b98"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/matusso/nyxr/releases/download/v0.6.0/nyxr-v0.6.0-linux-arm64.tar.gz"
-      sha256 "7917f5efa4f1ca148554dfd1c9332afecb7fd0d4b7bdec7aaff9f8df9b2f3562"
+      url "https://github.com/matusso/nyxr/releases/download/v0.7.0/nyxr-v0.7.0-linux-arm64.tar.gz"
+      sha256 "d37687f67fdb28c47fa52df18298fb7ffbb587e81f9a60e0c7869df5f6f83e07"
     end
     on_intel do
-      url "https://github.com/matusso/nyxr/releases/download/v0.6.0/nyxr-v0.6.0-linux-amd64.tar.gz"
-      sha256 "f614fec09c5b3fd5d2c66bcb5851d0e947b791c4ae98753940aa6b35a6ae17a5"
+      url "https://github.com/matusso/nyxr/releases/download/v0.7.0/nyxr-v0.7.0-linux-amd64.tar.gz"
+      sha256 "2fc1ee04a6ae0d4bcb3ccda2fb6c850a62bfdc94e3ca487d77550bad11afdc34"
     end
   end
 
