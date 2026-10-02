@@ -63,6 +63,11 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 				planner.confirmPassive(ProbeSSH)
 				return o
 			}
+			if e.enabled[ProbeBanner] && matchMailBanner(&o, banner) {
+				o.Evidence[len(o.Evidence)-1].Matched = ProbeBanner
+				planner.confirmNamed(o.Service, float64(o.Confidence)/100)
+				return o
+			}
 			if e.nmapBanner(&o, banner) {
 				o.Evidence[len(o.Evidence)-1].Matched = ProbeNmap
 				planner.confirmNamed(o.Service, float64(o.Confidence)/100)
