@@ -22,6 +22,12 @@ func TestMailGreetingsIdentified(t *testing.T) {
 			service: "pop3", product: "Dovecot",
 		},
 		{
+			name:    "IMAP",
+			banner:  "* OK [CAPABILITY IMAP4rev1 SASL-IR LOGIN-REFERRALS ID ENABLE IDLE LITERAL+ STARTTLS AUTH=PLAIN AUTH=LOGIN] Dovecot ready on mail.zeroone.sk\r\n",
+			service: "imap", product: "Dovecot",
+			attribute: "imap.capabilities", value: "IMAP4rev1 SASL-IR LOGIN-REFERRALS ID ENABLE IDLE LITERAL+ STARTTLS AUTH=PLAIN AUTH=LOGIN",
+		},
+		{
 			name: "ManageSieve",
 			banner: "\"IMPLEMENTATION\" \"Dovecot Pigeonhole\"\r\n" +
 				"\"SIEVE\" \"fileinto reject envelope\"\r\n" +
@@ -57,6 +63,7 @@ func TestMailMatcherRejectsAmbiguousGreetings(t *testing.T) {
 		"220 ProFTPD FTP server ready\r\n",
 		"220 mail.example.test ready\r\n",
 		"+OK ready\r\n",
+		"* OK [CAPABILITY IDLE] ready\r\n",
 		"\"SIEVE\" \"fileinto\"\r\n\"VERSION\" \"1.0\"\r\n",
 		"\"IMPLEMENTATION\" \"Dovecot Pigeonhole\"\r\nOK \"ready\"\r\n",
 	} {
