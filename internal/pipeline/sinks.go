@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/storage"
@@ -95,10 +97,65 @@ func (s *TextSink) Observation(o observe.Observation) error {
 	if title := o.Attributes["http.title"]; title != "" {
 		details = append(details, fmt.Sprintf("title %q", title))
 	}
-	details = append(details, o.Reason)
+	unknown := o.Service == "" && o.Fingerprint == observe.FingerprintUnknown
+	if unknown {
+		if preview := firstReceivedPreview(o.Evidence); preview != "" {
+			details = append(details, preview)
+		} else {
+			details = append(details, o.Reason)
+		}
+	} else {
+		details = append(details, o.Reason)
+	}
 	head := s.style.ServiceHead(o.Target.String(), o.Port, o.Transport, name, o.Confidence)
 	_, err := fmt.Fprintf(s.w, "%s %s\n", head, s.style.JoinDetails(details))
 	return err
+}
+
+// Show only the first received exchange, keeping terminal output to one line.
+// Full requests and responses remain in the observation evidence.
+func firstReceivedPreview(evidence []observe.Evidence) string {
+	for _, ev := range evidence {
+		if len(ev.Response) == 0 {
+			continue
+		}
+		label := ev.Probe + " response"
+		if ev.Probe == "banner" {
+			label = "banner"
+			if !readableBanner(ev.Response) {
+				label = "binary banner"
+			}
+		}
+		return fmt.Sprintf("%s (%d bytes) [%s]", label, len(ev.Response), hexPreview(ev.Response))
+	}
+	return ""
+}
+
+func readableBanner(data []byte) bool {
+	if !utf8.Valid(data) {
+		return false
+	}
+	for _, r := range string(data) {
+		if r != '\r' && r != '\n' && r != '\t' && !unicode.IsPrint(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// hexPreview renders at most 16 received bytes as space-separated hex.
+func hexPreview(data []byte) string {
+	var out strings.Builder
+	for i, b := range data[:min(len(data), 16)] {
+		if i > 0 {
+			out.WriteByte(' ')
+		}
+		fmt.Fprintf(&out, "%02x", b)
+	}
+	if len(data) > 16 {
+		out.WriteString(" …")
+	}
+	return out.String()
 }
 
 func (s *TextSink) PacketEvidence(p observe.PacketEvidence) error {

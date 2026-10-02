@@ -56,7 +56,7 @@ func TestNmapBannerMatch(t *testing.T) {
 
 func TestNmapSoftmatchConfidence(t *testing.T) {
 	target := serve(t, func(c net.Conn) {
-		_, _ = io.WriteString(c, "220 mail.example.org ESMTP ready\r\n")
+		_, _ = io.WriteString(c, "220 mail.example.org ready\r\n")
 		time.Sleep(400 * time.Millisecond)
 	})
 	o := nmapEngine(t, []string{ProbeBanner, ProbeNmap}).Interrogate(context.Background(), target)

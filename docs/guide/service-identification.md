@@ -36,8 +36,13 @@ from the current evidence:
 
 1. **Banner.** Connect and wait for the server to speak first. An
    [RFC 4253](https://www.rfc-editor.org/rfc/rfc4253) identification string is
-   reported as `ssh` with product and version (for example `OpenSSH 9.6p1`). An
-   unrecognized banner is retained for the planner and final evidence.
+   reported as `ssh` with product and version (for example `OpenSSH 9.6p1`).
+   SMTP greetings containing `SMTP` or `ESMTP`, POP3 greetings identifying
+   Dovecot or POP3, IMAP greetings with `IMAP4rev1` or `IMAP4rev2` capabilities,
+   complete ManageSieve capability greetings, FTP greetings with an explicit
+   `FTP` token, and rsync daemon greetings beginning `@RSYNCD:` are also
+   recognized. A bare `220` or `+OK` stays unknown because other protocols
+   use those codes. Unrecognized banners remain in the final evidence.
 2. **Port hints** raise the initial probability of familiar protocols and
    make their probes eligible. They do not assert an identity:
 
@@ -131,6 +136,10 @@ make the adaptive path inspectable in JSON and stored history.
 The web UI shows these exchanges under each service observation, and
 `nyxr history --scan <id> --json` returns them from the database. `nyxr history
 --unknown --json` lists every unrecognized response for signature work.
+In terminal output, an unknown service shows the first received response on
+the service line: its captured byte count and up to 16 space-separated hex
+bytes. Sent bytes and later responses stay in stored evidence but are not
+printed. Identified services do not print banner bytes.
 
 With a service stage active, output uses the versioned `nyxr/v1` record stream
 described in [Output records](../reference/output-records.md).
