@@ -107,12 +107,12 @@ open. Positional targets are optional and narrow the stored hosts by IP, CIDR
 or range:
 
 ```sh
-nyxr scan --profile fast --ports top1000 192.0.2.0/24   # discovery first
+nyxr scan --profile tcp-basic --ports top1000 192.0.2.0/24   # discovery first
 nyxr scan --known-open 192.0.2.0/24                     # then identify what was found
 nyxr scan --known-open 192.0.2.10                       # or one host
 ```
 
-It requires the scan database, uses the `service` profile and enables service
+It requires the scan database, uses the `tcp-common` profile and enables service
 probes by default.
 
 ## Rate limits and concurrency
@@ -164,7 +164,7 @@ full field list is in the [Configuration reference](../reference/configuration.m
 nyxr scan --ports 22,80,443 --protocols tcp --json 192.0.2.1
 
 # Top 100 TCP ports across a /24, open results only
-nyxr scan --profile fast --ports top100 --open 192.0.2.0/24
+nyxr scan --profile tcp-basic --open 192.0.2.0/24
 
 # Mixed TCP, UDP and ICMP, paced at 50 probes/s
 nyxr scan --protocols tcp,udp,icmp --timeout 2s --rate 50 192.0.2.0/28
@@ -173,8 +173,8 @@ nyxr scan --protocols tcp,udp,icmp --timeout 2s --rate 50 192.0.2.0/28
 nyxr scan --profile web --json 192.0.2.10
 
 # Deep UDP interrogation with one retry
-nyxr scan --profile udp-deep --udp-retries 1 --json 192.0.2.1
+nyxr scan --profile udp-full --udp-retries 1 --json 192.0.2.1
 
 # Do not store this scan
-nyxr scan --profile fast --no-db 192.0.2.0/24
+nyxr scan --profile tcp-basic --no-db 192.0.2.0/24
 ```

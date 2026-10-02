@@ -120,9 +120,9 @@ func scanUsage(out io.Writer) {
 	fmt.Fprint(out, `Usage: nyxr scan [flags] target [target...]
 
 Flags:
-  --profile string      scan profile (default "discovery"; see: nyxr profiles)
+  --profile string      scan profile (default "tcp-basic"; see: nyxr profiles)
   --ports string        ports, ranges (80,443,8000-8100), or a set (all, top100, top1000, top2000,
-                        top5000, top8387, database)
+                        top5000, top8387, web, udp, database)
   --protocols string    comma list of tcp, udp, icmp, arp, ndp; research also accepts sctp, ip
   --timeout duration    per-probe timeout (e.g. 1s, 750ms)
   --rate int            max probes/second (0 = unlimited)
@@ -161,7 +161,7 @@ Flags:
                         default); targets, if given, narrow it by IP, CIDR or range
 
 Service identification, evidence and storage:
-  --service             deep probes on open TCP ports (on for service, deep, web, full)
+  --service             deep probes on open TCP ports (on for tcp-common, tcp-full, full, web, database, iot)
   --service-probes list banner, ssh, tls, http, dns, socks, modbus, ethernetip, nmap, database
   --service-fallback l  probes for silent ports without a port hint, or none
   --service-timeout d   upper bound for each service probe
@@ -510,6 +510,9 @@ func emitPlan(out io.Writer, plan config.Plan, asJSON bool, style *ui.Styler) er
 	row("protocols", "%s", strings.Join(plan.Protocols, ", "))
 	if plan.Ports > 0 {
 		row("ports", "%s", plan.PortSummary)
+	}
+	if plan.UDPPorts > 0 {
+		row("udp-ports", "%s", plan.UDPPortSummary)
 	}
 	row("timeout", "%s", plan.Timeout)
 	row("rate", "%s", rateText(plan.Rate))

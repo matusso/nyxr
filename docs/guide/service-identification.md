@@ -15,13 +15,13 @@ listening, and keeps every byte it exchanged so the claim can be checked.
 
 ## Enable the service stage
 
-The `service`, `deep`, `web`, `full`, `database`, `iot` and `ot-safe` profiles
+The `tcp-common`, `tcp-full`, `full`, `web`, `database`, `iot` and `ot-safe` profiles
 run it automatically. Add `--service` to run it with any other TCP profile:
 
 ```sh
-nyxr scan --profile service 192.0.2.0/28
-nyxr scan --profile deep 192.0.2.10
-nyxr scan --profile tcp --ports 1-1024 --service 192.0.2.10
+nyxr scan --profile tcp-common 192.0.2.0/28
+nyxr scan --profile tcp-full 192.0.2.10
+nyxr scan --profile tcp-basic --ports 1-1024 --service 192.0.2.10
 ```
 
 The stage consumes discovery results, not packets. Every open TCP port goes into
@@ -54,7 +54,7 @@ from the current evidence:
    | HTTP ports such as 80, 8080 | `http`, `tls` |
 
 3. **Fallback probes** on other ports, set by `--service-fallback`:
-   `http` for `service`; `tls,http` for `deep`, `web` and `full`; or `none`.
+   `tls,http` for `tcp-common`, `tcp-full`, `full` and `web`; or `none`.
 
 After each active response, Nyxr updates `P(protocol family | evidence)` using
 the probe's match likelihood. It estimates each untried probe's expected
@@ -199,7 +199,7 @@ With Nmap installed locally, the CLI can run selected NSE scripts after nyxr
 discovers open TCP or UDP ports:
 
 ```sh
-nyxr scan --profile tcp --ports 80,443 --nse-scripts http-title,ssl-cert \
+nyxr scan --profile tcp-basic --ports 80,443 --nse-scripts http-title,ssl-cert \
   --nse-timeout 30s --json 192.0.2.10
 ```
 

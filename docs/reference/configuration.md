@@ -10,7 +10,7 @@ rejected in both encodings.
 ```yaml
 # scan.yaml
 targets: [192.0.2.0/28]
-profile: service
+profile: tcp-common
 ports: "top100"
 rate: 100
 service_timeout: 3s

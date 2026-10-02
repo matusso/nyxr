@@ -19,7 +19,7 @@ import (
 
 func TestServiceDryRunIncludesStage(t *testing.T) {
 	var out bytes.Buffer
-	if err := run([]string{"scan", "--profile", "deep", "--db", "x.db", "--dry-run", "--json", "192.0.2.1"}, &out); err != nil {
+	if err := run([]string{"scan", "--profile", "tcp-common", "--db", "x.db", "--dry-run", "--json", "192.0.2.1"}, &out); err != nil {
 		t.Fatal(err)
 	}
 	var plan struct {
@@ -34,11 +34,11 @@ func TestServiceDryRunIncludesStage(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &plan); err != nil {
 		t.Fatal(err)
 	}
-	if plan.Profile != "deep" || plan.Tasks < 90 || plan.DB != "x.db" || plan.Service == nil || strings.Join(plan.Service.Fallback, ",") != "tls,http" {
+	if plan.Profile != "tcp-common" || plan.Tasks < 90 || plan.DB != "x.db" || plan.Service == nil || strings.Join(plan.Service.Fallback, ",") != "tls,http" {
 		t.Fatalf("unexpected plan %+v", plan)
 	}
 	out.Reset()
-	if err := run([]string{"scan", "--profile", "tcp", "--dry-run", "192.0.2.1"}, &out); err != nil || strings.Contains(out.String(), "service") {
+	if err := run([]string{"scan", "--profile", "tcp-basic", "--dry-run", "192.0.2.1"}, &out); err != nil || strings.Contains(out.String(), "service") {
 		t.Fatalf("discovery-only plan must not mention a service stage: %v\n%s", err, out.String())
 	}
 }
@@ -46,9 +46,9 @@ func TestServiceDryRunIncludesStage(t *testing.T) {
 func TestServiceFlagErrors(t *testing.T) {
 	for args, want := range map[string]string{
 		"--profile ot-safe --allow-targets 192.0.2.1 --service-probes http": "does not allow service probe",
-		"--profile tcp --service-probes ssh":                                "require --service",
-		"--profile service --service-probes smb":                            "unknown service probe",
-		"--profile tcp --pcapng x.pcapng":                                   "requires --interface",
+		"--profile tcp-basic --service-probes ssh":                          "require --service",
+		"--profile tcp-common --service-probes smb":                         "unknown service probe",
+		"--profile tcp-basic --pcapng x.pcapng":                             "requires --interface",
 	} {
 		var out bytes.Buffer
 		err := run(append(append([]string{"scan"}, strings.Fields(args)...), "192.0.2.1"), &out)
@@ -78,7 +78,7 @@ func TestServiceScanStoresAndHistoryQueries(t *testing.T) {
 	db := filepath.Join(t.TempDir(), "nyxr.db")
 
 	var out bytes.Buffer
-	err = run([]string{"scan", "--profile", "tcp", "--service", "--ports", fmt.Sprint(port), "--rate", "0", "--db", db, "--json", "127.0.0.1"}, &out)
+	err = run([]string{"scan", "--profile", "tcp-basic", "--service", "--ports", fmt.Sprint(port), "--rate", "0", "--db", db, "--json", "127.0.0.1"}, &out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestKnownOpenDryRunAndHistoryFilters(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	sc := observe.Scan{ID: "seed", Profile: "fast", Started: now, Status: "running", Targets: 2}
+	sc := observe.Scan{ID: "seed", Profile: "tcp-basic", Started: now, Status: "running", Targets: 2}
 	if err := store.BeginScan(ctx, sc); err != nil {
 		t.Fatal(err)
 	}

@@ -324,7 +324,7 @@ async function newScan(knownScope = null) {
   if (knownScope) f.targets.value = knownScope;
   const targetHelp = h("span", { class: "muted field-help" });
   f.profile = h("select", { name: "profile" }, profiles.map(p => h("option", { value: p.Name }, `${p.Name} — ${p.Description}`)));
-  f.portsMode = h("select", {}, ["profile default", "top100", "top1000", "top2000", "top5000", "top8387", "all", "custom"].map(v => h("option", { value: v }, v)));
+  f.portsMode = h("select", {}, ["profile default", "top100", "top1000", "top2000", "top5000", "top8387", "all", "web", "udp", "database", "custom"].map(v => h("option", { value: v }, v)));
   const protos = ["tcp", "udp", "arp", "ndp"].map(p => ({ p, el: h("input", { type: "checkbox", value: p }) }));
   f.service = h("select", {}, ["profile default", "on", "off"].map(v => h("option", { value: v }, v)));
   f.tcpMode = h("select", {}, ["", "connect", "syn"].map(v => h("option", { value: v }, v || "profile default")));
@@ -336,7 +336,7 @@ async function newScan(knownScope = null) {
     f.service.disabled = known;
     if (known) {
       f.service.value = "on";
-      if (profiles.some(p => p.Name === "service")) f.profile.value = "service";
+      if (profiles.some(p => p.Name === "tcp-common")) f.profile.value = "tcp-common";
       f.targets.placeholder = "Optional: IP, CIDR or range; blank uses all known open ports";
       targetHelp.textContent = "Uses only ports whose latest stored state is open. Leave blank for every stored host.";
     } else {

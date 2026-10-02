@@ -25,7 +25,7 @@ func TestProfilesCommand(t *testing.T) {
 
 func TestScanDryRunJSON(t *testing.T) {
 	var out bytes.Buffer
-	err := run([]string{"scan", "--profile", "tcp", "--ports", "80,443", "--dry-run", "--json", "192.0.2.0/30"}, &out)
+	err := run([]string{"scan", "--profile", "tcp-basic", "--ports", "80,443", "--dry-run", "--json", "192.0.2.0/30"}, &out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestScanDryRunJSON(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &plan); err != nil {
 		t.Fatalf("dry-run should emit JSON plan: %v\n%s", err, out.String())
 	}
-	if plan.Profile != "tcp" || plan.Targets != 4 || plan.Tasks != 8 {
+	if plan.Profile != "tcp-basic" || plan.Targets != 4 || plan.Tasks != 8 {
 		t.Fatalf("unexpected plan: %+v", plan)
 	}
 }

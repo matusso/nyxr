@@ -29,7 +29,7 @@ fields. Guide: [Scanning](../guide/scanning.md).
 
 | Flag | Meaning |
 | --- | --- |
-| `--profile NAME` | Scan profile (default `discovery`); see `nyxr profiles` |
+| `--profile NAME` | Scan profile (default `tcp-basic`); see `nyxr profiles` |
 | `--ports LIST` | Ports, ranges (`80,443,8000-8100`) or a set: `all`, `top100`, `top1000`, `top2000`, `top5000`, `top8387`, `database` |
 | `--protocols LIST` | `tcp`, `udp`, `icmp`, `arp`, `ndp`; `research` also accepts `sctp`, `ip` |
 | `--timeout DURATION` | Per-probe timeout, for example `1s` or `750ms` |
@@ -91,7 +91,7 @@ Guide: [Research packets](../guide/research-packets.md).
 
 | Flag | Meaning |
 | --- | --- |
-| `--service` | Deep probes on open TCP ports (on for `service`, `deep`, `web`, `full`) |
+| `--service` | Deep probes on open TCP ports (on for `tcp-common`, `tcp-full`, `full`, `web`, `database`, `iot`, `ot-safe`) |
 | `--service-probes LIST` | `banner`, `ssh`, `tls`, `http`, `dns`, `socks`, `modbus`, `ethernetip`, `nmap`, `database` |
 | `--service-fallback LIST` | Probes for silent ports without a port hint, or `none` |
 | `--service-timeout DURATION` | Upper bound for each service probe |

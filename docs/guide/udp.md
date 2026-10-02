@@ -50,17 +50,17 @@ get one additional adaptive retry. `--rate` counts retries too.
 | Profile | What is sent |
 | --- | --- |
 | `udp-basic` | An empty datagram per port |
-| `udp-common` (and `udp`) | The payloads listed for each requested port; an empty datagram when none apply |
-| `udp-deep` | Every available payload on every requested port, until a reply validates a service or the catalog is exhausted |
+| `udp-common` | The payloads listed for each requested port; an empty datagram when none apply |
+| `udp-full` | Every available payload on every requested port, until a reply validates a service or the catalog is exhausted |
 
-`udp-common` and `udp-deep` select 32 common UDP ports by default. `--ports`
-replaces that list. `udp-deep` retries each probe once.
+All three select the 32 UDP ports of the `udp` port set by default. `--ports`
+replaces that list. `udp-full` retries each probe once.
 
 ```sh
 nyxr scan --profile udp-basic --ports 53,123 192.0.2.1
 nyxr scan --profile udp-common 192.0.2.1
-nyxr scan --profile udp-deep --udp-retries 1 --json 192.0.2.1
-nyxr scan --profile udp-deep --dry-run 192.0.2.0/28
+nyxr scan --profile udp-full --udp-retries 1 --json 192.0.2.1
+nyxr scan --profile udp-full --dry-run 192.0.2.0/28
 ```
 
 ## Built-in probe catalog
@@ -94,7 +94,7 @@ A few protocol notes:
 - **TFTP.** Replies from the server's new transfer port are accepted.
 - **SOCKS** is a TCP protocol and is identified by the
   [service stage](service-identification.md#socks), not here.
-- **Games.** GameSpy and Quake port lists are hints; `udp-deep` tries those
+- **Games.** GameSpy and Quake port lists are hints; `udp-full` tries those
   payloads on every selected port.
 
 BACnet behavior is described in [OT and IoT](ot-and-iot.md#bacnet).
@@ -177,13 +177,13 @@ A scan configuration file can name a definition with `udp_probe_file`.
 `nmap-service-probes` file to the built-in catalog:
 
 ```sh
-nyxr scan --profile udp-deep --nmap-udp-probes /usr/share/nmap/nmap-service-probes \
+nyxr scan --profile udp-full --nmap-udp-probes /usr/share/nmap/nmap-service-probes \
   --ports 111,2049,47808 192.0.2.10
 ```
 
 - `udp-common` uses the file's `ports` directives to select probes; probes
   without ports apply to any port.
-- `udp-deep` tries every imported probe on each requested port and uses the
+- `udp-full` tries every imported probe on each requested port and uses the
   port directives only to order them.
 - Empty requests and requests larger than the maximum UDP payload are skipped.
 - Any datagram returned to an imported request confirms the port is open, but

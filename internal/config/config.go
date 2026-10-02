@@ -20,6 +20,7 @@ type Config struct {
 	TargetStream  *TargetStream  // compact IPv4 ranges for large SYN scans
 	AllowTargets  []netip.Prefix // explicit CIDR/IP authorization for target policy
 	Ports         []uint16
+	UDPPorts      []uint16 // UDP ports when they differ from Ports; nil means Ports
 	TCP           bool
 	UDP           bool
 	ICMP          bool
@@ -53,7 +54,7 @@ type UDPMode string
 const (
 	UDPBasic  UDPMode = "basic"
 	UDPCommon UDPMode = "common"
-	UDPDeep   UDPMode = "deep"
+	UDPFull   UDPMode = "full"
 )
 
 // ResearchConfig is deliberately separate from ordinary scan modes. Only a
@@ -70,6 +71,14 @@ type ResearchConfig struct {
 
 const MaxTargets = 65536
 
+// PortsFor returns the ports scanned for transport ("tcp" or "udp").
+func (c Config) PortsFor(transport string) []uint16 {
+	if transport == "udp" && c.UDPPorts != nil {
+		return c.UDPPorts
+	}
+	return c.Ports
+}
+
 func (c Config) Validate() error {
 	if c.Profile == "research" && c.Research == nil {
 		return errors.New("research profile requires a validated research packet configuration")
@@ -80,7 +89,7 @@ func (c Config) Validate() error {
 	if c.TargetCount() == 0 || (!c.TCP && !c.UDP && !c.ICMP && !c.ARP && !c.NDP) {
 		return errors.New("at least one target and protocol are required")
 	}
-	if c.UDPMode != "" && c.UDPMode != UDPBasic && c.UDPMode != UDPCommon && c.UDPMode != UDPDeep {
+	if c.UDPMode != "" && c.UDPMode != UDPBasic && c.UDPMode != UDPCommon && c.UDPMode != UDPFull {
 		return fmt.Errorf("unknown UDP mode %q", c.UDPMode)
 	}
 	if c.UDPMode == UDPBasic && len(c.UDPProbes) != 0 {

@@ -12,10 +12,10 @@ func TestBuildDefaultProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Profile != "discovery" || !cfg.TCP || cfg.UDP || cfg.ICMP {
+	if cfg.Profile != "tcp-basic" || !cfg.TCP || cfg.UDP || cfg.ICMP {
 		t.Fatalf("unexpected protocols: %+v", cfg)
 	}
-	if len(cfg.Ports) != 3 || cfg.Rate != 100 || cfg.Workers != 64 {
+	if top, _ := ResolvePorts("top100"); len(cfg.Ports) != len(top) || cfg.Rate != 300 || cfg.Workers != 128 {
 		t.Fatalf("unexpected defaults: ports=%v rate=%d workers=%d", cfg.Ports, cfg.Rate, cfg.Workers)
 	}
 }
@@ -23,7 +23,7 @@ func TestBuildDefaultProfile(t *testing.T) {
 func TestBuildOverridesProfile(t *testing.T) {
 	cfg, err := Build(Options{
 		Targets:   []string{"192.0.2.1"},
-		Profile:   "udp-deep",
+		Profile:   "udp-full",
 		Rate:      intp(7),
 		Workers:   intp(3),
 		Protocols: "udp",
@@ -36,10 +36,10 @@ func TestBuildOverridesProfile(t *testing.T) {
 		t.Fatalf("overrides not applied: rate=%d workers=%d", cfg.Rate, cfg.Workers)
 	}
 	if cfg.UDPRetries != 1 {
-		t.Fatalf("udp-deep should default retries to 1, got %d", cfg.UDPRetries)
+		t.Fatalf("udp-full should default retries to 1, got %d", cfg.UDPRetries)
 	}
-	if cfg.UDPMode != UDPDeep {
-		t.Fatalf("udp-deep should exhaust the catalog, got %q", cfg.UDPMode)
+	if cfg.UDPMode != UDPFull {
+		t.Fatalf("udp-full should exhaust the catalog, got %q", cfg.UDPMode)
 	}
 	if len(cfg.Ports) != 1 || cfg.Ports[0] != 53 {
 		t.Fatalf("port override not applied: %v", cfg.Ports)
@@ -53,8 +53,7 @@ func TestBuildUDPProfileModes(t *testing.T) {
 	}{
 		{"udp-basic", UDPBasic},
 		{"udp-common", UDPCommon},
-		{"udp-deep", UDPDeep},
-		{"udp", UDPCommon},
+		{"udp-full", UDPFull},
 	} {
 		cfg, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: tc.profile, Ports: "40000"})
 		if err != nil || cfg.UDPMode != tc.mode || cfg.Plan().UDPMode != tc.mode {
@@ -64,6 +63,37 @@ func TestBuildUDPProfileModes(t *testing.T) {
 	if _, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: "udp-basic",
 		Payload: PayloadSource{SendHex: "01"}}); err == nil {
 		t.Fatal("udp-basic accepted a custom payload")
+	}
+}
+
+func TestBuildFullSplitsTCPAndUDPPorts(t *testing.T) {
+	cfg, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: "full"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	udp, _ := ResolvePorts("udp")
+	if !cfg.TCP || !cfg.UDP || len(cfg.PortsFor("tcp")) != 65535 || len(cfg.PortsFor("udp")) != len(udp) {
+		t.Fatalf("full: tcp=%d udp=%d ports", len(cfg.PortsFor("tcp")), len(cfg.PortsFor("udp")))
+	}
+	if plan := cfg.Plan(); plan.Tasks != 65535+len(udp) || plan.UDPPorts != len(udp) {
+		t.Fatalf("full plan: %+v", plan)
+	}
+	// An explicit port list applies to both transports.
+	cfg, err = Build(Options{Targets: []string{"192.0.2.1"}, Profile: "full", Ports: "53,80"})
+	if err != nil || cfg.UDPPorts != nil || len(cfg.PortsFor("udp")) != 2 || cfg.Plan().Tasks != 4 {
+		t.Fatalf("full with --ports: %+v %v", cfg.Plan(), err)
+	}
+	// Narrowing full to UDP keeps the UDP list.
+	cfg, err = Build(Options{Targets: []string{"192.0.2.1"}, Profile: "full", Protocols: "udp"})
+	if err != nil || len(cfg.Ports) != len(udp) || cfg.UDPPorts != nil {
+		t.Fatalf("full udp-only: ports=%d err=%v", len(cfg.Ports), err)
+	}
+}
+
+func TestBuildRemovedProfilePointsToReplacement(t *testing.T) {
+	_, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: "deep"})
+	if err == nil || !strings.Contains(err.Error(), `use "tcp-common"`) {
+		t.Fatalf("removed profile error: %v", err)
 	}
 }
 
@@ -154,7 +184,7 @@ func TestBuildOTSafeEnforcement(t *testing.T) {
 
 func TestBuildCustomPayload(t *testing.T) {
 	cfg, err := Build(Options{
-		Targets: []string{"192.0.2.1"}, Profile: "udp",
+		Targets: []string{"192.0.2.1"}, Profile: "udp-common",
 		Payload: PayloadSource{SendHex: "01ff"},
 	})
 	if err != nil {
@@ -169,15 +199,15 @@ func TestBuildCustomPayload(t *testing.T) {
 }
 
 func TestBuildPayloadRequiresUDP(t *testing.T) {
-	if _, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: "tcp", Payload: PayloadSource{SendHex: "01"}}); err == nil {
+	if _, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: "tcp-basic", Payload: PayloadSource{SendHex: "01"}}); err == nil {
 		t.Fatal("custom payload without udp should fail")
 	}
 }
 
 func TestBuildNmapUDPRequiresUDPAndNoCustomPayload(t *testing.T) {
 	for _, o := range []Options{
-		{Targets: []string{"192.0.2.1"}, Profile: "tcp", NmapUDPProbes: "unused"},
-		{Targets: []string{"192.0.2.1"}, Profile: "udp", NmapUDPProbes: "unused", Payload: PayloadSource{SendHex: "01"}},
+		{Targets: []string{"192.0.2.1"}, Profile: "tcp-basic", NmapUDPProbes: "unused"},
+		{Targets: []string{"192.0.2.1"}, Profile: "udp-common", NmapUDPProbes: "unused", Payload: PayloadSource{SendHex: "01"}},
 	} {
 		if _, err := Build(o); err == nil || !strings.Contains(err.Error(), "Nmap UDP probes require UDP") {
 			t.Fatalf("invalid Nmap UDP options accepted: %v", err)
@@ -187,7 +217,7 @@ func TestBuildNmapUDPRequiresUDPAndNoCustomPayload(t *testing.T) {
 
 func TestBuildPayloadOneSource(t *testing.T) {
 	_, err := Build(Options{
-		Targets: []string{"192.0.2.1"}, Profile: "udp",
+		Targets: []string{"192.0.2.1"}, Profile: "udp-common",
 		Payload: PayloadSource{SendHex: "01", SendBase64: "AQ=="},
 	})
 	if err == nil || !strings.Contains(err.Error(), "one custom UDP payload") {

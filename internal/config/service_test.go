@@ -17,7 +17,7 @@ func build(t *testing.T, o Options) Config {
 }
 
 func TestServiceProfilesEnableStage(t *testing.T) {
-	for name, fallback := range map[string]string{"service": "http", "deep": "tls,http", "web": "tls,http", "full": "tls,http", "database": ""} {
+	for name, fallback := range map[string]string{"tcp-common": "tls,http", "tcp-full": "tls,http", "web": "tls,http", "full": "tls,http", "database": ""} {
 		s, err := BuildService(build(t, Options{Profile: name}), ServiceOptions{})
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
@@ -34,7 +34,7 @@ func TestServiceProfilesEnableStage(t *testing.T) {
 	if err != nil || !ot.Enabled || strings.Join(ot.Probes, ",") != "modbus,ethernetip" {
 		t.Fatalf("ot-safe identity stage: %+v %v", ot, err)
 	}
-	s, err := BuildService(build(t, Options{Profile: "tcp"}), ServiceOptions{})
+	s, err := BuildService(build(t, Options{Profile: "tcp-basic"}), ServiceOptions{})
 	if err != nil || s.Enabled || s.Plan() != nil {
 		t.Fatalf("tcp profile must stay discovery-only: %+v %v", s, err)
 	}
@@ -42,14 +42,14 @@ func TestServiceProfilesEnableStage(t *testing.T) {
 
 func TestServiceOverrides(t *testing.T) {
 	on, off, workers := true, false, 3
-	s, err := BuildService(build(t, Options{Profile: "tcp"}), ServiceOptions{Enable: &on, Probes: "http, tls,http", Fallback: "none", Timeout: "750ms", Workers: &workers})
+	s, err := BuildService(build(t, Options{Profile: "tcp-basic"}), ServiceOptions{Enable: &on, Probes: "http, tls,http", Fallback: "none", Timeout: "750ms", Workers: &workers})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.Join(s.Probes, ",") != "http,tls" || s.Fallback != nil || s.Timeout != 750*time.Millisecond || s.Workers != 3 || s.Rate != 50 {
 		t.Fatalf("overrides not applied: %+v", s)
 	}
-	if s, err := BuildService(build(t, Options{Profile: "deep"}), ServiceOptions{Enable: &off}); err != nil || s.Enabled {
+	if s, err := BuildService(build(t, Options{Profile: "tcp-common"}), ServiceOptions{Enable: &off}); err != nil || s.Enabled {
 		t.Fatalf("explicit disable ignored: %+v %v", s, err)
 	}
 	plan := s.Plan()
@@ -66,11 +66,11 @@ func TestServiceRejections(t *testing.T) {
 		want string
 	}{
 		"ot-safe":         {Options{Profile: "ot-safe", AllowTargets: []string{"192.0.2.1"}}, ServiceOptions{Probes: "http"}, "does not allow service probe"},
-		"udp only":        {Options{Profile: "udp"}, ServiceOptions{Enable: &on}, "require the TCP protocol"},
-		"unknown probe":   {Options{Profile: "service"}, ServiceOptions{Probes: "smb"}, "unknown service probe"},
-		"option w/o flag": {Options{Profile: "tcp"}, ServiceOptions{Probes: "http"}, "require --service"},
-		"bad timeout":     {Options{Profile: "service"}, ServiceOptions{Timeout: "soon"}, "service timeout"},
-		"empty name":      {Options{Profile: "service"}, ServiceOptions{Probes: "http,,tls"}, "empty service probe"},
+		"udp only":        {Options{Profile: "udp-common"}, ServiceOptions{Enable: &on}, "require the TCP protocol"},
+		"unknown probe":   {Options{Profile: "tcp-common"}, ServiceOptions{Probes: "smb"}, "unknown service probe"},
+		"option w/o flag": {Options{Profile: "tcp-basic"}, ServiceOptions{Probes: "http"}, "require --service"},
+		"bad timeout":     {Options{Profile: "tcp-common"}, ServiceOptions{Timeout: "soon"}, "service timeout"},
+		"empty name":      {Options{Profile: "tcp-common"}, ServiceOptions{Probes: "http,,tls"}, "empty service probe"},
 	} {
 		_, err := BuildService(build(t, tc.opts), tc.svc)
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
@@ -81,7 +81,7 @@ func TestServiceRejections(t *testing.T) {
 
 func TestServiceNmapProbes(t *testing.T) {
 	// Supplying the file enables the nmap probe and records the path.
-	s, err := BuildService(build(t, Options{Profile: "service"}), ServiceOptions{NmapProbes: "/tmp/nmap-service-probes"})
+	s, err := BuildService(build(t, Options{Profile: "tcp-common"}), ServiceOptions{NmapProbes: "/tmp/nmap-service-probes"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,13 +102,13 @@ func TestServiceNmapProbes(t *testing.T) {
 	}
 
 	// Naming the probe without a file is an error.
-	if _, err := BuildService(build(t, Options{Profile: "service"}), ServiceOptions{Probes: "banner,nmap"}); err == nil ||
+	if _, err := BuildService(build(t, Options{Profile: "tcp-common"}), ServiceOptions{Probes: "banner,nmap"}); err == nil ||
 		!strings.Contains(err.Error(), "requires --nmap-service-probes") {
 		t.Fatalf("nmap without a file should fail, got %v", err)
 	}
 
 	// The file is a service override, so it needs the stage enabled.
-	if _, err := BuildService(build(t, Options{Profile: "tcp"}), ServiceOptions{NmapProbes: "/tmp/x"}); err == nil ||
+	if _, err := BuildService(build(t, Options{Profile: "tcp-basic"}), ServiceOptions{NmapProbes: "/tmp/x"}); err == nil ||
 		!strings.Contains(err.Error(), "require --service") {
 		t.Fatalf("nmap file without a service stage should fail, got %v", err)
 	}
@@ -121,7 +121,7 @@ func TestServiceNmapProbes(t *testing.T) {
 }
 
 func TestNmapServiceProbesRemoteRejected(t *testing.T) {
-	r := Request{Targets: []string{"192.0.2.1"}, Profile: "service", NmapServiceProbes: "/etc/nmap-service-probes"}
+	r := Request{Targets: []string{"192.0.2.1"}, Profile: "tcp-common", NmapServiceProbes: "/etc/nmap-service-probes"}
 	if _, err := r.Resolve(ResolveOptions{Remote: true}); err == nil ||
 		!strings.Contains(err.Error(), "local path") {
 		t.Fatalf("remote request must reject nmap_service_probes, got %v", err)

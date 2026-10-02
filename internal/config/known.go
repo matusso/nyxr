@@ -38,7 +38,7 @@ func (c Config) Includes(target netip.Addr, transport string, port uint16) bool 
 
 // KnownProfile is the profile a known-open rescan uses when none is named:
 // its service probes are the point of the rescan.
-const KnownProfile = "service"
+const KnownProfile = "tcp-common"
 
 // applyKnownOpen rewrites a KnownOpen request into explicit targets, ports
 // and protocols drawn from the database. Targets, when given, are a scope

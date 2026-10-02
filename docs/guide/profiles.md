@@ -14,19 +14,20 @@ silently downgrades a planned profile to a weaker scan.
 
 ## Catalog
 
+The `tcp-*` and `udp-*` families go from `basic` (find open ports) through
+`common` (identify what answers on common ports) to `full` (every port or every
+payload). `full` runs both transports.
+
 | Profile | Summary | Privileges |
 | --- | --- | --- |
-| `discovery` | Common TCP ports, unprivileged connect scan (the default) | None |
-| `fast` | Top 100 TCP ports at higher concurrency | None |
-| `tcp` | TCP connect scan of common ports | None |
+| `tcp-basic` | Top 100 TCP ports, connect scan, open ports only (the default) | None |
+| `tcp-common` | Top 1000 TCP ports, then banner, SSH, TLS, HTTP, DNS and SOCKS identification | None |
+| `tcp-full` | All 65535 TCP ports, then service identification | None |
 | `udp-basic` | Empty UDP datagram; classifies a reply or ICMP response | None |
-| `udp-common` | Payloads associated with each port; 32 default ports | None |
-| `udp` | Compatibility name for `udp-common`; DNS and NTP ports by default | None |
-| `udp-deep` | Every available UDP payload on each port; 32 default ports | None |
-| `service` | Top 100 TCP ports, then banner, SSH, TLS, HTTP, DNS and SOCKS identification | None |
-| `deep` | As `service`, and tries TLS and HTTP on every silent open port | None |
-| `web` | Common web ports with TLS and HTTP identification | None |
-| `full` | All TCP ports plus deep service identification | None |
+| `udp-common` | Payloads associated with each port | None |
+| `udp-full` | Every available UDP payload on each port, one retry | None |
+| `full` | `tcp-full` plus `udp-common` | None |
+| `web` | Common HTTP and HTTPS ports with TLS and HTTP identification | None |
 | `database` | Database ports with response-validated identity probes | None |
 | `iot` | TCP service identity and multi-source device fingerprinting | None |
 | `ot-safe` | Allowlisted, paced TCP connect scan plus Modbus and EtherNet/IP identity reads | None |
@@ -36,31 +37,43 @@ silently downgrades a planned profile to a weaker scan.
 ICMP, ARP, NDP and raw SYN need raw packet access with any profile. See
 [Getting started](../getting-started.md#privileges-at-a-glance).
 
+Earlier releases had `discovery`, `fast`, `tcp`, `service`, `deep`, `udp` and
+`udp-deep`. Selecting one of them now fails with the name of its replacement:
+
+| Removed | Use |
+| --- | --- |
+| `discovery`, `fast`, `tcp` | `tcp-basic` |
+| `service`, `deep` | `tcp-common` |
+| `udp` | `udp-common` |
+| `udp-deep` | `udp-full` |
+
 ## Choosing a profile
 
 | Goal | Profile |
 | --- | --- |
-| Find live hosts and open ports quickly | `fast`, then `--known-open` |
-| Know what is running on each port | `service`, or `deep` for non-standard ports |
+| Find live hosts and open ports quickly | `tcp-basic`, then `--known-open` |
+| Know what is running on each port | `tcp-common`, or `tcp-full` for every port |
+| Inventory a host completely | `full` |
 | Audit web endpoints and certificates | `web` |
 | Inventory database servers | `database` |
-| Find UDP services | `udp-common`, or `udp-deep` for thorough coverage |
+| Find UDP services | `udp-common`, or `udp-full` for thorough coverage |
 | Classify IoT devices | `iot`, or a UDP profile with `--fingerprint` |
 | Identify industrial controllers safely | `ot-safe` |
 | Test firewall and IDS behavior with crafted packets | `research` |
 
-## Service profiles
+## TCP and service profiles
 
-`service`, `deep`, `web` and `full` run the deep-probe stage on every open TCP
-port. They differ in their port list and in the fallback probes used on ports
-that send nothing:
+`tcp-common`, `tcp-full`, `full` and `web` run the deep-probe stage on every
+open TCP port and try `tls,http` on ports that send nothing. `tcp-basic` only
+reports port state; add `--service` to identify services with it.
 
-| Profile | Ports | Fallback for silent ports |
+| Profile | TCP ports | Rate |
 | --- | --- | --- |
-| `service` | `top100` | `http` |
-| `deep` | `top100` | `tls,http` |
-| `web` | 80, 443, 3000, 5000, 8000, 8008, 8080, 8081, 8443, 8888, 9000, 9443 | `tls,http` |
-| `full` | `all` | `tls,http` |
+| `tcp-basic` | `top100` | 300/s |
+| `tcp-common` | `top1000` | 500/s |
+| `tcp-full` | `all` | 1000/s |
+| `full` | `all` | 1000/s |
+| `web` | `web`: 80, 81, 443, 591, 593, 2082, 2083, 2086, 2087, 2095, 2096, 3000, 3001, 4000, 4200, 4343, 4433, 4443, 5000, 5001, 5601, 5800, 7000, 7001, 7080, 7443, 8000, 8001, 8008, 8009, 8010, 8080–8083, 8088, 8090, 8181, 8443, 8444, 8800, 8880, 8888, 9000, 9001, 9080, 9090, 9200, 9443, 10000, 10443, 18080 | 200/s |
 
 Details are in [Service identification](service-identification.md).
 
@@ -70,8 +83,11 @@ Details are in [Service identification](service-identification.md).
 | --- | --- |
 | `udp-basic` | One empty datagram per port |
 | `udp-common` | Payloads listed for each requested port, falling back to an empty datagram |
-| `udp` | Same strategy as `udp-common`; kept for compatibility |
-| `udp-deep` | Every available payload on every requested port until a reply validates a service; one retry per probe |
+| `udp-full` | Every available payload on every requested port until a reply validates a service; one retry per probe |
+
+All three default to the `udp` port set: the 32 ports that have a built-in
+payload. `full` uses the same set for its UDP half while scanning every TCP
+port. An explicit `--ports` applies to both transports.
 
 See [UDP scanning](udp.md).
 

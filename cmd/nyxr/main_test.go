@@ -100,7 +100,7 @@ func TestScanImportedUDPPayload(t *testing.T) {
 		}
 	}()
 	var output bytes.Buffer
-	err = runScan([]string{"--no-db", "--profile", "udp-deep", "--ports", fmt.Sprint(port),
+	err = runScan([]string{"--no-db", "--profile", "udp-full", "--ports", fmt.Sprint(port),
 		"--timeout", "100ms", "--udp-retries", "0", "--nmap-udp-probes", path, "--rate", "0", "--json", "127.0.0.1"}, &output, ui.Plain(), progressOptions{})
 	if err != nil {
 		t.Fatal(err)

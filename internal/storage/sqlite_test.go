@@ -31,7 +31,7 @@ func openTest(t *testing.T) (*Store, string) {
 
 func storeScan(t *testing.T, s *Store, id string, started time.Time, obs ...observe.Observation) {
 	t.Helper()
-	scan := observe.Scan{ID: id, Profile: "service", Started: started, Status: "running", Targets: 1}
+	scan := observe.Scan{ID: id, Profile: "tcp-common", Started: started, Status: "running", Targets: 1}
 	if err := s.BeginScan(ctx, scan); err != nil {
 		t.Fatal(err)
 	}
