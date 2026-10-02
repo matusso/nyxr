@@ -78,6 +78,7 @@ _nyxr() {
                         '--pcapng=[write packet evidence to a pcapng file]:pcapng file:_files -g "*.pcapng"' \
                         '--pcapng-max-mb=[pcapng size budget in MiB]:MiB:' \
                         '--db=[SQLite database (default ~/.nyxr/nyxr.db)]:database file:_files' \
+                        '--no-last-pcapng[do not keep this scan in ~/.nyxr/last.pcapng]' \
                         '--no-db[do not store the scan]' \
                         '--json[newline-delimited JSON output]' \
                         '--dry-run[resolve and print the plan without sending packets]' \
@@ -92,6 +93,7 @@ _nyxr() {
                     ;;
                 decode)
                     _arguments \
+                        '--last[decode the last scan capture, ~/.nyxr/last.pcapng]' \
                         '--tui[browse and inspect packets interactively]' \
                         '--all[also list closed and filtered ports]' \
                         '--packets[list every decoded packet]' \

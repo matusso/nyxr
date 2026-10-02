@@ -96,6 +96,7 @@ Usage:
   nyxr scan [flags] target [target...]   run a scan
   nyxr profiles [--json]                 list scan profiles
   nyxr decode [--tui] capture.pcap[ng]   summarize hosts and open ports, or browse packets
+  nyxr decode [--tui] --last             decode the last scan's capture (~/.nyxr/last.pcapng)
   nyxr sniff --interface eth0 [flags]    capture and decode live frames
   nyxr history [--db file] [flags]       list or query stored scans, assets and evidence
   nyxr probe import file [--json]        import and summarize an nmap-service-probes file
@@ -171,6 +172,8 @@ Service identification, evidence and storage:
   --nse-timeout d       maximum Nmap execution time per host (default 30s)
   --pcapng file         capture scan traffic on --interface as pcapng evidence
   --pcapng-max-mb int   pcapng size budget (default 1024)
+  --no-last-pcapng      do not keep this scan's traffic in ~/.nyxr/last.pcapng
+                        (kept by default for scans with --interface; see decode --last)
   --db file             SQLite database for the scan, observations and evidence
                         (default ~/.nyxr/nyxr.db)
   --no-db               do not store the scan
@@ -343,6 +346,7 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	forgePayloadFlag := fs.String("forge-payload-hex", "", "raw research payload hex")
 	packetdFlag := fs.String("packetd", "", "packetd Unix socket for raw packet I/O")
 	knownOpenFlag := fs.Bool("known-open", false, "rescan only ports the database last saw open")
+	noLastFlag := fs.Bool("no-last-pcapng", false, "do not keep this scan's traffic in ~/.nyxr/last.pcapng")
 	stages := addStageFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -431,6 +435,10 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	if *packetdFlag != "" {
 		open = packetd.Opener(*packetdFlag)
 	}
+	var last *lastCapture
+	if !*noLastFlag {
+		last = startLastCapture(resolved, open, progress.w)
+	}
 	planned := resolved.Config.Plan().Tasks
 	bar := progress.start(planned, *noProgressFlag)
 	monitorTraffic(bar, resolved.Config)
@@ -441,6 +449,7 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	}
 	err = runResolved(bar.Wrap(out), resolved, db, open, *jsonFlag, *openFlag, style, tally)
 	bar.Done()
+	last.finish()
 	summary.print(err != nil)
 	return err
 }

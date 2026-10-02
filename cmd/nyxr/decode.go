@@ -213,16 +213,17 @@ func runDecode(args []string, out io.Writer, style *ui.Styler) error {
 	packetsFlag := fs.Bool("packets", false, "list every decoded packet")
 	allFlag := fs.Bool("all", false, "also list closed and filtered ports")
 	tuiFlag := fs.Bool("tui", false, "browse and inspect packets interactively")
+	lastFlag := fs.Bool("last", false, "decode the last scan's capture, ~/.nyxr/last.pcapng")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			decodeUsage(out)
 		}
 		return err
 	}
-	if fs.NArg() != 1 {
-		return errors.New("decode requires one pcap or pcapng file")
+	path, err := decodePath(fs, *lastFlag)
+	if err != nil {
+		return err
 	}
-	path := fs.Arg(0)
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -297,14 +298,39 @@ func browseCapture(r capture.FrameReader, name string, style *ui.Styler) error {
 	return tui.Run(os.Stdin, os.Stdout, tui.New(name, recs, style.Enabled()))
 }
 
+// decodePath is the file argument, or ~/.nyxr/last.pcapng with --last. A
+// file named "last" is an ordinary argument, never the last capture.
+func decodePath(args *flag.FlagSet, last bool) (string, error) {
+	if !last {
+		if args.NArg() != 1 {
+			return "", errors.New("decode requires one pcap or pcapng file, or --last")
+		}
+		return args.Arg(0), nil
+	}
+	if args.NArg() != 0 {
+		return "", errors.New("--last decodes the last scan's capture; it takes no file")
+	}
+	path, err := lastCapturePath()
+	if err != nil {
+		return "", err
+	}
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("no capture of the last scan at %s (kept only for scans with --interface, without --no-last-pcapng)", path)
+	}
+	return path, nil
+}
+
 func decodeUsage(out io.Writer) {
 	fmt.Fprint(out, `Usage: nyxr decode [flags] capture.pcap[ng]
+       nyxr decode [flags] --last
 
 Summarizes an Ethernet pcap or pcapng capture: the hosts seen and the ports
 the replies prove open (TCP SYN-ACK, UDP responses), closed (RST, ICMP port
 unreachable) or filtered (other ICMP unreachables).
 
 Flags:
+  --last      decode ~/.nyxr/last.pcapng, the traffic of the last scan with
+              --interface (a file argument named "last" is a normal file)
   --tui       browse packets interactively: list, decoded layers with what
               each field means, and a hex dump of the selected field
   --all       also list closed and filtered ports
