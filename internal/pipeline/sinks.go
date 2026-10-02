@@ -126,7 +126,7 @@ func firstReceivedPreview(evidence []observe.Evidence) string {
 				label = "binary banner"
 			}
 		}
-		return fmt.Sprintf("%s [%d bytes] (%s)", label, len(ev.Response), hexPreview(ev.Response))
+		return fmt.Sprintf("%s (%d bytes) [%s]", label, len(ev.Response), hexPreview(ev.Response))
 	}
 	return ""
 }
