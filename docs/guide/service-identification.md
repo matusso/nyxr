@@ -134,6 +134,10 @@ make the adaptive path inspectable in JSON and stored history.
 The web UI shows these exchanges under each service observation, and
 `nyxr history --scan <id> --json` returns them from the database. `nyxr history
 --unknown --json` lists every unrecognized response for signature work.
+In terminal output, an unknown readable banner is shown as quoted text. A
+binary banner is shown as a 16-byte-per-line hex dump with offsets and an ASCII
+column, whether or not its service was identified. The stored evidence still
+contains the original bytes.
 
 With a service stage active, output uses the versioned `nyxr/v1` record stream
 described in [Output records](../reference/output-records.md).

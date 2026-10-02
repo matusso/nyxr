@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/storage"
@@ -95,10 +98,77 @@ func (s *TextSink) Observation(o observe.Observation) error {
 	if title := o.Attributes["http.title"]; title != "" {
 		details = append(details, fmt.Sprintf("title %q", title))
 	}
+	var binaryBanner []byte
+	for _, ev := range o.Evidence {
+		if ev.Probe == "banner" && ev.Layer == "tcp" && len(ev.Response) > 0 {
+			if readableBanner(ev.Response) {
+				if o.Fingerprint == observe.FingerprintUnknown {
+					limit := min(len(ev.Response), 256)
+					for limit < len(ev.Response) && limit > 0 && !utf8.RuneStart(ev.Response[limit]) {
+						limit--
+					}
+					preview := ev.Response[:limit]
+					label := "banner " + strconv.Quote(string(preview))
+					if len(ev.Response) > len(preview) || ev.Truncated {
+						label += "…"
+					}
+					details = append(details, label)
+				}
+			} else {
+				binaryBanner = ev.Response
+				label := fmt.Sprintf("binary banner (%d bytes)", len(ev.Response))
+				if ev.Truncated {
+					label += " (truncated)"
+				}
+				details = append(details, label)
+			}
+			break
+		}
+	}
 	details = append(details, o.Reason)
 	head := s.style.ServiceHead(o.Target.String(), o.Port, o.Transport, name, o.Confidence)
-	_, err := fmt.Fprintf(s.w, "%s %s\n", head, s.style.JoinDetails(details))
-	return err
+	if _, err := fmt.Fprintf(s.w, "%s %s\n", head, s.style.JoinDetails(details)); err != nil {
+		return err
+	}
+	if len(binaryBanner) > 0 {
+		_, err := io.WriteString(s.w, hexBanner(binaryBanner))
+		return err
+	}
+	return nil
+}
+
+func readableBanner(data []byte) bool {
+	if !utf8.Valid(data) {
+		return false
+	}
+	for _, r := range string(data) {
+		if r != '\r' && r != '\n' && r != '\t' && !unicode.IsPrint(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// hexBanner follows the familiar offset: grouped-hex ASCII-gutter layout.
+func hexBanner(data []byte) string {
+	var out strings.Builder
+	for offset := 0; offset < len(data); offset += 16 {
+		row := data[offset:min(offset+16, len(data))]
+		var groups, ascii strings.Builder
+		for i, b := range row {
+			if i > 0 && i%2 == 0 {
+				groups.WriteByte(' ')
+			}
+			fmt.Fprintf(&groups, "%02x", b)
+			if b >= 0x20 && b < 0x7f {
+				ascii.WriteByte(b)
+			} else {
+				ascii.WriteByte('.')
+			}
+		}
+		fmt.Fprintf(&out, "  %08x: %-39s  %s\n", offset, groups.String(), ascii.String())
+	}
+	return out.String()
 }
 
 func (s *TextSink) PacketEvidence(p observe.PacketEvidence) error {
