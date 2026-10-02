@@ -50,6 +50,28 @@ func TestScanDatabaseProfileDryRun(t *testing.T) {
 	}
 }
 
+func TestScanNSEDryRun(t *testing.T) {
+	var out bytes.Buffer
+	err := run([]string{"scan", "--ports", "80", "--nse-scripts", "http-title", "--nse-timeout", "12s",
+		"--no-db", "--dry-run", "--json", "127.0.0.1"}, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var plan struct {
+		NSE struct {
+			Scripts []string `json:"scripts"`
+			Timeout string   `json:"timeout"`
+			Safety  string   `json:"safety"`
+		} `json:"nse"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &plan); err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.NSE.Scripts) != 1 || plan.NSE.Scripts[0] != "http-title" || plan.NSE.Timeout != "12s" || plan.NSE.Safety != "safe" {
+		t.Fatalf("NSE missing from CLI dry-run: %+v", plan)
+	}
+}
+
 func TestScanUnknownProfileError(t *testing.T) {
 	var out bytes.Buffer
 	err := run([]string{"scan", "--profile", "bogus", "192.0.2.1"}, &out)

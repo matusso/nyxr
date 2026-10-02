@@ -73,6 +73,8 @@ _nyxr() {
                         '--service-workers=[concurrent service probe workers]:workers:' \
                         '--service-rate=[new service connections per second (0 = unlimited)]:rate:' \
                         '--nmap-service-probes=[import an nmap-service-probes file for banner matching]:probes file:_files' \
+                        '--nse-scripts=[comma list of installed safe NSE scripts]:scripts:' \
+                        '--nse-timeout=[maximum Nmap time per host]:duration (e.g. 30s):' \
                         '--pcapng=[write packet evidence to a pcapng file]:pcapng file:_files -g "*.pcapng"' \
                         '--pcapng-max-mb=[pcapng size budget in MiB]:MiB:' \
                         '--db=[SQLite database (default ~/.nyxr/nyxr.db)]:database file:_files' \

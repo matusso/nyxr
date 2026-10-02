@@ -54,12 +54,12 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
                 '^--?service-probes$' { & $emit @('banner', 'ssh', 'tls', 'http', 'dns', 'socks', 'modbus', 'ethernetip', 'nmap', 'database', 'banner,ssh,tls,http,dns,socks', 'modbus,ethernetip'); return }
                 '^--?service-fallback$' { & $emit @('http', 'tls,http', 'none'); return }
                 # Returning nothing lets PowerShell fall back to path completion.
-                '^--?(payload|payload-file|config|timeout|rate|workers|udp-retries|send-hex|send-base64|interface|source-ip|source-mac|next-hop-mac|allow-targets|service-timeout|service-workers|service-rate|nmap-udp-probes|nmap-service-probes|pcapng|pcapng-max-mb|db|packetd)$' { return }
+                '^--?(payload|payload-file|config|timeout|rate|workers|udp-retries|send-hex|send-base64|interface|source-ip|source-mac|next-hop-mac|allow-targets|service-timeout|service-workers|service-rate|nmap-udp-probes|nmap-service-probes|nse-scripts|nse-timeout|pcapng|pcapng-max-mb|db|packetd)$' { return }
             }
             if ($wordToComplete.StartsWith('-')) {
                 & $emit @('--profile', '--ports', '--protocols', '--timeout', '--rate', '--workers', '--udp-retries', '--tcp-mode', '--interface', '--source-ip', '--source-mac', '--next-hop-mac',
                     '--payload', '--send-hex', '--send-base64', '--payload-file', '--nmap-udp-probes', '--config',
-                    '--service', '--service-probes', '--service-fallback', '--service-timeout', '--service-workers', '--service-rate', '--nmap-service-probes', '--pcapng', '--pcapng-max-mb', '--db', '--no-db', '--allow-targets',
+                    '--service', '--service-probes', '--service-fallback', '--service-timeout', '--service-workers', '--service-rate', '--nmap-service-probes', '--nse-scripts', '--nse-timeout', '--pcapng', '--pcapng-max-mb', '--db', '--no-db', '--allow-targets',
                     '--fingerprint', '--packetd', '--known-open', '--json', '--dry-run', '--help') 'ParameterName'
             }
         }

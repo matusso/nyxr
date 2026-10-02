@@ -52,6 +52,8 @@ type stageFlags struct {
 	serviceWorkers  *int
 	serviceRate     *int
 	nmapProbes      *string
+	nseScripts      *string
+	nseTimeout      *time.Duration
 	pcapng          *string
 	pcapngMaxMB     *int
 	db              dbFlags
@@ -67,6 +69,8 @@ func addStageFlags(fs *flag.FlagSet) *stageFlags {
 	s.serviceWorkers = fs.Int("service-workers", -1, "concurrent service probe workers")
 	s.serviceRate = fs.Int("service-rate", -1, "new service connections per second (0 unlimited)")
 	s.nmapProbes = fs.String("nmap-service-probes", "", "import this nmap-service-probes file for banner matching")
+	s.nseScripts = fs.String("nse-scripts", "", "comma list of installed safe Nmap NSE scripts")
+	s.nseTimeout = fs.Duration("nse-timeout", 0, "maximum Nmap NSE execution time per host (default 30s)")
 	s.pcapng = fs.String("pcapng", "", "write packet evidence to this pcapng file")
 	s.pcapngMaxMB = fs.Int("pcapng-max-mb", -1, "pcapng size budget in MiB (default 1024)")
 	s.db = dbFlags{
@@ -79,7 +83,7 @@ func addStageFlags(fs *flag.FlagSet) *stageFlags {
 
 // overlay applies explicitly set stage flags to the request.
 func (s *stageFlags) overlay(r *config.Request) error {
-	if *s.serviceWorkers < -1 || *s.serviceRate < -1 || *s.serviceTimeout < 0 || *s.pcapngMaxMB < -1 {
+	if *s.serviceWorkers < -1 || *s.serviceRate < -1 || *s.serviceTimeout < 0 || *s.nseTimeout < 0 || *s.pcapngMaxMB < -1 {
 		return errors.New("service workers, rate, timeout and pcapng size must be nonnegative")
 	}
 	if s.service.value != nil {
@@ -91,6 +95,8 @@ func (s *stageFlags) overlay(r *config.Request) error {
 	r.ServiceWorkers = mergeInt(*s.serviceWorkers, r.ServiceWorkers)
 	r.ServiceRate = mergeInt(*s.serviceRate, r.ServiceRate)
 	r.NmapServiceProbes = first(*s.nmapProbes, r.NmapServiceProbes)
+	r.NSEScripts = first(*s.nseScripts, r.NSEScripts)
+	r.NSETimeout = first(timeoutText(*s.nseTimeout), r.NSETimeout)
 	r.PCAPNG = first(*s.pcapng, r.PCAPNG)
 	r.PCAPNGMaxMB = mergeInt(*s.pcapngMaxMB, r.PCAPNGMaxMB)
 	r.Fingerprint = r.Fingerprint || *s.fingerprint
@@ -117,6 +123,9 @@ func emitStagePlan(out io.Writer, r config.Resolved, db string, asJSON bool, sty
 		if p.NmapProbes != "" {
 			fmt.Fprintf(out, "%s%s\n", key("nmap-probes"), p.NmapProbes)
 		}
+	}
+	if p := plan.NSE; p != nil {
+		fmt.Fprintf(out, "%s%s %s\n", key("nse"), strings.Join(p.Scripts, ", "), style.Dim("(safe; "+p.Timeout+" per host)"))
 	}
 	if plan.PCAPNG != "" {
 		fmt.Fprintf(out, "%s%s %s\n", key("pcapng"), plan.PCAPNG, style.Dim(fmt.Sprintf("(max %d MiB)", plan.PCAPNGMaxMB)))

@@ -11,6 +11,7 @@ listening, and keeps every byte it exchanged so the claim can be checked.
 - [Evidence](#evidence)
 - [Tuning](#tuning)
 - [Nmap service-probe interoperability](#nmap-service-probe-interoperability)
+- [Nmap NSE scripts](#nmap-nse-scripts)
 
 ## Enable the service stage
 
@@ -156,3 +157,31 @@ database's `NULL` probe rules:
 Imported *active* TCP probes are not sent yet. For UDP payloads from the same
 file, see [Using Nmap UDP probes](udp.md#using-nmap-udp-probes). Remote API
 requests may not name a server-side probes file.
+
+## Nmap NSE scripts
+
+With Nmap installed locally, the CLI can run selected NSE scripts after nyxr
+discovers open TCP or UDP ports:
+
+```sh
+nyxr scan --profile tcp --ports 80,443 --nse-scripts http-title,ssl-cert \
+  --nse-timeout 30s --json 192.0.2.10
+```
+
+Use individual script names from the local Nmap installation. nyxr verifies
+that every named script belongs to Nmap's `safe` category and excludes scripts
+also tagged `intrusive`, `exploit`, `dos`, `external`, `fuzzer` or `brute`.
+Category names, wildcards, paths, script expressions and script arguments are
+not accepted. Scripts in other categories cannot run through this bridge.
+
+Nmap rechecks nyxr's discovered open ports before applying each script's
+portrule. It runs one Nmap process per host, with at most four processes at
+once and a per-host timeout. The bridge accepts at most 16 named scripts and
+1024 discovered open ports per scan. Nmap's scan is subject to the configured
+overall or per-host rate when either is set. UDP NSE scans require the local
+privileges Nmap normally requires for `-sU`.
+
+Each result is a `script` observation in text, JSON and stored history. Its
+`nse` object keeps Nmap's readable output and nested XML fields. Host script
+results have `transport: "host"`. This bridge is available to local CLI scans;
+the API does not execute local Nmap scripts.

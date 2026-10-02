@@ -167,6 +167,8 @@ Service identification, evidence and storage:
   --service-workers int concurrent service probe workers
   --service-rate int    new service connections/second (0 = unlimited)
   --nmap-service-probes f  import an nmap-service-probes file to match banners
+  --nse-scripts list    run named, installed safe Nmap NSE scripts on discovered open ports
+  --nse-timeout d       maximum Nmap execution time per host (default 30s)
   --pcapng file         capture scan traffic on --interface as pcapng evidence
   --pcapng-max-mb int   pcapng size budget (default 1024)
   --db file             SQLite database for the scan, observations and evidence

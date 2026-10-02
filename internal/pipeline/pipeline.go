@@ -17,6 +17,7 @@ import (
 	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/device"
 	"github.com/matusso/nyxr/internal/nmapdb"
+	"github.com/matusso/nyxr/internal/nse"
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/scan"
@@ -53,6 +54,9 @@ type Options struct {
 	// Nmap is the compiled database for Service.NmapProbesFile. Only a local
 	// caller loads it; the pipeline never opens files named by a request.
 	Nmap *nmapdb.Database
+	NSE  config.NSE
+	// NSERunner overrides local Nmap execution for isolated callers/tests.
+	NSERunner nse.Executor
 
 	// Test hooks; nil selects the real implementation.
 	Discover    func(context.Context, config.Config, func(scan.Observation) error) error
@@ -67,7 +71,7 @@ type Options struct {
 // uses it, so equivalent requests run equivalent pipelines. Callers add sinks
 // and the packet opener.
 func FromResolved(r config.Resolved) Options {
-	o := Options{Service: r.Service, Fingerprint: r.Fingerprint}
+	o := Options{Service: r.Service, NSE: r.NSE, Fingerprint: r.Fingerprint}
 	if r.PCAPNG != "" {
 		o.Capture = &CaptureOptions{Path: r.PCAPNG, Interface: r.Config.Interface, MaxBytes: r.PCAPNGMaxBytes}
 	}
@@ -81,6 +85,21 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 		return observe.Scan{}, err
 	}
 	if err := opts.Service.ValidateFor(cfg); err != nil {
+		return observe.Scan{}, err
+	}
+	if opts.NSE.Enabled() {
+		if cfg.Profile == "ot-safe" || cfg.Research != nil || (!cfg.TCP && !cfg.UDP) {
+			return observe.Scan{}, errors.New("NSE scripts are unavailable for this scan profile or protocol")
+		}
+		if err := opts.NSE.Validate(); err != nil {
+			return observe.Scan{}, err
+		}
+	}
+	var nseRunner nse.Executor = opts.NSERunner
+	if nseRunner == nil {
+		nseRunner = nse.Runner{}
+	}
+	if err := nseRunner.Validate(parent, opts.NSE); err != nil {
 		return observe.Scan{}, err
 	}
 	discover := opts.Discover
@@ -165,10 +184,26 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 		startService()
 	}
 	var otOpen []service.Target
+	var nsePorts map[netip.Addr][]nse.Port
+	if opts.NSE.Enabled() {
+		nsePorts = make(map[netip.Addr][]nse.Port)
+	}
+	var nseMu sync.Mutex
+	nsePortCount := 0
 	if runErr == nil {
 		runErr = discover(ctx, cfg, func(so scan.Observation) error {
 			o := fromScan(so)
 			deliver(o)
+			if nsePorts != nil && o.State == "open" && o.Port != 0 && (o.Transport == "tcp" || o.Transport == "udp") {
+				nseMu.Lock()
+				if nsePortCount >= 1024 {
+					nseMu.Unlock()
+					return errors.New("NSE bridge accepts at most 1024 open ports per scan")
+				}
+				nsePorts[o.Target] = append(nsePorts[o.Target], nse.Port{Transport: o.Transport, Number: o.Port})
+				nsePortCount++
+				nseMu.Unlock()
+			}
 			if o.Transport == "tcp" && o.State == "open" {
 				t := service.Target{Addr: o.Target, Port: o.Port}
 				if cfg.Profile == "ot-safe" {
@@ -197,6 +232,9 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 	}
 	if engine != nil {
 		engine.Close()
+	}
+	if runErr == nil && nsePortCount > 0 {
+		runErr = runNSE(ctx, nseRunner, opts.NSE, nsePorts, cfg, deliver)
 	}
 	if devices != nil {
 		for _, result := range devices.Results() {
@@ -249,6 +287,62 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 		}
 	}
 	return summary, runErr
+}
+
+func runNSE(ctx context.Context, runner nse.Executor, settings config.NSE, ports map[netip.Addr][]nse.Port,
+	cfg config.Config, deliver func(observe.Observation)) error {
+	workers := 4
+	if cfg.Workers < workers {
+		workers = cfg.Workers
+	}
+	if cfg.Rate > 0 && cfg.Rate < workers {
+		workers = cfg.Rate
+	}
+	if workers < 1 {
+		workers = 1
+	}
+	maxRate := 0
+	if cfg.Rate > 0 {
+		maxRate = cfg.Rate / workers
+	}
+	if cfg.HostRate > 0 && (maxRate == 0 || cfg.HostRate < maxRate) {
+		maxRate = cfg.HostRate
+	}
+	jobs := make(chan netip.Addr)
+	stageCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var wg sync.WaitGroup
+	var once sync.Once
+	var stageErr error
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for addr := range jobs {
+				results, err := runner.RunHost(stageCtx, settings, addr, ports[addr], maxRate)
+				if err != nil {
+					if stageCtx.Err() == nil {
+						once.Do(func() { stageErr = err; cancel() })
+					}
+					continue
+				}
+				for _, result := range results {
+					deliver(result)
+				}
+			}
+		}()
+	}
+send:
+	for addr := range ports {
+		select {
+		case jobs <- addr:
+		case <-stageCtx.Done():
+			break send
+		}
+	}
+	close(jobs)
+	wg.Wait()
+	return stageErr
 }
 
 func startCapture(ctx context.Context, cfg config.Config, o CaptureOptions, open packetio.Opener) (*capture.Recorder, error) {

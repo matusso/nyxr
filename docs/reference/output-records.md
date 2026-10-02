@@ -11,7 +11,7 @@ Every record carries:
 | Field | Meaning |
 | --- | --- |
 | `schema` | `nyxr/v1`. Consumers should reject an unknown major version |
-| `kind` | `host`, `port`, `service`, `device`, `packet-evidence` or `scan` |
+| `kind` | `host`, `port`, `service`, `script`, `device`, `packet-evidence` or `scan` |
 | `scan_id` | Sortable scan identifier, such as `20261001T195109Z-c3b4a07e3884` |
 
 A stream may interleave kinds, so readers should switch on `kind`. The `scan`
@@ -22,6 +22,7 @@ summary is always emitted last.
 | `host` | ICMP, ARP or NDP reachability of one address |
 | `port` | Discovery state of one transport port |
 | `service` | Deep-probe identity of an open port |
+| `script` | Nmap NSE result on a discovered open port or its host |
 | `device` | Multi-source device classification |
 | `packet-evidence` | Captured frames that belong to one flow |
 | `scan` | Summary of the run |
@@ -33,7 +34,7 @@ summary is always emitted last.
 
 ## Observation fields
 
-`host`, `port`, `service` and `device` records share these fields:
+`host`, `port`, `service`, `script` and `device` records share these fields:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -55,8 +56,14 @@ summary is always emitted last.
 | `fields` | map | Extracted protocol fields, such as `dns.rcode` or `bacnet.device_id` |
 | `attributes` | map | Service details, such as `ssh.software` or `nmap.*` provenance |
 | `tls` | object | [TLS details](#tls), for services reached over TLS |
+| `nse` | object | For `script`: Nmap script `id`, readable `output`, and recursive XML `fields` (`kind`, `key`, `value`, `children`) |
 | `evidence` | list | [Probe exchanges](#evidence) |
 | `signals` | list | For `device`: the observations that support the claim (`source`, `transport`, `port`, `detail`) |
+
+NSE `script` records have `state: "reported"`, `probe: "nse/<script-id>"`, and
+the discovered port and transport. Host scripts use `transport: "host"` and
+omit `port`. Their `nse.output` is Nmap's text; `nse.fields` retains nested
+`<table>` and `<elem>` values from Nmap XML.
 
 ### Example service record
 

@@ -45,6 +45,16 @@ func (s *TextSink) WithStyle(style *ui.Styler) *TextSink {
 func (s *TextSink) Begin(observe.Scan) error { return nil }
 
 func (s *TextSink) Observation(o observe.Observation) error {
+	if o.Kind == observe.KindScript && o.NSE != nil {
+		output := strings.TrimSpace(o.NSE.Output)
+		output = strings.ReplaceAll(output, "\n", "\\n")
+		if o.Port == 0 {
+			_, err := fmt.Fprintf(s.w, "%s nse %s: %s\n", o.Target, o.NSE.ID, output)
+			return err
+		}
+		_, err := fmt.Fprintf(s.w, "%s %s/%d nse %s: %s\n", o.Target, o.Transport, o.Port, o.NSE.ID, output)
+		return err
+	}
 	if o.Kind == observe.KindDevice {
 		line := s.style.Device(o.Target.String(), o.Attributes["device.class"], o.Confidence, len(o.Signals))
 		_, err := fmt.Fprintln(s.w, line)

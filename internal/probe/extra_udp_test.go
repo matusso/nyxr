@@ -93,6 +93,9 @@ func TestExpandedUDPCatalogAndReplies(t *testing.T) {
 		if Match(p, request, []byte{1, 2, 3}) {
 			t.Errorf("%s accepted a malformed reply", tc.name)
 		}
+		if Match(p, request, nil) {
+			t.Errorf("%s accepted an empty reply", tc.name)
+		}
 	}
 	for _, name := range []string{"dns-status", "dhcp-discover", "nbns-node-status", "radius-access", "ike-main-mode", "slp-service-agent", "ipmi-asf-ping"} {
 		p := byName[name]
