@@ -260,28 +260,58 @@ const scanHeaders = ["scan", "profile", "status", "started", "targets", "observa
 // ---- pages ----
 
 async function dashboard() {
-  const [scans, assets] = await Promise.all([api("/scans?limit=20"), api("/assets?open=true")]);
-  let open = 0, services = 0;
-  for (const a of assets) for (const p of a.ports || []) {
-    if (p.state === "open") open++;
-    if (p.service) services++;
-  }
-  const running = scans.filter(s => s.status === "running").length;
+  const signal = pageAbort.signal;
+  const metrics = [
+    ["scans", "Total scans", "Across all stored history"],
+    ["running", "Active scans", "Currently in progress"],
+    ["hosts", "Discovered hosts", "Stored in this workspace"],
+    ["open_ports", "Open ports", "Latest known state"],
+    ["services", "Services", "Identified on open ports"],
+  ];
+  const values = Object.fromEntries(metrics.map(([key]) => [key, h("div", { class: "n" }, "—")]));
+  const recent = h("div", {});
+  const updated = h("span", { class: "muted" }, "Updating…");
+  const refresh = async () => {
+    const [stats, scans] = await Promise.all([api("/stats", { signal }), api("/scans?limit=8", { signal })]);
+    if (signal.aborted) return;
+    for (const [key] of metrics) {
+      values[key].textContent = Number(stats[key] || 0).toLocaleString();
+      values[key].classList.toggle("live-number", key === "running" && stats.running > 0);
+    }
+    recent.replaceChildren(scans.length ? table(scanHeaders, scans.map(scanRow)) :
+      h("p", { class: "muted" }, "No scans yet. ", h("a", { href: "#/new" }, "Start one.")));
+    updated.textContent = "Updated " + new Date().toLocaleTimeString();
+  };
+  await refresh();
+  const interval = setInterval(() => refresh().catch(() => { updated.textContent = "Live update unavailable"; }), 5000);
+  signal.addEventListener("abort", () => clearInterval(interval), { once: true });
   return [
-    h("h1", {}, "dashboard"),
-    h("div", { class: "tiles" },
-      [["scans", scans.length + (scans.length === 20 ? "+" : "")], ["running", running], ["hosts", assets.length],
-        ["open ports", open], ["identified services", services]]
-        .map(([l, n]) => h("div", { class: "tile" }, h("div", { class: "n" }, n), h("div", { class: "l" }, l)))),
-    h("h2", {}, "recent scans"),
-    scans.length ? table(scanHeaders, scans.map(scanRow)) : h("p", { class: "muted" }, "No scans yet. ", h("a", { href: "#/new" }, "Start one.")),
+    h("section", { class: "hero" },
+      h("div", { class: "hero-content" }, h("span", { class: "eyebrow" }, "// COMMAND CENTER"),
+        h("h1", {}, "See Beyond the Surface."),
+        h("p", {}, "Discover hosts, map exposed ports, and identify services from one local network workspace."),
+        h("div", { class: "hero-actions" }, h("a", { class: "button-link", href: "#/new" }, "＋ Launch scan"),
+          h("a", { class: "button-link secondary", href: "#/assets" }, "Explore assets →"))),
+      h("div", { class: "hero-meta" }, h("span", { class: "system-dot" }), "SYSTEM ONLINE")),
+    h("div", { class: "tiles" }, metrics.map(([key, label, hint]) =>
+      h("div", { class: "tile" }, values[key], h("div", { class: "l" }, label), h("div", { class: "hint" }, hint)))),
+    h("div", { class: "bar section-bar" }, h("h2", {}, "Recent scans"), updated),
+    recent,
   ];
 }
 
 async function scansPage() {
-  const scans = await api("/scans?limit=200");
-  return [h("div", { class: "bar" }, h("h1", {}, "scans"), h("a", { href: "#/new" }, "+ new scan")),
-    table(scanHeaders, scans.map(scanRow))];
+  const signal = pageAbort.signal;
+  const list = h("div", {});
+  const refresh = async () => {
+    const scans = await api("/scans?limit=200", { signal });
+    if (!signal.aborted) list.replaceChildren(table(scanHeaders, scans.map(scanRow)));
+  };
+  await refresh();
+  const interval = setInterval(() => refresh().catch(() => {}), 5000);
+  signal.addEventListener("abort", () => clearInterval(interval), { once: true });
+  return [h("div", { class: "bar" }, h("h1", {}, "Scans"), h("a", { href: "#/new" }, "+ new scan")),
+    h("p", { class: "page-intro" }, "Scan history and live activity update automatically."), list];
 }
 
 async function newScan(knownScope = null) {
@@ -380,7 +410,7 @@ async function newScan(knownScope = null) {
   h("label", {}, "capture"), input("pcapng", { placeholder: "evidence.pcapng (needs packetd and --evidence-dir)" }),
   h("div", { class: "actions" }, h("button", { type: "submit" }, "start scan"), planBtn, reqBtn));
   syncKnownOpen();
-  return [h("h1", {}, knownScope !== null ? "service scan" : "new scan"), form, out];
+  return [h("h1", {}, knownScope !== null ? "Service scan" : "New scan"), form, out];
 }
 
 async function scanPage(id) {
@@ -389,15 +419,31 @@ async function scanPage(id) {
   const tbody = h("tbody", {});
   const evidence = h("div", {});
   const actions = h("span", {});
+  const progressTitle = h("span", { class: "scan-progress-title" });
+  const progressNote = h("span", { class: "scan-progress-note" });
+  const progressTrack = h("div", { class: "scan-progress-track", role: "progressbar", "aria-label": "Scan progress",
+    "aria-valuemin": "0", "aria-valuemax": "100" },
+    h("div", { class: "scan-progress-fill" }));
+  const elapsedValue = h("strong", {}, "0s");
+  const targetValue = h("strong", {}, "0");
+  const observationValue = h("strong", {}, "0");
+  const serviceValue = h("strong", {}, "0");
+  const progress = h("section", { class: "scan-progress", "aria-live": "polite" },
+    h("div", { class: "scan-progress-top" }, progressTitle, progressNote), progressTrack,
+    h("div", { class: "scan-progress-metrics" },
+      h("span", {}, "ELAPSED ", elapsedValue), h("span", {}, "TARGETS SEEN ", targetValue),
+      h("span", {}, "OBSERVATIONS ", observationValue), h("span", {}, "SERVICES ", serviceValue)));
   const signal = pageAbort.signal;
   let current = await api("/scans/" + encodeURIComponent(id));
   const seen = new Set();
+  const seenTargets = new Set();
   let servicesSeen = 0, pending = false;
   const key = o => [o.kind, o.target, o.transport, o.port, o.probe, o.timestamp].join("|");
   const addObs = (o, fresh) => {
     const k = key(o);
     if (seen.has(k)) return;
     seen.add(k);
+    seenTargets.add(o.target);
     if (o.kind === "service" && o.fingerprint === "matched") servicesSeen++;
     tbody.append(obsRow(o, fresh));
     if (fresh && !pending) {
@@ -414,6 +460,19 @@ async function scanPage(id) {
   };
   const renderSummary = s => {
     current = s;
+    progress.classList.toggle("done", s.status === "completed");
+    progress.classList.toggle("failed", s.status === "failed");
+    progressTitle.textContent = s.status === "running" ? "Scan in progress" :
+      s.status === "completed" ? "Scan complete" : "Scan " + s.status;
+    progressNote.textContent = s.status === "running" ? "Live results · total completion is unavailable" :
+      s.status === "completed" ? "All scan stages finished" : "Partial results remain available";
+    progressTrack.setAttribute("aria-valuetext", progressTitle.textContent);
+    if (s.status === "completed") progressTrack.setAttribute("aria-valuenow", "100");
+    else progressTrack.removeAttribute("aria-valuenow");
+    targetValue.textContent = `${seenTargets.size} / ${s.targets}`;
+    observationValue.textContent = Math.max(s.observations, seen.size).toLocaleString();
+    serviceValue.textContent = Math.max(s.services, servicesSeen).toLocaleString();
+    updateElapsed();
     summary.replaceChildren(kv([["profile", s.profile], ["status", state(s.status)], ["started", fmtTime(s.started)],
       ["finished", fmtTime(s.finished)], ["targets", s.targets], ["observations", s.observations], ["services", s.services],
       ["error", s.error], ["capture", s.capture ? `${s.capture.written} packets, ${s.capture.bytes} bytes in ${s.capture.path}` +
@@ -424,6 +483,14 @@ async function scanPage(id) {
         try { await api(`/scans/${encodeURIComponent(id)}/cancel`, { body: {} }); } catch (e) { alert(e.message); }
       } }, "cancel") : "",
       s.capture && s.status !== "running" ? h("button", { class: "secondary", onclick: () => download(id, s.capture.path) }, "download pcapng") : "");
+  };
+  const updateElapsed = () => {
+    const started = Date.parse(current.started);
+    if (!Number.isFinite(started)) return;
+    const end = current.status === "running" ? Date.now() : Date.parse(current.finished);
+    const seconds = Math.max(0, Math.floor(((Number.isFinite(end) ? end : Date.now()) - started) / 1000));
+    elapsedValue.textContent = seconds >= 3600 ? `${Math.floor(seconds / 3600)}h ${Math.floor(seconds % 3600 / 60)}m` :
+      seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
   };
   const loadStored = async () => {
     const [obs, ev] = await Promise.all([
@@ -437,6 +504,9 @@ async function scanPage(id) {
   };
   renderSummary(current);
   await loadStored();
+  renderSummary(current);
+  const clock = setInterval(updateElapsed, 1000);
+  signal.addEventListener("abort", () => clearInterval(clock), { once: true });
   if (current.status === "running") {
     stream(`/scans/${encodeURIComponent(id)}/events`, (type, data) => {
       if (type === "observation") addObs(data, true);
@@ -445,8 +515,20 @@ async function scanPage(id) {
         if (data.status !== "running") loadStored().catch(() => {});
       }
     }, signal);
+    const poll = setInterval(async () => {
+      try {
+        const latest = await api("/scans/" + encodeURIComponent(id), { signal });
+        if (signal.aborted) return;
+        const wasRunning = current.status === "running";
+        renderSummary(latest);
+        if (wasRunning && latest.status !== "running") loadStored().catch(() => {});
+        if (latest.status !== "running") clearInterval(poll);
+      } catch { /* the event stream and existing results remain usable */ }
+    }, 5000);
+    signal.addEventListener("abort", () => clearInterval(poll), { once: true });
   }
-  return [h("div", { class: "bar" }, h("h1", {}, "scan " + id), status, actions), summary,
+  return [h("div", { class: "bar" }, h("h1", {}, "Scan " + id), status, actions), summary,
+    progress,
     h("h2", {}, "observations"), h("div", { class: "scroll" }, h("table", {},
       h("thead", {}, h("tr", {}, obsHeaders.map(x => h("th", {}, x)))), tbody)),
     h("h2", {}, "packet evidence"), evidence];
@@ -510,19 +592,19 @@ async function assetsPage() {
   };
   search.addEventListener("input", update);
   render(assets);
-  return [h("div", { class: "bar" }, h("h1", {}, "assets"),
+  return [h("div", { class: "bar" }, h("h1", {}, "Assets"),
     h("a", { href: "#/new/known-open" }, "+ service scan on open ports")),
     h("div", { class: "asset-search" }, search, suggestions, count), results];
 }
 
 async function servicesPage() {
   const obs = await api("/observations?kind=service&limit=2000");
-  return [h("h1", {}, `services (${obs.length} observations)`), table(obsHeaders, obs.map(o => obsRow(o, false)))];
+  return [h("h1", {}, `Services (${obs.length} observations)`), table(obsHeaders, obs.map(o => obsRow(o, false)))];
 }
 
 async function profilesPage() {
   const profiles = await api("/profiles");
-  return [h("h1", {}, "profiles"), table(["profile", "status", "protocols", "ports", "rate", "description"],
+  return [h("h1", {}, "Profiles"), table(["profile", "status", "protocols", "ports", "rate", "description"],
     profiles.map(p => h("tr", {}, h("td", {}, p.Name), h("td", {}, state(p.Availability === "available" ? "open" : "planned")),
       h("td", {}, p.Protocols || "-"), h("td", {}, p.Ports || "-"), h("td", {}, p.Rate || "unlimited"),
       h("td", { class: "wrap" }, p.Availability === "planned" ? "planned: needs " + p.Requires : p.Description))))];
@@ -646,7 +728,7 @@ function packetsPage() {
   const stop = h("button", { type: "button", class: "secondary", disabled: true, onclick: stopWatch }, "stop");
   const clear = h("button", { type: "button", class: "secondary", onclick: () => { rows.replaceChildren(); total = 0; count.textContent = "0 packets"; } }, "clear");
   const sendEdited = h("button", { type: "button", onclick: () => submit(hexInput.value) }, "send edited frame");
-  return [h("h1", {}, "packets"), h("p", { class: "muted" }, "Watch live Ethernet frames, clone one into the hex editor, then send or resend one frame. Watching needs packetd; sending also needs --allow-packet-send."),
+  return [h("h1", {}, "Packets"), h("p", { class: "muted" }, "Watch live Ethernet frames, clone one into the hex editor, then send or resend one frame. Watching needs packetd; sending also needs --allow-packet-send."),
     h("div", { class: "bar packet-toolbar" }, h("label", {}, "interface ", interfaceInput), start, stop, clear, status, count),
     h("div", { class: "scroll packet-list" }, h("table", {}, h("thead", {}, h("tr", {}, ["#", "time", "packet", "bytes", ""].map(x => h("th", {}, x)))), rows)),
     h("h2", {}, "packet editor"), editorInfo,
@@ -658,7 +740,7 @@ function packetsPage() {
 
 function login(retry) {
   const t = h("input", { type: "password", placeholder: "API token", autocomplete: "current-password" });
-  main.replaceChildren(h("h1", {}, "token required"),
+  main.replaceChildren(h("h1", {}, "Token required"),
     h("form", { class: "grid", onsubmit: ev => { ev.preventDefault(); setToken(t.value.trim()); retry(); } },
       h("label", {}, "token"), t, h("div", { class: "actions" }, h("button", { type: "submit" }, "continue"))));
   t.focus();
@@ -669,6 +751,12 @@ async function route() {
   pageAbort = new AbortController();
   const hash = location.hash.replace(/^#/, "") || "/";
   document.querySelectorAll("nav a").forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + hash));
+  const section = hash.startsWith("/scans/") ? "Scans" : hash.startsWith("/new") ? "New scan" :
+    ({ "/": "Overview", "/scans": "Scans", "/assets": "Assets", "/services": "Services",
+      "/packets": "Packets", "/profiles": "Profiles" })[hash] || "Workspace";
+  document.getElementById("current-page").textContent = section;
+  if (hash.startsWith("/scans/")) document.querySelector('nav a[href="#/scans"]').classList.add("active");
+  if (hash.startsWith("/new/")) document.querySelector('nav a[href="#/new"]').classList.add("active");
   let page;
   if (hash === "/") page = dashboard();
   else if (hash === "/scans") page = scansPage();
@@ -690,7 +778,7 @@ async function route() {
     if (e.name === "AbortError") return;
     if (mine === pageAbort) main.replaceChildren(h("p", { class: "error" }, e.message));
   }
-  if (!document.getElementById("version").textContent) {
+  if (document.getElementById("version").textContent === "Connecting…") {
     api("/version").then(v => { document.getElementById("version").textContent = "v " + v.version + " · " + v.schema; }).catch(() => {});
   }
 }

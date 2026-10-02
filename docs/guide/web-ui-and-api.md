@@ -25,7 +25,8 @@ load. To use raw packet features from the server, see
 
 ## Web UI tour
 
-**Dashboard.** Scan, host, open-port and service counts, with recent scans.
+**Dashboard.** Live scan, host, open-port and service counts, with recent scans.
+The counts and scan history refresh while the page is open.
 
 ![Dashboard](../images/dashboard.png)
 
@@ -35,8 +36,10 @@ which is the same document `nyxr scan --config` accepts.
 
 ![New scan form](../images/new-scan.png)
 
-**Scan detail.** Live results while a scan runs, then every observation with
-state, confidence and detail. Expand *exchanges* to see the bytes behind a
+**Scan detail.** Live results and a running progress indicator, then every
+observation with state, confidence and detail. The indicator shows elapsed
+time, targets seen and live counters; it does not estimate a completion
+percentage because scan stages can add work after discovery. Expand *exchanges* to see the bytes behind a
 service claim. Running scans can be cancelled; partial results are kept.
 
 ![Scan detail with service observations](../images/scan.png)
@@ -74,6 +77,7 @@ All paths are under `/api/v1`.
 
 | Method and path | Purpose |
 | --- | --- |
+| `GET /stats` | Live dashboard counts for scans, running scans, hosts, open ports and identified services |
 | `GET /profiles` | Profile catalog, as `nyxr profiles --json` |
 | `POST /plan` | Resolve a request and return the dry-run plan |
 | `POST /scans` | Start a scan; returns `201` with the running `scan` summary |
