@@ -12,8 +12,8 @@ import (
 	"github.com/matusso/nyxr/internal/observe"
 )
 
-// Port hints order the active probes. They never claim a service by
-// themselves: an identity always comes from a matched response.
+// Port hints influence priors and active-probe eligibility. They never
+// claim a service by themselves: an identity comes from a matched response.
 var (
 	tlsPorts = portSet(261, 443, 448, 465, 563, 585, 614, 636, 853, 989, 990, 992, 993, 994, 995,
 		2083, 2087, 2096, 2376, 2484, 3269, 4443, 5061, 5986, 6443, 6697, 7443, 8443, 8883, 9443, 10250)
@@ -33,44 +33,16 @@ func portSet(ports ...uint16) map[uint16]bool {
 	return m
 }
 
-// plan returns the active probes for a port that sent no banner.
-func (e *Engine) plan(port uint16) []string {
-	var order []string
-	switch {
-	case databasePorts[port] && e.enabled[ProbeDatabase]:
-		order = []string{ProbeDatabase}
-	case modbusPorts[port]:
-		order = []string{ProbeModbus}
-	case ethernetIPPorts[port]:
-		order = []string{ProbeEtherNetIP}
-	case dnsPorts[port]:
-		order = []string{ProbeDNS}
-	case socksPorts[port]:
-		order = []string{ProbeSOCKS}
-	case tlsPorts[port]:
-		order = []string{ProbeTLS, ProbeHTTP}
-	case httpPorts[port]:
-		order = []string{ProbeHTTP, ProbeTLS}
-	default:
-		order = e.cfg.Fallback
-	}
-	out := make([]string, 0, len(order))
-	for _, p := range order {
-		if e.enabled[p] {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
 // Interrogate identifies the service on one open port. The result is always
 // a service observation: unrecognized or absent responses are reported as an
 // unknown fingerprint with every exchange retained as evidence.
-func (e *Engine) Interrogate(ctx context.Context, t Target) observe.Observation {
-	o := observe.Observation{
+func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observation) {
+	o = observe.Observation{
 		Kind: observe.KindService, Timestamp: time.Now().UTC(), Target: t.Addr, Transport: "tcp", Port: t.Port,
 		State: "open", Fingerprint: observe.FingerprintUnknown,
 	}
+	planner := newProbePlanner(e, t.Port)
+	defer func() { o.ServiceHypotheses = planner.probabilities() }()
 	if e.enabled[ProbeBanner] || e.enabled[ProbeSSH] || e.enabled[ProbeNmap] || e.enabled[ProbeDatabase] {
 		ev, banner := e.probeBanner(ctx, t)
 		o.Evidence = append(o.Evidence, ev)
@@ -83,28 +55,37 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) observe.Observation 
 			o.Probe = ProbeBanner
 			if e.enabled[ProbeDatabase] && matchDatabaseBanner(&o, banner) {
 				o.Evidence[len(o.Evidence)-1].Matched = ProbeDatabase
+				planner.confirmPassive(ProbeDatabase)
 				return o
 			}
 			if e.enabled[ProbeSSH] && matchSSH(&o, banner) {
 				o.Evidence[len(o.Evidence)-1].Matched = ProbeSSH
+				planner.confirmPassive(ProbeSSH)
 				return o
 			}
 			if e.nmapBanner(&o, banner) {
 				o.Evidence[len(o.Evidence)-1].Matched = ProbeNmap
+				planner.confirmNamed(o.Service, float64(o.Confidence)/100)
 				return o
 			}
 			o.Attributes = map[string]string{"banner": printable(banner, 256)}
 			o.Reason = "unrecognized banner retained as evidence"
-			if !e.enabled[ProbeDatabase] {
-				return o
-			}
+			planner.observeBanner(banner, e)
 		}
 	}
-	for _, p := range e.plan(t.Port) {
+	for {
 		if ctx.Err() != nil {
 			break
 		}
+		p, gain, score := planner.next()
+		if p == "" {
+			break
+		}
+		o.ProbeDecisions = append(o.ProbeDecisions, observe.ProbeDecision{
+			Probe: p, InformationGain: gain, Score: score, Hypotheses: planner.probabilities(),
+		})
 		o.ProbesAttempted = append(o.ProbesAttempted, p)
+		firstEvidence := len(o.Evidence)
 		var matched bool
 		switch p {
 		case ProbeTLS:
@@ -122,9 +103,23 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) observe.Observation 
 		case ProbeEtherNetIP:
 			matched = e.probeEtherNetIP(ctx, t, &o)
 		case ProbeDatabase:
-			matched = e.probeDatabase(ctx, t, &o)
+			matched = e.probeDatabase(ctx, t, &o, planner.redisHint)
+		}
+		if len(o.Evidence) > firstEvidence {
+			ev := o.Evidence[firstEvidence]
+			if ev.Error != "" && ev.Error != "timeout" && len(ev.Response) == 0 {
+				planner.attempted[p] = true // connection failures say nothing about protocol
+			} else {
+				planner.update(p, matched, ev.Response, e)
+			}
+		} else {
+			planner.attempted[p] = true
 		}
 		if matched {
+			if (p == ProbeHTTP && o.Probe == ProbeDatabase) ||
+				(p == ProbeTLS && o.Probe == ProbeTLS+"+"+ProbeDatabase) {
+				planner.confirmNamed(o.Service, float64(o.Confidence)/100)
+			}
 			o.Fingerprint = observe.FingerprintMatched
 			return o
 		}

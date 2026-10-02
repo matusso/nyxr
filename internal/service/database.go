@@ -70,9 +70,9 @@ func identifyDatabase(o *observe.Observation, service, product, version, reason 
 	o.Fingerprint = observe.FingerprintMatched
 }
 
-func (e *Engine) probeDatabase(ctx context.Context, t Target, o *observe.Observation) bool {
+func (e *Engine) probeDatabase(ctx context.Context, t Target, o *observe.Observation, redisHint bool) bool {
 	switch {
-	case redisPorts[t.Port]:
+	case redisHint || redisPorts[t.Port]:
 		return e.databaseExchange(ctx, t, o, []byte("*1\r\n$4\r\nPING\r\n"), matchRedis)
 	case memcachePorts[t.Port]:
 		return e.databaseExchange(ctx, t, o, []byte("version\r\n"), matchMemcached)
