@@ -165,9 +165,12 @@ func matchExtra(name string, request, response []byte) bool {
 		_, matched := cldapReply(response, int(request[pos]))
 		return matched
 	case "radius":
+		if len(response) < 20 {
+			return false
+		}
 		validCode := (request[0] == 1 && (response[0] == 2 || response[0] == 3 || response[0] == 11)) ||
 			(request[0] == 4 && response[0] == 5)
-		return len(response) >= 20 && validCode &&
+		return validCode &&
 			response[1] == request[1] && int(binary.BigEndian.Uint16(response[2:4])) == len(response)
 	case "ike":
 		return len(response) >= 28 && bytes.Equal(response[:8], request[:8]) &&
