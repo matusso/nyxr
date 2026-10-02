@@ -63,7 +63,7 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 				planner.confirmPassive(ProbeSSH)
 				return o
 			}
-			if e.enabled[ProbeBanner] && (matchMailBanner(&o, banner) || matchRsyncBanner(&o, banner)) {
+			if e.enabled[ProbeBanner] && (matchMailBanner(&o, banner) || matchRsyncBanner(&o, banner) || matchFTPBanner(&o, banner)) {
 				o.Evidence[len(o.Evidence)-1].Matched = ProbeBanner
 				planner.confirmNamed(o.Service, float64(o.Confidence)/100)
 				return o
