@@ -15,7 +15,8 @@ from any host.
 | `make fuzz` | Short fuzz campaigns for the decoder, pcap reader, probe definitions, service parsers and Nmap database parser |
 | `make benchmark` | Fixed-workload measurements and CPU profile; see [Performance](performance.md) |
 | `make cross` | Binaries for every supported platform into `dist/` |
-| `make package` | Release archives and `SHA256SUMS` in `dist/` |
+| `make linux-packages` | `.deb` and `.rpm` packages for Linux `amd64`/`arm64` in `dist/` |
+| `make package` | Release archives, Linux packages and `SHA256SUMS` in `dist/` |
 | `make clean` | Remove build output |
 | `make help` | List all targets |
 
@@ -32,6 +33,22 @@ both binaries. Override it with `make package VERSION=v0.1.0`.
 
 Each archive contains `nyxr`, `nyxr-packetd`, `README.md` and `LICENSE` in a
 directory named after the archive.
+
+## Linux packages
+
+`make linux-packages` builds `nyxr_<version>-1_<arch>.deb` and
+`nyxr-<version>-1.<arch>.rpm` with [nFPM](https://nfpm.goreleaser.com/), run
+through `go run` so nothing else needs installing. The config is
+`packaging/nfpm.yaml`; the systemd unit, `/etc/nyxr/packetd.env`, sysusers
+entry and maintainer scripts live in `packaging/linux/`.
+
+Packages need a semantic version: the leading `v` is dropped, and an untagged
+`VERSION` becomes `0.0.0-dev`. A pre-release tag such as `v0.7.0-rc1` becomes
+`0.7.0~rc1`, which sorts before `0.7.0` in both dpkg and rpm.
+
+The postinstall script creates the `nyxr` system user and group and reloads
+systemd, but does not enable `nyxr-packetd.service` or set file capabilities.
+Removal stops and disables the unit and keeps the account.
 
 A successful cross-build proves that a binary compiles, not that live packet
 capture or raw sockets work on that platform. Runtime validation is tracked in
@@ -57,8 +74,9 @@ Every push and pull request runs the `build` workflow:
 1. `make check`
 2. `make fuzz`
 3. `make package`
-4. Build the Docker image and smoke-test `nyxr version` inside it
-5. Upload the archives as a workflow artifact
+4. Install, run and remove the `amd64` `.deb` in Debian and `.rpm` in Fedora
+5. Build the Docker image and smoke-test `nyxr version` inside it
+6. Upload the archives and packages as a workflow artifact
 
 ## Releases
 
@@ -73,8 +91,8 @@ The workflow:
 
 1. Validates the tag (`vMAJOR.MINOR.PATCH`, with an optional `-suffix`).
 2. Runs `make check` and `make package VERSION=<tag>`.
-3. Creates a GitHub release with the `.tar.gz` and `.zip` archives and
-   `SHA256SUMS`.
+3. Creates a GitHub release with the `.tar.gz` and `.zip` archives, the
+   `.deb` and `.rpm` packages and `SHA256SUMS`.
 4. Pushes a Linux `amd64`/`arm64` image to `ghcr.io/matusso/nyxr:<tag>`.
 
 Stable releases also update `:latest`. Tags containing `-`, such as

@@ -60,7 +60,10 @@ API refuses them when started without `--packetd`.
 
 ### Running packetd under systemd
 
-A minimal unit grants the capabilities to packetd only:
+The `.deb` and `.rpm` packages ship this as `nyxr-packetd.service`, with
+hardening options added and the interfaces read from `/etc/nyxr/packetd.env`.
+See [Install](../getting-started.md#debian-ubuntu-fedora-rhel). For a manual
+install, a minimal unit grants the capabilities to packetd only:
 
 ```ini
 [Unit]
