@@ -40,6 +40,8 @@ func TestDatabaseMatchers(t *testing.T) {
 		{"elastic", matchHTTPDatabase, []byte("HTTP/1.1 200 OK\r\nX-Elastic-Product: Elasticsearch\r\n\r\n{}"), "elasticsearch"},
 		{"opensearch", matchHTTPDatabase, []byte("HTTP/1.1 200 OK\r\n\r\n{\"cluster_name\":\"c\",\"version\":{\"distribution\": \"opensearch\",\"number\":\"3.2.0\"}}"), "opensearch"},
 		{"couchdb", matchHTTPDatabase, []byte("HTTP/1.1 200 OK\r\n\r\n{\"couchdb\":\"Welcome\",\"version\":\"3.4.2\"}"), "couchdb"},
+		{"zookeeper refused", matchZooKeeper, []byte("srvr is not executed because it is not in the whitelist.\n"), "zookeeper"},
+		{"zookeeper not serving", matchZooKeeper, []byte("This ZooKeeper instance is not currently serving requests\n"), "zookeeper"},
 	} {
 		o = observe.Observation{}
 		if !tc.match(tc.data, &o) || o.Service != tc.want || o.Fingerprint != observe.FingerprintMatched {
@@ -57,10 +59,20 @@ func TestDatabaseMatchers(t *testing.T) {
 		{matchCQL, []byte{0x84, 0, 0, 0, 5, 0, 0, 0, 0}},
 		{matchTDS, []byte{4, 1, 0, 10, 0, 0, 1, 0, 0xff, 0}},
 		{matchHTTPDatabase, []byte("HTTP/1.1 200 OK\r\n\r\n{}")},
+		{matchZooKeeper, []byte("imok")},
 	} {
 		if tc.match(tc.data, &observe.Observation{}) {
 			t.Fatalf("false database match: %q", tc.data)
 		}
+	}
+}
+
+func TestZooKeeperSrvr(t *testing.T) {
+	reply := "Zookeeper version: 3.8.4-9316c2a7a97e1666d8f4593f34dd6fc36ecc436c, built on 2024-02-12 22:16 UTC\n" +
+		"Latency min/avg/max: 0/0.0/0\nReceived: 1\nSent: 0\nConnections: 1\nOutstanding: 0\nZxid: 0x0\nMode: standalone\nNode count: 5\n"
+	var o observe.Observation
+	if !matchZooKeeper([]byte(reply), &o) || o.Service != "zookeeper" || o.Version != "3.8.4" || o.Attributes["zookeeper.mode"] != "standalone" {
+		t.Fatalf("ZooKeeper srvr: %+v", o)
 	}
 }
 

@@ -21,7 +21,7 @@ var databasePorts = portSet(
 	28015, 29015, 3000, 3306, 33060, 4000, 4200, 5000, 5432, 5433, 5555,
 	5984, 6333, 6334, 6379, 6380, 7000, 7473, 7474, 7687, 7700, 8000,
 	8001, 8086, 8108, 8123, 8529, 8888, 9000, 9042, 9092, 9200, 9300,
-	10000, 10100, 11210, 11211, 14240, 19530, 19531, 50000,
+	10000, 10100, 11210, 11211, 14240, 19530, 19531, 50000, 2181, 6789,
 )
 
 var (
@@ -32,7 +32,10 @@ var (
 	boltPorts     = portSet(7687)
 	cqlPorts      = portSet(9042)
 	tdsPorts      = portSet(1433)
-	httpDBPorts   = portSet(2379, 2380, 2480, 3000, 4000, 4200, 5000, 5555, 5984,
+	// ZooKeeper clients connect on 2181; Micro Focus ZENworks bundles its
+	// ZooKeeper on 6789.
+	zookeeperPorts = portSet(2181, 6789)
+	httpDBPorts    = portSet(2379, 2380, 2480, 3000, 4000, 4200, 5000, 5555, 5984,
 		6333, 7000, 7473, 7474, 7700, 8000, 8001, 8086, 8108, 8123, 8529,
 		8888, 9000, 9200, 10000, 10100, 14240, 19530)
 )
@@ -86,6 +89,9 @@ func (e *Engine) probeDatabase(ctx context.Context, t Target, o *observe.Observa
 		return e.databaseExchange(ctx, t, o, []byte{4, 0, 0, 0, 5, 0, 0, 0, 0}, matchCQL)
 	case tdsPorts[t.Port]:
 		return e.databaseExchange(ctx, t, o, tdsPrelogin, matchTDS)
+	case zookeeperPorts[t.Port]:
+		// "srvr" is a read-only four-letter-word status command.
+		return e.databaseExchange(ctx, t, o, []byte("srvr"), matchZooKeeper)
 	case httpDBPorts[t.Port]:
 		return e.databaseExchange(ctx, t, o, []byte("GET / HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n"), matchHTTPDatabase)
 	default:
@@ -142,6 +148,31 @@ func matchMemcached(data []byte, o *observe.Observation) bool {
 		return false
 	}
 	identifyDatabase(o, "memcached", "Memcached", version, "Memcached version response", 100)
+	return true
+}
+
+// matchZooKeeper validates a "srvr" reply. A server that does not allow the
+// command still names it in a refusal, and one that has lost quorum says so;
+// both are ZooKeeper-specific texts.
+func matchZooKeeper(data []byte, o *observe.Observation) bool {
+	switch {
+	case bytes.HasPrefix(data, []byte("Zookeeper version: ")):
+		line, _, _ := bytes.Cut(data[len("Zookeeper version: "):], []byte("\n"))
+		version, _, _ := strings.Cut(string(line), ",")
+		version, _, _ = strings.Cut(version, "-") // drop the commit hash
+		identifyDatabase(o, "zookeeper", "Apache ZooKeeper", printable([]byte(version), 40), "ZooKeeper srvr response", 100)
+		for field := range bytes.SplitSeq(data, []byte("\n")) {
+			if mode, ok := bytes.CutPrefix(field, []byte("Mode: ")); ok {
+				o.Attributes = map[string]string{"zookeeper.mode": printable(mode, 40)}
+			}
+		}
+	case bytes.HasPrefix(data, []byte("srvr is not executed because it is not in the whitelist")):
+		identifyDatabase(o, "zookeeper", "Apache ZooKeeper", "", "ZooKeeper four-letter-word refusal", 95)
+	case bytes.HasPrefix(data, []byte("This ZooKeeper instance is not currently serving requests")):
+		identifyDatabase(o, "zookeeper", "Apache ZooKeeper", "", "ZooKeeper not-serving response", 95)
+	default:
+		return false
+	}
 	return true
 }
 
