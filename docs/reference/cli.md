@@ -91,8 +91,8 @@ Guide: [Research packets](../guide/research-packets.md).
 
 | Flag | Meaning |
 | --- | --- |
-| `--service` | Deep probes on open TCP ports (on for `tcp-common`, `tcp-full`, `deep-scan`, `windows`, `web`, `database`, `iot`, `ot-safe`) |
-| `--service-probes LIST` | `banner`, `ssh`, `tls`, `http`, `dns`, `socks`, `modbus`, `ethernetip`, `nmap`, `database`, `smb`, `rdp`, `msrpc` |
+| `--service` | Deep probes on open TCP ports (on for `tcp-common`, `tcp-full`, `deep-scan`, `windows`, `filesystem`, `web`, `database`, `iot`, `ot-safe`) |
+| `--service-probes LIST` | `banner`, `ssh`, `tls`, `http`, `dns`, `socks`, `modbus`, `ethernetip`, `nmap`, `database`, `smb`, `rdp`, `msrpc`, `ldap`, `kerberos`, `nfs` |
 | `--service-fallback LIST` | Probes for silent ports without a port hint, or `none` |
 | `--service-timeout DURATION` | Upper bound for each service probe |
 | `--service-workers N` | Concurrent service probe workers |

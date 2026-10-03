@@ -161,8 +161,8 @@ Flags:
                         default); targets, if given, narrow it by IP, CIDR or range
 
 Service identification, evidence and storage:
-  --service             deep probes on open TCP ports (on for tcp-common, tcp-full, deep-scan, windows, web, database, iot)
-  --service-probes list banner, ssh, tls, http, dns, socks, modbus, ethernetip, nmap, database, smb, rdp, msrpc
+  --service             deep probes on open TCP ports (on for tcp-common, tcp-full, deep-scan, windows, filesystem, web, database, iot)
+  --service-probes list banner, ssh, tls, http, dns, socks, modbus, ethernetip, nmap, database, smb, rdp, msrpc, ldap, kerberos, nfs
   --service-fallback l  probes for silent ports without a port hint, or none
   --service-timeout d   upper bound for each service probe
   --service-workers int concurrent service probe workers

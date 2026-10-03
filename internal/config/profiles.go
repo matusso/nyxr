@@ -74,9 +74,10 @@ type Profile struct {
 // profiles is the ordered catalog. The order controls how `nyxr profiles`
 // lists them. The tcp-* and udp-* families grow in depth from basic (find
 // open ports) through common (identify what answers on common ports) to full
-// (every port or every payload); deep-scan combines both transports, and
-// windows targets the services a Windows host and domain propagate. Profiles
-// whose engine does not exist yet are marked planned rather than omitted.
+// (every port or every payload); deep-scan combines both transports, windows
+// targets the services a Windows host and domain propagate, and filesystem
+// targets network file systems and object storage. Profiles whose engine does
+// not exist yet are marked planned rather than omitted.
 var profiles = []Profile{
 	{
 		Name: "tcp-basic", Description: "Top 100 TCP ports, connect scan, open ports only (the default)",
@@ -123,7 +124,13 @@ var profiles = []Profile{
 		// name/datagram (137/138), SNMP (161), CLDAP domain locator (389),
 		// SSDP (1900), mDNS (5353) and LLMNR (5355).
 		Ports: "windows", UDPPorts: "88,123,137,138,161,389,1900,5353,5355", Protocols: "tcp,udp", Timeout: "1500ms", Rate: 300, Workers: 128,
-		Service: &ServiceDefaults{Probes: "banner,smb,rdp,msrpc,tls,http,ssh,database", Fallback: "tls,http", Timeout: "6s", Workers: 32, Rate: 50},
+		Service: &ServiceDefaults{Probes: "banner,smb,rdp,msrpc,ldap,kerberos,tls,http,ssh,database", Fallback: "tls,http", Timeout: "6s", Workers: 32, Rate: 50},
+	},
+	{
+		Name: "filesystem", Description: "Network file systems and object storage: NFS, SMB/CIFS, Ceph, GlusterFS, iSCSI, MinIO and S3-compatible storage",
+		Availability: StatusAvailable,
+		Ports:        "filesystem", Protocols: "tcp", Timeout: "2s", Rate: 200, Workers: 64,
+		Service: &ServiceDefaults{Probes: "banner,nfs,smb,ldap,http,tls,ssh", Fallback: "tls,http", Timeout: "6s", Workers: 32, Rate: 50},
 	},
 	{
 		Name: "web", Description: "Common HTTP/HTTPS ports, trying TLS and HTTP on each open one",

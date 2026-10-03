@@ -28,6 +28,7 @@ payload); `deep-scan` runs both transports.
 | `udp-full` | Every available UDP payload on each port, one retry | None |
 | `deep-scan` | `tcp-full` plus `udp-common` | None |
 | `windows` | Windows and Active Directory services: SMB, RDP, MSRPC, NetBIOS, WinRM, LDAP and Kerberos with deep identification | None |
+| `filesystem` | Network file systems and object storage: NFS, SMB/CIFS, Ceph, GlusterFS, iSCSI, MinIO and S3-compatible storage | None |
 | `web` | Common HTTP and HTTPS ports with TLS and HTTP identification | None |
 | `database` | Database ports with response-validated identity probes | None |
 | `iot` | TCP service identity and multi-source device fingerprinting | None |
@@ -58,6 +59,7 @@ replacement:
 | Know what is running on each port | `tcp-common`, or `tcp-full` for every port |
 | Inventory a host completely | `deep-scan` |
 | Identify Windows and Active Directory hosts | `windows` |
+| Inventory file servers and object storage | `filesystem` |
 | Audit web endpoints and certificates | `web` |
 | Inventory database servers | `database` |
 | Find UDP services | `udp-common`, or `udp-full` for thorough coverage |
@@ -67,10 +69,10 @@ replacement:
 
 ## TCP and service profiles
 
-`tcp-common`, `tcp-full`, `deep-scan`, `windows` and `web` run the deep-probe
-stage on every open TCP port and try `tls,http` on ports that send nothing.
-`tcp-basic` only reports port state; add `--service` to identify services with
-it.
+`tcp-common`, `tcp-full`, `deep-scan`, `windows`, `filesystem` and `web` run the
+deep-probe stage on every open TCP port and try `tls,http` on ports that send
+nothing. `tcp-basic` only reports port state; add `--service` to identify
+services with it.
 
 | Profile | TCP ports | Rate |
 | --- | --- | --- |
@@ -79,6 +81,7 @@ it.
 | `tcp-full` | `all` | 1000/s |
 | `deep-scan` | `all` | 1000/s |
 | `windows` | `windows`: 88, 135, 139, 389, 445, 464, 593, 636, 1433, 2179, 3268, 3269, 3389, 5357, 5900, 5985, 5986, 47001, 49152–49154 | 300/s |
+| `filesystem` | `filesystem`: 111, 139, 445, 548, 988, 2049, 3260, 3300, 3900, 6789, 6800, 6801, 7480, 8020, 8333, 9000, 9001, 9864, 9870, 20048, 24007, 50070 | 200/s |
 | `web` | `web`: 80, 81, 443, 591, 593, 2082, 2083, 2086, 2087, 2095, 2096, 3000, 3001, 4000, 4200, 4343, 4433, 4443, 5000, 5001, 5601, 5800, 7000, 7001, 7080, 7443, 8000, 8001, 8008, 8009, 8010, 8080–8083, 8088, 8090, 8181, 8443, 8444, 8800, 8880, 8888, 9000, 9001, 9080, 9090, 9200, 9443, 10000, 10443, 18080 | 200/s |
 
 Details are in [Service identification](service-identification.md).
@@ -155,10 +158,44 @@ Three deep probes gather as much as an unauthenticated client is shown:
   records the TLS certificate when the server offers one.
 - **MSRPC** binds to the endpoint-mapper interface and reports the server's
   secondary address, or the rejection, as proof of a DCE/RPC endpoint mapper.
+- **LDAP** reads the rootDSE anonymously. On a domain controller it names the
+  Active Directory domain and forest, the DC's DNS name, the domain and forest
+  functional levels and the SASL mechanisms; other directories report their
+  vendor and naming contexts.
+- **Kerberos** sends one AS-REQ for a non-existent principal and reads the KDC's
+  error reply, which confirms the KDC and discloses its realm. It never submits
+  or guesses a credential.
 
 Every exchange is kept as evidence, and a port only ever claims a service from a
-matched response. Add `--service-probes smb,rdp,msrpc` to run these probes under
-another profile, for example against a single `--ports 445` target.
+matched response. Add `--service-probes smb,rdp,msrpc,ldap,kerberos` to run these
+probes under another profile, for example against a single `--ports 445` target.
+
+## Filesystem profile
+
+```sh
+nyxr scan --profile filesystem 192.0.2.10
+nyxr scan --profile filesystem --dry-run --json 192.0.2.10   # review ports and probes
+```
+
+The `filesystem` port set covers network file systems and object storage: the
+ONC RPC portmapper (111), SMB/CIFS (139, 445), AFP (548), Lustre (988), NFS
+(2049), iSCSI (3260), Ceph monitors and OSDs (3300, 6789, 6800, 6801), Garage
+(3900), the Ceph RADOS Gateway (7480), HDFS (8020, 9864, 9870, 50070),
+SeaweedFS (8333), MinIO (9000, 9001), NFS mountd (20048) and GlusterFS
+management (24007).
+
+Identification combines several probes:
+
+- **NFS** sends an ONC RPC NULL to the NFS program on 2049, reporting the
+  advertised versions, and on the portmapper (111) dumps the registered RPC
+  programs, which reveals the whole NFS stack (`nfs`, `mountd`, `nlockmgr`,
+  `status`).
+- **SMB/CIFS** is identified by the SMB probe (see the Windows profile).
+- **Ceph** monitors and OSDs send a messenger banner on connect, which the
+  passive banner probe recognizes.
+- **Object storage** — MinIO, the Ceph RADOS Gateway, SeaweedFS and other
+  S3-compatible endpoints speak HTTP, so the HTTP probe identifies them from the
+  `Server` header and the Amazon S3 request-id response header.
 
 ## OT, IoT and research profiles
 

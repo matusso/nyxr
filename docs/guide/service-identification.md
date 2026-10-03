@@ -83,10 +83,14 @@ All probes are unauthenticated, read-only handshakes. `ot-safe` permits only
 the Modbus and EtherNet/IP identity reads.
 
 Available probes for `--service-probes`: `banner`, `ssh`, `tls`, `http`, `dns`,
-`socks`, `modbus`, `ethernetip`, `database`, `nmap`, `smb`, `rdp`, `msrpc`.
+`socks`, `modbus`, `ethernetip`, `database`, `nmap`, `smb`, `rdp`, `msrpc`,
+`ldap`, `kerberos`, `nfs`.
 
-The `smb`, `rdp` and `msrpc` probes identify the services Windows hosts
-propagate; see [Profiles](profiles.md#windows-profile) for what each one reads.
+The `smb`, `rdp`, `msrpc`, `ldap` and `kerberos` probes identify the services
+Windows and Active Directory hosts propagate; see
+[Profiles](profiles.md#windows-profile). The `nfs` probe, the SMB probe and the
+HTTP and banner probes together identify network file systems and object
+storage; see [the filesystem profile](profiles.md#filesystem-profile).
 
 ## TLS
 

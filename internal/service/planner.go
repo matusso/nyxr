@@ -13,7 +13,8 @@ import (
 var serviceFamilies = [...]string{
 	ProbeTLS, ProbeHTTP, ProbeDNS, ProbeSOCKS, ProbeModbus,
 	ProbeEtherNetIP, ProbeDatabase, ProbeSSH,
-	ProbeSMB, ProbeRDP, ProbeMSRPC, "unknown",
+	ProbeSMB, ProbeRDP, ProbeMSRPC,
+	ProbeLDAP, ProbeKerberos, ProbeNFS, "unknown",
 }
 
 // These likelihoods are conservative engineering estimates. They describe
@@ -33,6 +34,9 @@ var probeModel = map[string]struct {
 	ProbeSMB:        {0.97, 1.40},
 	ProbeRDP:        {0.97, 1.30},
 	ProbeMSRPC:      {0.95, 1.30},
+	ProbeLDAP:       {0.96, 1.35},
+	ProbeKerberos:   {0.96, 1.30},
+	ProbeNFS:        {0.95, 1.35},
 }
 
 const incidentalMatch = 0.001
@@ -67,6 +71,7 @@ func newProbePlanner(e *Engine, port uint16) *probePlanner {
 		{modbusPorts, ProbeModbus, 30}, {ethernetIPPorts, ProbeEtherNetIP, 30},
 		{databasePorts, ProbeDatabase, 24},
 		{smbPorts, ProbeSMB, 30}, {rdpPorts, ProbeRDP, 30}, {msrpcPorts, ProbeMSRPC, 30},
+		{ldapPorts, ProbeLDAP, 30}, {kerberosPorts, ProbeKerberos, 30}, {nfsPorts, ProbeNFS, 30},
 	} {
 		if hint.ports[port] {
 			p.prob[familyIndex(hint.name)] *= hint.boost

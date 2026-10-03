@@ -47,6 +47,16 @@ var portSets = map[string][]uint16{
 		88, 135, 139, 389, 445, 464, 593, 636, 1433, 2179, 3268, 3269, 3389,
 		5357, 5900, 5985, 5986, 47001, 49152, 49153, 49154,
 	},
+	// Network file systems and object storage: ONC RPC portmapper (111),
+	// NetBIOS/SMB (139/445), AFP (548), Lustre (988), NFS (2049), iSCSI (3260),
+	// Ceph monitor v2/v1 (3300/6789) and OSD (6800/6801), Garage (3900), Ceph
+	// RADOS Gateway (7480), HDFS namenode RPC/HTTP (8020/9870/9864/50070),
+	// SeaweedFS S3 (8333), MinIO API/console (9000/9001), NFS mountd (20048)
+	// and GlusterFS management (24007).
+	"filesystem": {
+		111, 139, 445, 548, 988, 2049, 3260, 3300, 3900, 6789, 6800, 6801,
+		7480, 8020, 8333, 9000, 9001, 9864, 9870, 20048, 24007, 50070,
+	},
 	"top100": {
 		7, 20, 21, 22, 23, 25, 37, 53, 79, 80, 81, 88, 106, 110, 111,
 		113, 119, 123, 135, 137, 139, 143, 144, 161, 179, 199, 389, 427,

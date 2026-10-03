@@ -29,6 +29,13 @@ var (
 	smbPorts   = portSet(139, 445)
 	rdpPorts   = portSet(3389)
 	msrpcPorts = portSet(135)
+	// Directory and file-system services. LDAPS (636, 3269) is reached through
+	// the TLS probe instead; the LDAP probe speaks plaintext on 389 and the
+	// Global Catalog port 3268. NFS answers on 2049 and the ONC RPC portmapper
+	// on 111.
+	ldapPorts     = portSet(389, 3268)
+	kerberosPorts = portSet(88)
+	nfsPorts      = portSet(111, 2049)
 )
 
 func portSet(ports ...uint16) map[uint16]bool {
@@ -69,7 +76,7 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 				planner.confirmPassive(ProbeSSH)
 				return o
 			}
-			if e.enabled[ProbeBanner] && (matchMailBanner(&o, banner) || matchRsyncBanner(&o, banner) || matchFTPBanner(&o, banner)) {
+			if e.enabled[ProbeBanner] && (matchMailBanner(&o, banner) || matchRsyncBanner(&o, banner) || matchFTPBanner(&o, banner) || matchCephBanner(&o, banner)) {
 				o.Evidence[len(o.Evidence)-1].Matched = ProbeBanner
 				planner.confirmNamed(o.Service, float64(o.Confidence)/100)
 				return o
@@ -121,6 +128,12 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 			matched = e.probeRDP(ctx, t, &o)
 		case ProbeMSRPC:
 			matched = e.probeMSRPC(ctx, t, &o)
+		case ProbeLDAP:
+			matched = e.probeLDAP(ctx, t, &o)
+		case ProbeKerberos:
+			matched = e.probeKerberos(ctx, t, &o)
+		case ProbeNFS:
+			matched = e.probeNFS(ctx, t, &o)
 		}
 		if len(o.Evidence) > firstEvidence {
 			ev := o.Evidence[firstEvidence]
