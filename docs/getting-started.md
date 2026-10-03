@@ -39,6 +39,30 @@ sudo install -m 0755 nyxr-v0.6.0-linux-amd64/nyxr nyxr-v0.6.0-linux-amd64/nyxr-p
 nyxr version
 ```
 
+### Debian, Ubuntu, Fedora, RHEL
+
+Each release also has `.deb` and `.rpm` packages for `amd64` and `arm64`.
+They install `nyxr` and `nyxr-packetd` into `/usr/bin`, shell completions for
+bash, zsh and fish, a `nyxr` system account and a `nyxr-packetd` systemd unit
+that is not enabled. Replace `0.10.0` below with the release you downloaded.
+
+```sh
+# Debian, Ubuntu
+sudo apt install ./nyxr_0.10.0-1_amd64.deb
+
+# Fedora, RHEL, Rocky, Alma
+sudo dnf install ./nyxr-0.10.0-1.x86_64.rpm
+```
+
+To run the packet relay, set the interfaces in `/etc/nyxr/packetd.env`, enable
+the unit and add the users who need raw packet features to the `nyxr` group:
+
+```sh
+sudo systemctl enable --now nyxr-packetd
+sudo usermod -aG nyxr "$USER"
+nyxr scan --packetd /run/nyxr/packetd.sock --tcp-mode syn --interface eth0 192.0.2.10
+```
+
 ### Container image
 
 Linux `amd64` and `arm64` images are published to the GitHub Container

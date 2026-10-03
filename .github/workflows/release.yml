@@ -40,6 +40,8 @@ jobs:
           path: |
             dist/*.tar.gz
             dist/*.zip
+            dist/*.deb
+            dist/*.rpm
             dist/SHA256SUMS
           if-no-files-found: error
       - name: Create GitHub release
@@ -49,9 +51,9 @@ jobs:
           prerelease=""
           case "$TAG" in *-*) prerelease="--prerelease" ;; esac
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/*.tar.gz dist/*.zip dist/SHA256SUMS --clobber
+            gh release upload "$TAG" dist/*.tar.gz dist/*.zip dist/*.deb dist/*.rpm dist/SHA256SUMS --clobber
           else
-            gh release create "$TAG" dist/*.tar.gz dist/*.zip dist/SHA256SUMS \
+            gh release create "$TAG" dist/*.tar.gz dist/*.zip dist/*.deb dist/*.rpm dist/SHA256SUMS \
               --title "$TAG" --generate-notes --verify-tag $prerelease
           fi
       - name: Update Homebrew formula

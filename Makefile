@@ -10,10 +10,14 @@ PREFIX  ?= /usr/local
 BINDIR  ?= $(PREFIX)/bin
 LDFLAGS := -s -w -X main.version=$(VERSION)
 PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
+LINUX_ARCHES := amd64 arm64
+NFPM    ?= $(GO) run github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
+# deb/rpm need a semantic version; untagged builds fall back to 0.0.0-dev.
+PKG_VERSION := $(shell v='$(VERSION)'; v=$${v\#v}; case "$$v" in ([0-9]*.[0-9]*.[0-9]*) echo "$$v" ;; (*) echo 0.0.0-dev ;; esac)
 
 export CGO_ENABLED := 0
 
-.PHONY: all build install uninstall test vet check fuzz benchmark cross package checksums clean help
+.PHONY: all build install uninstall test vet check fuzz benchmark cross linux-packages package checksums clean help
 
 all: check build
 
@@ -70,8 +74,24 @@ cross:
 		GOOS=$$os GOARCH=$$arch $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST)/$(PACKETD)-$$os-$$arch$$ext $(PACKETD_PKG); \
 	done
 
-## package: build release archives (tar.gz, zip for windows) and checksums
-package: cross
+## linux-packages: build .deb and .rpm packages for linux/amd64 and linux/arm64
+linux-packages: cross
+	@set -e; stage=$(DIST)/pkg; rm -rf $$stage; mkdir -p $$stage; \
+	$(GO) run $(PKG) completion bash > $$stage/nyxr.bash; \
+	$(GO) run $(PKG) completion zsh > $$stage/_nyxr; \
+	$(GO) run $(PKG) completion fish > $$stage/nyxr.fish; \
+	for arch in $(LINUX_ARCHES); do \
+		cp $(DIST)/$(BINARY)-linux-$$arch $$stage/$(BINARY); \
+		cp $(DIST)/$(PACKETD)-linux-$$arch $$stage/$(PACKETD); \
+		for fmt in deb rpm; do \
+			PKG_ARCH=$$arch PKG_VERSION=$(PKG_VERSION) \
+				$(NFPM) package --config packaging/nfpm.yaml --packager $$fmt --target $(DIST)/; \
+		done; \
+	done; \
+	rm -rf $$stage
+
+## package: build release archives (tar.gz, zip for windows), deb/rpm packages and checksums
+package: linux-packages
 	@set -e; for p in $(PLATFORMS); do \
 		os=$${p%/*}; arch=$${p#*/}; ext=; \
 		[ "$$os" = windows ] && ext=.exe; \
@@ -91,9 +111,10 @@ package: cross
 	done
 	@$(MAKE) --no-print-directory checksums
 
-## checksums: write SHA-256 sums for release archives
+## checksums: write SHA-256 sums for release archives and packages
+checksums: PACKAGES = $(BINARY)-*.tar.gz $(BINARY)-*.zip $(BINARY)_*.deb $(BINARY)-*.rpm
 checksums:
-	@cd $(DIST) && { command -v sha256sum >/dev/null && sha256sum $(BINARY)-*.tar.gz $(BINARY)-*.zip || shasum -a 256 $(BINARY)-*.tar.gz $(BINARY)-*.zip; } > SHA256SUMS
+	@cd $(DIST) && { command -v sha256sum >/dev/null && sha256sum $(PACKAGES) || shasum -a 256 $(PACKAGES); } > SHA256SUMS
 	@echo "checksums $(DIST)/SHA256SUMS"
 
 ## clean: remove build output

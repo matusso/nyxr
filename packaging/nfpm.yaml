@@ -1,0 +1,77 @@
+# nFPM config for the Linux .deb and .rpm packages. Built by `make linux-packages`,
+# which sets PKG_ARCH and PKG_VERSION and stages one architecture's binaries and
+# the shell completions in dist/pkg (nFPM does not expand variables in src).
+name: nyxr
+arch: ${PKG_ARCH}
+platform: linux
+version: ${PKG_VERSION}
+version_schema: semver
+release: 1
+section: net
+priority: optional
+maintainer: Matúš Bursa <matusso@users.noreply.github.com>
+vendor: nyxr
+homepage: https://github.com/matusso/nyxr
+license: MIT
+description: |-
+  Network scanner with service identification and packet capture.
+  nyxr discovers hosts and services, identifies them with deep probes and
+  keeps every exchange as evidence. nyxr-packetd is a small relay that holds
+  raw packet privilege so the scanner, API and web UI run unprivileged.
+
+contents:
+  - src: dist/pkg/nyxr
+    dst: /usr/bin/nyxr
+    file_info: {mode: 0755}
+  - src: dist/pkg/nyxr-packetd
+    dst: /usr/bin/nyxr-packetd
+    file_info: {mode: 0755}
+
+  - src: dist/pkg/nyxr.bash
+    dst: /usr/share/bash-completion/completions/nyxr
+  - src: dist/pkg/nyxr.fish
+    dst: /usr/share/fish/vendor_completions.d/nyxr.fish
+  # Debian's zsh does not search site-functions under /usr/share.
+  - src: dist/pkg/_nyxr
+    dst: /usr/share/zsh/vendor-completions/_nyxr
+    packager: deb
+  - src: dist/pkg/_nyxr
+    dst: /usr/share/zsh/site-functions/_nyxr
+    packager: rpm
+
+  - src: packaging/linux/nyxr-packetd.service
+    dst: /usr/lib/systemd/system/nyxr-packetd.service
+  - src: packaging/linux/packetd.env
+    dst: /etc/nyxr/packetd.env
+    type: config|noreplace
+  - src: packaging/linux/sysusers.conf
+    dst: /usr/lib/sysusers.d/nyxr.conf
+
+  - src: README.md
+    dst: /usr/share/doc/nyxr/README.md
+  - src: LICENSE
+    dst: /usr/share/doc/nyxr/copyright
+    packager: deb
+  - src: LICENSE
+    dst: /usr/share/licenses/nyxr/LICENSE
+    type: license
+    packager: rpm
+
+scripts:
+  postinstall: packaging/linux/postinstall.sh
+  preremove: packaging/linux/preremove.sh
+  postremove: packaging/linux/postremove.sh
+
+overrides:
+  deb:
+    recommends: [ca-certificates]
+  rpm:
+    recommends: [ca-certificates]
+
+rpm:
+  group: Applications/System
+  summary: Network scanner with service identification and packet capture
+  compression: zstd
+
+deb:
+  compression: xz
