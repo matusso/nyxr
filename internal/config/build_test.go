@@ -66,8 +66,8 @@ func TestBuildUDPProfileModes(t *testing.T) {
 	}
 }
 
-func TestBuildFullSplitsTCPAndUDPPorts(t *testing.T) {
-	cfg, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: "full"})
+func TestBuildDeepScanSplitsTCPAndUDPPorts(t *testing.T) {
+	cfg, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: "deep-scan"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,12 +79,12 @@ func TestBuildFullSplitsTCPAndUDPPorts(t *testing.T) {
 		t.Fatalf("full plan: %+v", plan)
 	}
 	// An explicit port list applies to both transports.
-	cfg, err = Build(Options{Targets: []string{"192.0.2.1"}, Profile: "full", Ports: "53,80"})
+	cfg, err = Build(Options{Targets: []string{"192.0.2.1"}, Profile: "deep-scan", Ports: "53,80"})
 	if err != nil || cfg.UDPPorts != nil || len(cfg.PortsFor("udp")) != 2 || cfg.Plan().Tasks != 4 {
 		t.Fatalf("full with --ports: %+v %v", cfg.Plan(), err)
 	}
 	// Narrowing full to UDP keeps the UDP list.
-	cfg, err = Build(Options{Targets: []string{"192.0.2.1"}, Profile: "full", Protocols: "udp"})
+	cfg, err = Build(Options{Targets: []string{"192.0.2.1"}, Profile: "deep-scan", Protocols: "udp"})
 	if err != nil || len(cfg.Ports) != len(udp) || cfg.UDPPorts != nil {
 		t.Fatalf("full udp-only: ports=%d err=%v", len(cfg.Ports), err)
 	}
@@ -94,6 +94,11 @@ func TestBuildRemovedProfilePointsToReplacement(t *testing.T) {
 	_, err := Build(Options{Targets: []string{"192.0.2.1"}, Profile: "deep"})
 	if err == nil || !strings.Contains(err.Error(), `use "tcp-common"`) {
 		t.Fatalf("removed profile error: %v", err)
+	}
+	// "full" was renamed to "deep-scan"; the old name must point at it.
+	_, err = Build(Options{Targets: []string{"192.0.2.1"}, Profile: "full"})
+	if err == nil || !strings.Contains(err.Error(), `use "deep-scan"`) {
+		t.Fatalf("renamed profile error: %v", err)
 	}
 }
 

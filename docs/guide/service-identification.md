@@ -15,7 +15,7 @@ listening, and keeps every byte it exchanged so the claim can be checked.
 
 ## Enable the service stage
 
-The `tcp-common`, `tcp-full`, `full`, `web`, `database`, `iot` and `ot-safe` profiles
+The `tcp-common`, `tcp-full`, `deep-scan`, `windows`, `web`, `database`, `iot` and `ot-safe` profiles
 run it automatically. Add `--service` to run it with any other TCP profile:
 
 ```sh
@@ -54,7 +54,7 @@ from the current evidence:
    | HTTP ports such as 80, 8080 | `http`, `tls` |
 
 3. **Fallback probes** on other ports, set by `--service-fallback`:
-   `tls,http` for `tcp-common`, `tcp-full`, `full` and `web`; or `none`.
+   `tls,http` for `tcp-common`, `tcp-full`, `deep-scan`, `windows` and `web`; or `none`.
 
 After each active response, Nyxr updates `P(protocol family | evidence)` using
 the probe's match likelihood. It estimates each untried probe's expected
@@ -83,7 +83,10 @@ All probes are unauthenticated, read-only handshakes. `ot-safe` permits only
 the Modbus and EtherNet/IP identity reads.
 
 Available probes for `--service-probes`: `banner`, `ssh`, `tls`, `http`, `dns`,
-`socks`, `modbus`, `ethernetip`, `database`, `nmap`.
+`socks`, `modbus`, `ethernetip`, `database`, `nmap`, `smb`, `rdp`, `msrpc`.
+
+The `smb`, `rdp` and `msrpc` probes identify the services Windows hosts
+propagate; see [Profiles](profiles.md#windows-profile) for what each one reads.
 
 ## TLS
 

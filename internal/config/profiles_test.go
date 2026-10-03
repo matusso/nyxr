@@ -24,7 +24,7 @@ func TestProfilesCatalog(t *testing.T) {
 			t.Fatalf("profile %q has invalid availability %q", p.Name, p.Availability)
 		}
 	}
-	for _, want := range []string{"tcp-basic", "tcp-common", "tcp-full", "udp-basic", "udp-common", "udp-full", "full", "web", "database", "iot", "ot-safe", "research", "custom"} {
+	for _, want := range []string{"tcp-basic", "tcp-common", "tcp-full", "udp-basic", "udp-common", "udp-full", "deep-scan", "windows", "web", "database", "iot", "ot-safe", "research", "custom"} {
 		if !names[want] {
 			t.Fatalf("profile %q is not registered", want)
 		}

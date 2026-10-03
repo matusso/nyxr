@@ -74,7 +74,8 @@ type Profile struct {
 // profiles is the ordered catalog. The order controls how `nyxr profiles`
 // lists them. The tcp-* and udp-* families grow in depth from basic (find
 // open ports) through common (identify what answers on common ports) to full
-// (every port or every payload); full combines both transports. Profiles
+// (every port or every payload); deep-scan combines both transports, and
+// windows targets the services a Windows host and domain propagate. Profiles
 // whose engine does not exist yet are marked planned rather than omitted.
 var profiles = []Profile{
 	{
@@ -110,10 +111,19 @@ var profiles = []Profile{
 		Ports:        "udp", Protocols: "udp", Timeout: "2s", Rate: 25, Workers: 16, UDPRetries: 1,
 	},
 	{
-		Name: "full", Description: "tcp-full plus udp-common: all TCP ports with service identification and common UDP ports",
+		Name: "deep-scan", Description: "tcp-full plus udp-common: all TCP ports with service identification and common UDP ports",
 		Availability: StatusAvailable,
 		Ports:        "all", UDPPorts: "udp", Protocols: "tcp,udp", Timeout: "1500ms", Rate: 1000, Workers: 256,
 		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks", Fallback: "tls,http", Timeout: "8s", Workers: 32, Rate: 50},
+	},
+	{
+		Name: "windows", Description: "Windows/Active Directory hosts: SMB, RDP, MSRPC, NetBIOS, WinRM, LDAP and Kerberos with deep identification",
+		Availability: StatusAvailable,
+		// UDP counterparts: Kerberos (88), Windows time (123), NetBIOS
+		// name/datagram (137/138), SNMP (161), CLDAP domain locator (389),
+		// SSDP (1900), mDNS (5353) and LLMNR (5355).
+		Ports: "windows", UDPPorts: "88,123,137,138,161,389,1900,5353,5355", Protocols: "tcp,udp", Timeout: "1500ms", Rate: 300, Workers: 128,
+		Service: &ServiceDefaults{Probes: "banner,smb,rdp,msrpc,tls,http,ssh,database", Fallback: "tls,http", Timeout: "6s", Workers: 32, Rate: 50},
 	},
 	{
 		Name: "web", Description: "Common HTTP/HTTPS ports, trying TLS and HTTP on each open one",
@@ -157,6 +167,7 @@ var renamedProfiles = map[string]string{
 	"deep":      "tcp-common",
 	"udp":       "udp-common",
 	"udp-deep":  "udp-full",
+	"full":      "deep-scan",
 }
 
 // Profiles returns the catalog in display order. The slice is a copy so callers

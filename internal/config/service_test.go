@@ -17,7 +17,7 @@ func build(t *testing.T, o Options) Config {
 }
 
 func TestServiceProfilesEnableStage(t *testing.T) {
-	for name, fallback := range map[string]string{"tcp-common": "tls,http", "tcp-full": "tls,http", "web": "tls,http", "full": "tls,http", "database": ""} {
+	for name, fallback := range map[string]string{"tcp-common": "tls,http", "tcp-full": "tls,http", "web": "tls,http", "deep-scan": "tls,http", "windows": "tls,http", "database": ""} {
 		s, err := BuildService(build(t, Options{Profile: name}), ServiceOptions{})
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
@@ -67,7 +67,7 @@ func TestServiceRejections(t *testing.T) {
 	}{
 		"ot-safe":         {Options{Profile: "ot-safe", AllowTargets: []string{"192.0.2.1"}}, ServiceOptions{Probes: "http"}, "does not allow service probe"},
 		"udp only":        {Options{Profile: "udp-common"}, ServiceOptions{Enable: &on}, "require the TCP protocol"},
-		"unknown probe":   {Options{Profile: "tcp-common"}, ServiceOptions{Probes: "smb"}, "unknown service probe"},
+		"unknown probe":   {Options{Profile: "tcp-common"}, ServiceOptions{Probes: "telnet"}, "unknown service probe"},
 		"option w/o flag": {Options{Profile: "tcp-basic"}, ServiceOptions{Probes: "http"}, "require --service"},
 		"bad timeout":     {Options{Profile: "tcp-common"}, ServiceOptions{Timeout: "soon"}, "service timeout"},
 		"empty name":      {Options{Profile: "tcp-common"}, ServiceOptions{Probes: "http,,tls"}, "empty service probe"},

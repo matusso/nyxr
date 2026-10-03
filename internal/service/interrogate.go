@@ -23,6 +23,12 @@ var (
 	socksPorts      = portSet(1080)
 	modbusPorts     = portSet(502)
 	ethernetIPPorts = portSet(44818)
+	// Windows-propagated services. SMB answers on the NetBIOS session port
+	// (139) and the direct-TCP port (445); RDP on 3389; the DCE/RPC endpoint
+	// mapper on 135.
+	smbPorts   = portSet(139, 445)
+	rdpPorts   = portSet(3389)
+	msrpcPorts = portSet(135)
 )
 
 func portSet(ports ...uint16) map[uint16]bool {
@@ -109,6 +115,12 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 			matched = e.probeEtherNetIP(ctx, t, &o)
 		case ProbeDatabase:
 			matched = e.probeDatabase(ctx, t, &o, planner.redisHint)
+		case ProbeSMB:
+			matched = e.probeSMB(ctx, t, &o)
+		case ProbeRDP:
+			matched = e.probeRDP(ctx, t, &o)
+		case ProbeMSRPC:
+			matched = e.probeMSRPC(ctx, t, &o)
 		}
 		if len(o.Evidence) > firstEvidence {
 			ev := o.Evidence[firstEvidence]
