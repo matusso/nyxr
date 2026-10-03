@@ -1,8 +1,8 @@
 # nFPM config for the Linux .deb and .rpm packages. Built by `make linux-packages`,
-# which sets GOARCH and PKG_VERSION and stages one architecture's binaries and
+# which sets PKG_ARCH and PKG_VERSION and stages one architecture's binaries and
 # the shell completions in dist/pkg (nFPM does not expand variables in src).
 name: nyxr
-arch: ${GOARCH}
+arch: ${PKG_ARCH}
 platform: linux
 version: ${PKG_VERSION}
 version_schema: semver

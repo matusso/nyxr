@@ -84,7 +84,7 @@ linux-packages: cross
 		cp $(DIST)/$(BINARY)-linux-$$arch $$stage/$(BINARY); \
 		cp $(DIST)/$(PACKETD)-linux-$$arch $$stage/$(PACKETD); \
 		for fmt in deb rpm; do \
-			GOARCH=$$arch PKG_VERSION=$(PKG_VERSION) \
+			PKG_ARCH=$$arch PKG_VERSION=$(PKG_VERSION) \
 				$(NFPM) package --config packaging/nfpm.yaml --packager $$fmt --target $(DIST)/; \
 		done; \
 	done; \
