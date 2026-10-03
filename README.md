@@ -70,7 +70,9 @@ nyxr scan 192.0.2.10                                # top 100 TCP ports, unprivi
 nyxr scan --profile tcp-common 192.0.2.0/24         # identify the services behind open ports
 nyxr scan --profile udp-common 192.0.2.10           # UDP with protocol payloads
 nyxr scan --profile web --json 192.0.2.10           # TLS and HTTP details as JSON
-nyxr scan --profile full 192.0.2.10                 # every TCP port plus common UDP
+nyxr scan --profile windows 192.0.2.10              # SMB, RDP, MSRPC, LDAP/AD and Kerberos identity
+nyxr scan --profile filesystem 192.0.2.10           # NFS, SMB, Ceph and S3/object storage
+nyxr scan --profile deep-scan 192.0.2.10            # every TCP port plus common UDP
 nyxr scan --dry-run --profile tcp-full 10.0.0.0/24  # show the plan, send nothing
 
 nyxr history --assets --open                        # what is open right now, per host
@@ -89,8 +91,8 @@ scan 20261001T195109Z-c3b4a07e3884 completed: 6 observations, 3 services identif
 ```
 
 Targets can be IPs, hostnames, CIDRs or ranges. Ports accept lists, ranges and
-sets such as `top100`, `top1000`, `web`, `udp`, `database` or `all`. Run `nyxr profiles` for
-the full profile catalog.
+sets such as `top100`, `top1000`, `web`, `udp`, `database`, `windows`, `filesystem` or `all`. Run
+`nyxr profiles` for the full profile catalog.
 
 ## Use cases
 

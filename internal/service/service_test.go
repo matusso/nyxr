@@ -259,7 +259,7 @@ func TestConfigValidation(t *testing.T) {
 		{Probes: Names(), Timeout: time.Second},
 		{Probes: Names(), Workers: 1},
 		{Workers: 1, Timeout: time.Second},
-		{Probes: []string{"smb"}, Workers: 1, Timeout: time.Second},
+		{Probes: []string{"telnet"}, Workers: 1, Timeout: time.Second},
 		{Probes: Names(), Fallback: []string{"ftp"}, Workers: 1, Timeout: time.Second},
 	} {
 		if c.Validate() == nil {

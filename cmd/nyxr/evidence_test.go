@@ -47,7 +47,7 @@ func TestServiceFlagErrors(t *testing.T) {
 	for args, want := range map[string]string{
 		"--profile ot-safe --allow-targets 192.0.2.1 --service-probes http": "does not allow service probe",
 		"--profile tcp-basic --service-probes ssh":                          "require --service",
-		"--profile tcp-common --service-probes smb":                         "unknown service probe",
+		"--profile tcp-common --service-probes telnet":                      "unknown service probe",
 		"--profile tcp-basic --pcapng x.pcapng":                             "requires --interface",
 	} {
 		var out bytes.Buffer

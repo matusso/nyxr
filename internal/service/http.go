@@ -103,10 +103,17 @@ func parseHTTP(o *observe.Observation, data []byte) bool {
 		for header, key := range map[string]string{
 			"Server": "http.server", "Content-Type": "http.content_type", "Location": "http.location",
 			"X-Powered-By": "http.powered_by", "WWW-Authenticate": "http.www_authenticate",
+			"X-Amz-Request-Id": "http.amz_request_id", "X-Amz-Bucket-Region": "http.amz_bucket_region",
 		} {
 			if v := resp.Header.Get(header); v != "" {
 				attrs[key] = printable([]byte(v), 200)
 			}
+		}
+		// MinIO, Ceph RADOS Gateway, SeaweedFS and other S3-compatible object
+		// stores answer with an Amazon S3 request id (and an S3 Server token).
+		if resp.Header.Get("X-Amz-Request-Id") != "" || strings.HasPrefix(resp.Header.Get("Server"), "MinIO") ||
+			strings.HasPrefix(resp.Header.Get("Server"), "AmazonS3") {
+			attrs["http.object_storage"] = "s3-compatible"
 		}
 	}
 	if m := titlePattern.FindSubmatch(data); m != nil {
