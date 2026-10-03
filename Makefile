@@ -12,8 +12,15 @@ LDFLAGS := -s -w -X main.version=$(VERSION)
 PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 LINUX_ARCHES := amd64 arm64
 NFPM    ?= $(GO) run github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
-# deb/rpm need a semantic version; untagged builds fall back to 0.0.0-dev.
-PKG_VERSION := $(shell v='$(VERSION)'; v=$${v\#v}; case "$$v" in ([0-9]*.[0-9]*.[0-9]*) echo "$$v" ;; (*) echo 0.0.0-dev ;; esac)
+# deb/rpm need a semantic version. Strip a leading "v" with $(patsubst) rather
+# than a shell parameter substitution: GNU Make 4.3+ passes an escaped hash in
+# $(shell) through to the shell verbatim, so a "${v<hash>v}" fails with "bad
+# substitution", the version comes back empty, and nFPM silently falls back to
+# its 0.0.0~rc0 placeholder. A non-semver VERSION (untagged commit) uses 0.0.0-dev.
+PKG_SEMVER  := $(patsubst v%,%,$(VERSION))
+# The ( before each case pattern balances the parens so $(shell) is not cut off
+# at the first ) — it is also valid POSIX case syntax.
+PKG_VERSION := $(shell case '$(PKG_SEMVER)' in ([0-9]*.[0-9]*.[0-9]*) echo '$(PKG_SEMVER)' ;; (*) echo 0.0.0-dev ;; esac)
 
 export CGO_ENABLED := 0
 
@@ -76,6 +83,10 @@ cross:
 
 ## linux-packages: build .deb and .rpm packages for linux/amd64 and linux/arm64
 linux-packages: cross
+	@case '$(PKG_VERSION)' in \
+		[0-9]*.[0-9]*.[0-9]*) ;; \
+		*) echo "linux-packages: version '$(PKG_VERSION)' is not a semantic version; pass VERSION=vX.Y.Z" >&2; exit 1 ;; \
+	esac
 	@set -e; stage=$(DIST)/pkg; rm -rf $$stage; mkdir -p $$stage; \
 	$(GO) run $(PKG) completion bash > $$stage/nyxr.bash; \
 	$(GO) run $(PKG) completion zsh > $$stage/_nyxr; \
