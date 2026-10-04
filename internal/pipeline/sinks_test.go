@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/matusso/nyxr/internal/observe"
+	"github.com/matusso/nyxr/internal/tlsrecord"
 )
 
 func TestTextSinkShowsOnlyFirstReceivedBanner(t *testing.T) {
@@ -66,5 +67,20 @@ func TestTextSinkUsesReceivedProbeWhenNoBanner(t *testing.T) {
 	if !strings.Contains(out.String(), "http response (2 bytes) [00 ff]") ||
 		strings.Contains(out.String(), "47 45 54") || strings.Count(out.String(), "\n") != 1 {
 		t.Fatalf("only received bytes should appear inline:\n%s", out.String())
+	}
+}
+
+func TestTextSinkExplainsTLSAlert(t *testing.T) {
+	var out bytes.Buffer
+	resp := []byte{0x15, 0x03, 0x03, 0x00, 0x02, 0x02, 0x50}
+	o := observe.Observation{Kind: observe.KindService, Target: netip.MustParseAddr("192.0.2.4"),
+		Transport: "tcp", Port: 443, Fingerprint: observe.FingerprintUnknown,
+		Evidence: []observe.Evidence{{Probe: "tls", Layer: "tcp", Response: resp, Decoded: tlsrecord.Decode(resp)}}}
+	if err := NewTextSink(&out).Observation(o); err != nil {
+		t.Fatal(err)
+	}
+	want := "tls response (7 bytes) [15 alert, 03 03 TLS 1.2, 00 02 len 2, 02 fatal, 50 internal_error]"
+	if !strings.Contains(out.String(), want) || strings.Count(out.String(), "\n") != 1 {
+		t.Fatalf("TLS alert should be explained inline:\n%s", out.String())
 	}
 }

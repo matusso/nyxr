@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/matusso/nyxr/internal/observe"
+	"github.com/matusso/nyxr/internal/tlsrecord"
 )
 
 // TLS-wrapped protocols where the server speaks first after the handshake.
@@ -43,6 +44,9 @@ func (e *Engine) probeTLS(ctx context.Context, t Target, o *observe.Observation)
 	tc, ev, ok := e.handshake(ctx, t, alpn)
 	o.Evidence = append(o.Evidence, ev)
 	if !ok {
+		if desc, alert := tlsrecord.Alert(ev.Response); alert && desc == tlsrecord.NoApplicationProtocol {
+			return e.directPostgres(ctx, t, o)
+		}
 		return false
 	}
 	defer tc.Close()
@@ -79,6 +83,28 @@ func (e *Engine) probeTLS(ctx context.Context, t Target, o *observe.Observation)
 			o.Reason += "; service inside TLS unrecognized, banner retained"
 		}
 	}
+	return true
+}
+
+// directPostgres retries a handshake refused for its ALPN offer as a
+// PostgreSQL 17+ client using direct SSL (sslnegotiation=direct), which must
+// offer ALPN "postgresql". The server agreeing to it identifies the service.
+func (e *Engine) directPostgres(ctx context.Context, t Target, o *observe.Observation) bool {
+	tc, ev, ok := e.handshake(ctx, t, []string{"postgresql"})
+	if ok {
+		defer tc.Close()
+		ok = tc.ConnectionState().NegotiatedProtocol == "postgresql"
+	}
+	if !ok {
+		ev.Matched = ""
+		o.Evidence = append(o.Evidence, ev)
+		return false
+	}
+	ev.Matched = ProbeDatabase
+	o.Evidence = append(o.Evidence, ev)
+	identifyDatabase(o, "postgresql", "PostgreSQL-compatible", "", "TLS handshake negotiated ALPN postgresql (direct SSL)", 100)
+	o.Probe, o.TLS = ProbeTLS+"+"+ProbeDatabase, summarizeTLS(tc.ConnectionState())
+	o.Attributes = map[string]string{"postgresql.ssl_supported": "true", "postgresql.direct_ssl": "true"}
 	return true
 }
 

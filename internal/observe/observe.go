@@ -135,6 +135,19 @@ type Evidence struct {
 	Truncated bool          `json:"truncated,omitempty"` // response exceeded the retention limit
 	Matched   string        `json:"matched,omitempty"`   // matcher name; empty when unrecognized
 	Error     string        `json:"error,omitempty"`
+	// Decoded breaks the response down byte by byte when its format is known.
+	Decoded []ByteField `json:"decoded,omitempty"`
+}
+
+// ByteField is one span of a decoded response. Value is the short meaning
+// shown on one-line output; Note explains it.
+type ByteField struct {
+	Offset int    `json:"offset"`
+	Length int    `json:"length"`
+	Bytes  string `json:"bytes"` // space-separated hex
+	Field  string `json:"field"`
+	Value  string `json:"value"`
+	Note   string `json:"note,omitempty"`
 }
 
 // TLS is the shared TLS subsystem result, reused by every service behind TLS.

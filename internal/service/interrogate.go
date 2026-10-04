@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/matusso/nyxr/internal/observe"
+	"github.com/matusso/nyxr/internal/tlsrecord"
 )
 
 // Port hints influence priors and active-probe eligibility. They never
@@ -233,6 +234,7 @@ func (e *Engine) finish(ev *observe.Evidence, rc *recordingConn, err error) {
 	ev.Request = append([]byte(nil), rc.sent...)
 	ev.Response = append([]byte(nil), rc.recv...)
 	ev.Truncated = rc.truncated
+	ev.Decoded = tlsrecord.Decode(ev.Response)
 	if err != nil && !errors.Is(err, io.EOF) && !(len(rc.recv) > 0 && errors.Is(err, os.ErrDeadlineExceeded)) {
 		ev.Error = errorText(err)
 	}

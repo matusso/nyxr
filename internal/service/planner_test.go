@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
 	"net"
 	"net/http"
@@ -182,5 +183,44 @@ func TestPlannerKeepsDatabaseIdentityInsideTLS(t *testing.T) {
 	}
 	if o.ServiceHypotheses[0].Family != "elasticsearch" {
 		t.Fatalf("posterior lost database identity: %+v", o.ServiceHypotheses)
+	}
+}
+
+func TestTLSIdentifiesDirectSSLPostgres(t *testing.T) {
+	// Borrow httptest's self-signed certificate for a server that only
+	// speaks ALPN "postgresql", like PostgreSQL 17 with direct SSL.
+	cert := httptest.NewTLSServer(http.NotFoundHandler())
+	certs := cert.TLS.Certificates
+	cert.Close()
+	ln, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{Certificates: certs, NextProtos: []string{"postgresql"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() { defer c.Close(); _ = c.(*tls.Conn).Handshake(); time.Sleep(100 * time.Millisecond) }()
+		}
+	}()
+	target := targetOf(t, ln.Addr().String())
+	e, err := Start(context.Background(), Config{
+		Probes:   []string{ProbeTLS, ProbeHTTP},
+		Fallback: []string{ProbeTLS}, Timeout: 500 * time.Millisecond, Workers: 1,
+	}, func(observe.Observation) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	o := e.Interrogate(context.Background(), target)
+	if o.Service != "postgresql" || o.Confidence != 100 || o.TLS == nil || o.TLS.ALPN != "postgresql" ||
+		o.Attributes["postgresql.direct_ssl"] != "true" {
+		t.Fatalf("direct-SSL PostgreSQL not identified: %+v", o)
+	}
+	if n := len(o.Evidence); n < 2 || o.Evidence[n-2].Decoded[4].Value != "no_application_protocol" || o.Evidence[n-1].Matched != ProbeDatabase {
+		t.Fatalf("expected refused handshake then the postgresql retry: %+v", o.Evidence)
 	}
 }
