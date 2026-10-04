@@ -72,7 +72,8 @@ replacement:
 `tcp-common`, `tcp-full`, `deep-scan`, `windows`, `filesystem` and `web` run the
 deep-probe stage on every open TCP port and try `tls,http` on ports that send
 nothing. `tcp-full` and `deep-scan` also enable the `database` probe and add it
-to the fallback, so databases on unusual ports are identified too. `tcp-basic` only reports port state; add `--service` to identify
+to the fallback, so every database protocol below is tried on each open port
+that nothing else identifies. `tcp-basic` only reports port state; add `--service` to identify
 services with it.
 
 | Profile | TCP ports | Rate |
@@ -110,6 +111,9 @@ nyxr scan --profile database --dry-run --json 192.0.2.10   # review ports and pr
 
 The `database` port set covers common SQL, document, key-value, graph, search,
 time-series, vector and cache endpoints. Use `--ports` to narrow or extend it.
+Every open port gets every exchange below, so PostgreSQL on 6432 or SQL Server
+on 14330 is identified too. The port number only chooses which exchange runs
+first.
 
 Built-in probes actively validate:
 

@@ -141,7 +141,7 @@ var profiles = []Profile{
 	{Name: "database", Description: "SQL, NoSQL, graph, search and cache service identification",
 		Availability: StatusAvailable,
 		Ports:        "database", Protocols: "tcp", Timeout: "1s", Rate: 100, Workers: 64,
-		Service: &ServiceDefaults{Probes: "database", Fallback: "none", Timeout: "4s", Workers: 16, Rate: 50}},
+		Service: &ServiceDefaults{Probes: "database", Fallback: "database", Timeout: "4s", Workers: 16, Rate: 50}},
 	{Name: "iot", Description: "Device fingerprinting from safe service and discovery signals",
 		Availability: StatusAvailable, Ports: "22,80,443,502,8080,8443,44818", Protocols: "tcp", Timeout: "2s", Rate: 20, Workers: 16,
 		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,modbus,ethernetip", Fallback: "none", Timeout: "4s", Workers: 8, Rate: 20}},

@@ -55,14 +55,18 @@ from the current evidence:
 
 3. **Fallback probes** on every port the banner leaves unidentified, set by
    `--service-fallback`: `tls,http,database` for `tcp-full` and `deep-scan`;
-   `tls,http` for `tcp-common`, `windows`, `filesystem` and `web`; or `none`.
+   `database` for `database`; `tls,http` for `tcp-common`, `windows`,
+   `filesystem` and `web`; or `none`.
 
-   On a port with no database exchange of its own, the `database` probe tries
-   a Redis PING, a PostgreSQL SSLRequest, a TDS PRELOGIN and a MongoDB hello in
-   turn, each on its own connection. It stops at the first match, at the first
-   request the port ignores, or when a connection fails. With `database`
-   enabled, a MySQL or MariaDB greeting is recognized from the banner on any
-   port.
+   The `database` probe finds a client-first database on any port. A port
+   number only chooses which exchange goes first (a PostgreSQL SSLRequest on
+   5432, a TDS PRELOGIN on 1433). The probe then tries the rest in turn, each
+   on its own connection: Redis PING, PostgreSQL SSLRequest, TDS PRELOGIN,
+   MongoDB hello, Bolt, CQL, Memcached `version`, ZooKeeper `srvr`, and an HTTP
+   `GET /` when the `http` probe is off. It stops at the first match, when a
+   connection fails, when the Redis or Memcached text request is ignored, or
+   at the second request that is ignored. With `database` enabled, a MySQL or
+   MariaDB greeting is recognized from the banner on any port.
 
 After each active response, Nyxr updates `P(protocol family | evidence)` using
 the probe's match likelihood. It estimates each untried probe's expected
