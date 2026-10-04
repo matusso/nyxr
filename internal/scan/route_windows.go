@@ -12,6 +12,12 @@ import (
 	"path/filepath"
 )
 
+// egressInterface is unsupported: Npcap adapters are named by device ID, not
+// by the interface alias the routing table reports.
+func egressInterface(netip.Addr) (string, error) {
+	return "", fmt.Errorf("cannot map the route to an Npcap adapter; specify --interface")
+}
+
 func loadIPv4Routes(device string) (func(netip.Addr) (netip.Addr, error), error) {
 	iface, err := net.InterfaceByName(device)
 	if err != nil {

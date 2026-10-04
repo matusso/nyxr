@@ -15,6 +15,7 @@ type darwinRoute struct {
 	prefix netip.Prefix
 	hop    netip.Addr
 	device string
+	scoped bool // RTF_IFSCOPE: used only for traffic bound to device
 }
 
 // A single routing-table snapshot avoids one routing-socket command per
@@ -51,6 +52,38 @@ func loadIPv4Routes(device string) (func(netip.Addr) (netip.Addr, error), error)
 	}, nil
 }
 
+// egressInterface names the interface route(8) get would report for target:
+// the longest unscoped prefix, falling back to scoped routes only when no
+// unscoped route matches.
+func egressInterface(target netip.Addr) (string, error) {
+	output, err := exec.Command("/usr/sbin/netstat", "-rn", "-f", "inet").Output()
+	if err != nil {
+		return "", fmt.Errorf("read IPv4 routes: %w", err)
+	}
+	routes, err := parseDarwinRoutes(strings.NewReader(string(output)))
+	if err != nil {
+		return "", err
+	}
+	return darwinEgress(routes, target)
+}
+
+func darwinEgress(routes []darwinRoute, target netip.Addr) (string, error) {
+	best := -1
+	for i, route := range routes {
+		if !route.prefix.Contains(target) {
+			continue
+		}
+		if best < 0 || (routes[best].scoped && !route.scoped) ||
+			(route.scoped == routes[best].scoped && route.prefix.Bits() > routes[best].prefix.Bits()) {
+			best = i
+		}
+	}
+	if best < 0 {
+		return "", fmt.Errorf("no IPv4 route to %s", target)
+	}
+	return routes[best].device, nil
+}
+
 func parseDarwinRoutes(r io.Reader) ([]darwinRoute, error) {
 	var routes []darwinRoute
 	scanner := bufio.NewScanner(r)
@@ -67,7 +100,7 @@ func parseDarwinRoutes(r io.Reader) ([]darwinRoute, error) {
 		if !hop.Is4() {
 			hop = netip.Addr{} // link# and MAC gateways are on-link
 		}
-		routes = append(routes, darwinRoute{prefix: prefix, hop: hop, device: fields[3]})
+		routes = append(routes, darwinRoute{prefix: prefix, hop: hop, device: fields[3], scoped: strings.Contains(fields[2], "I")})
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
