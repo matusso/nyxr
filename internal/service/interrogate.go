@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/matusso/nyxr/internal/observe"
+	"github.com/matusso/nyxr/internal/tlsrecord"
 )
 
 // Port hints influence priors and active-probe eligibility. They never
@@ -66,24 +67,13 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 		}
 		if len(banner) > 0 {
 			o.Probe = ProbeBanner
-			if e.enabled[ProbeDatabase] && matchDatabaseBanner(&o, banner) {
-				o.Evidence[len(o.Evidence)-1].Matched = ProbeDatabase
-				planner.confirmPassive(ProbeDatabase)
-				return o
-			}
-			if e.enabled[ProbeSSH] && matchSSH(&o, banner) {
-				o.Evidence[len(o.Evidence)-1].Matched = ProbeSSH
-				planner.confirmPassive(ProbeSSH)
-				return o
-			}
-			if e.enabled[ProbeBanner] && (matchMailBanner(&o, banner) || matchRsyncBanner(&o, banner) || matchFTPBanner(&o, banner) || matchCephBanner(&o, banner)) {
-				o.Evidence[len(o.Evidence)-1].Matched = ProbeBanner
-				planner.confirmNamed(o.Service, float64(o.Confidence)/100)
-				return o
-			}
-			if e.nmapBanner(&o, banner) {
-				o.Evidence[len(o.Evidence)-1].Matched = ProbeNmap
-				planner.confirmNamed(o.Service, float64(o.Confidence)/100)
+			if matched := e.matchBanner(&o, banner); matched != "" {
+				o.Evidence[len(o.Evidence)-1].Matched = matched
+				if matched == ProbeDatabase || matched == ProbeSSH {
+					planner.confirmPassive(matched)
+				} else {
+					planner.confirmNamed(o.Service, float64(o.Confidence)/100)
+				}
 				return o
 			}
 			o.Attributes = map[string]string{"banner": printable(banner, 256)}
@@ -146,8 +136,10 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 			planner.attempted[p] = true
 		}
 		if matched {
+			// A database answering HTTP, or any service other than HTTP
+			// identified inside TLS, is a named result beyond the families.
 			if (p == ProbeHTTP && o.Probe == ProbeDatabase) ||
-				(p == ProbeTLS && o.Probe == ProbeTLS+"+"+ProbeDatabase) {
+				(p == ProbeTLS && strings.HasPrefix(o.Probe, ProbeTLS+"+") && o.Probe != ProbeTLS+"+"+ProbeHTTP) {
 				planner.confirmNamed(o.Service, float64(o.Confidence)/100)
 			}
 			o.Fingerprint = observe.FingerprintMatched
@@ -167,6 +159,23 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 		}
 	}
 	return o
+}
+
+// matchBanner runs the enabled server-first matchers over a greeting, from
+// the most to the least specific, and returns the probe credited with the
+// match, or "" when none applies.
+func (e *Engine) matchBanner(o *observe.Observation, banner []byte) string {
+	switch {
+	case e.enabled[ProbeDatabase] && matchDatabaseBanner(o, banner):
+		return ProbeDatabase
+	case e.enabled[ProbeSSH] && matchSSH(o, banner):
+		return ProbeSSH
+	case e.enabled[ProbeBanner] && (matchMailBanner(o, banner) || matchRsyncBanner(o, banner) || matchFTPBanner(o, banner) || matchCephBanner(o, banner)):
+		return ProbeBanner
+	case e.nmapBanner(o, banner):
+		return ProbeNmap
+	}
+	return ""
 }
 
 // probeBanner connects and waits for the server to speak first.
@@ -233,6 +242,7 @@ func (e *Engine) finish(ev *observe.Evidence, rc *recordingConn, err error) {
 	ev.Request = append([]byte(nil), rc.sent...)
 	ev.Response = append([]byte(nil), rc.recv...)
 	ev.Truncated = rc.truncated
+	ev.Decoded = tlsrecord.Decode(ev.Response)
 	if err != nil && !errors.Is(err, io.EOF) && !(len(rc.recv) > 0 && errors.Is(err, os.ErrDeadlineExceeded)) {
 		ev.Error = errorText(err)
 	}

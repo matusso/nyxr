@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"strconv"
 	"testing"
 	"time"
 
@@ -119,5 +120,106 @@ func TestDatabaseProfileInterrogatesRedis(t *testing.T) {
 	o := e.Interrogate(context.Background(), Target{Addr: netip.MustParseAddr("127.0.0.1"), Port: 6379})
 	if o.Service != "redis" || o.Fingerprint != observe.FingerprintMatched || len(o.Evidence) != 2 || o.Evidence[1].Matched != ProbeDatabase {
 		t.Fatalf("Redis interrogation: %+v", o)
+	}
+}
+
+func TestDatabaseProbeFindsPostgresOnUnusualPort(t *testing.T) {
+	target := serve(t, func(c net.Conn) {
+		var request [8]byte
+		if _, err := io.ReadFull(c, request[:]); err != nil {
+			return // passive banner connection
+		}
+		// Like PostgreSQL, reject anything but a startup-shaped packet.
+		if bytes.Equal(request[:], []byte{0, 0, 0, 8, 4, 210, 22, 47}) {
+			_, _ = c.Write([]byte("N"))
+		}
+	})
+	e, err := Start(context.Background(), Config{
+		Probes:   []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDatabase},
+		Fallback: []string{ProbeTLS, ProbeHTTP, ProbeDatabase}, Timeout: 500 * time.Millisecond, Workers: 1,
+	}, func(observe.Observation) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	o := e.Interrogate(context.Background(), target)
+	if o.Service != "postgresql" || o.Attributes["postgresql.ssl_supported"] != "false" {
+		t.Fatalf("PostgreSQL on unusual port not identified: %+v", o)
+	}
+	if last := o.ProbesAttempted[len(o.ProbesAttempted)-1]; last != ProbeDatabase {
+		t.Fatalf("database probe should follow TLS and HTTP: %v", o.ProbesAttempted)
+	}
+}
+
+func TestDatabaseProbeStopsOnSilentPort(t *testing.T) {
+	target := serve(t, func(c net.Conn) { _, _ = io.Copy(io.Discard, c) })
+	e, err := Start(context.Background(), Config{
+		Probes: []string{ProbeDatabase}, Fallback: []string{ProbeDatabase}, Timeout: 200 * time.Millisecond, Workers: 1,
+	}, func(observe.Observation) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	o := e.Interrogate(context.Background(), target)
+	var exchanges int
+	for _, ev := range o.Evidence {
+		if ev.Probe == ProbeDatabase {
+			exchanges++
+		}
+	}
+	if o.Fingerprint != observe.FingerprintUnknown || exchanges != 1 {
+		t.Fatalf("silent port should end the database probe after one exchange, got %d: %+v", exchanges, o)
+	}
+}
+
+// tdsServer answers a TDS PRELOGIN like SQL Server and drops anything else,
+// as SQL Server does with a request of another protocol.
+func tdsServer(c net.Conn) {
+	var header [8]byte
+	if _, err := io.ReadFull(c, header[:]); err != nil || header[0] != 0x12 {
+		return
+	}
+	body := make([]byte, int(binary.BigEndian.Uint16(header[2:4]))-len(header))
+	if _, err := io.ReadFull(c, body); err == nil {
+		_, _ = c.Write([]byte{4, 1, 0, 20, 0, 0, 1, 0, 0, 0, 6, 0, 6, 0xff, 16, 0, 0, 0, 0, 0})
+	}
+}
+
+func TestDatabaseFoundOnAnyPort(t *testing.T) {
+	postgres := func(c net.Conn) {
+		var request [8]byte
+		if _, err := io.ReadFull(c, request[:]); err == nil && bytes.Equal(request[:], []byte{0, 0, 0, 8, 4, 210, 22, 47}) {
+			_, _ = c.Write([]byte("S"))
+		}
+	}
+	for _, tc := range []struct {
+		name   string
+		port   uint16
+		handle func(net.Conn)
+		want   string
+	}{
+		{"mssql on unusual port", 14330, tdsServer, "mssql"},
+		{"mssql on postgres port", 5432, tdsServer, "mssql"},
+		{"postgres on pgbouncer port", 6432, postgres, "postgresql"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			listener := serve(t, tc.handle)
+			// The database profile's probe and fallback settings.
+			e, err := Start(context.Background(), Config{
+				Probes: []string{ProbeDatabase}, Fallback: []string{ProbeDatabase}, Timeout: 300 * time.Millisecond, Workers: 1,
+				Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+					var d net.Dialer
+					return d.DialContext(ctx, network, net.JoinHostPort(listener.Addr.String(), strconv.Itoa(int(listener.Port))))
+				},
+			}, func(observe.Observation) {})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer e.Close()
+			o := e.Interrogate(context.Background(), Target{Addr: listener.Addr, Port: tc.port})
+			if o.Service != tc.want || o.Fingerprint != observe.FingerprintMatched {
+				t.Fatalf("%s not identified on %d: %+v", tc.want, tc.port, o)
+			}
+		})
 	}
 }

@@ -17,7 +17,7 @@ func build(t *testing.T, o Options) Config {
 }
 
 func TestServiceProfilesEnableStage(t *testing.T) {
-	for name, fallback := range map[string]string{"tcp-common": "tls,http", "tcp-full": "tls,http", "web": "tls,http", "deep-scan": "tls,http", "windows": "tls,http", "filesystem": "tls,http", "database": ""} {
+	for name, fallback := range map[string]string{"tcp-common": "tls,http", "tcp-full": "tls,http,database", "web": "tls,http", "deep-scan": "tls,http,database", "windows": "tls,http", "filesystem": "tls,http", "database": "database"} {
 		s, err := BuildService(build(t, Options{Profile: name}), ServiceOptions{})
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)

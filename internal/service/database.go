@@ -73,31 +73,100 @@ func identifyDatabase(o *observe.Observation, service, product, version, reason 
 	o.Fingerprint = observe.FingerprintMatched
 }
 
-func (e *Engine) probeDatabase(ctx context.Context, t Target, o *observe.Observation, redisHint bool) bool {
+// databaseRequest names one request and the matcher for its reply.
+type databaseRequest struct {
+	name    string
+	request []byte
+	match   databaseMatcher
+	// line marks a short CRLF-terminated text request. Nearly every
+	// protocol answers or rejects one, so silence ends the sequence.
+	line bool
+}
+
+// databaseRequests lists every client-first exchange. Each request is
+// malformed enough for the other protocols that most reject it quickly.
+// Redis goes first: line-based servers wait silently on a binary request
+// without a line ending, and its PING tells a silent port from a quiet one.
+var databaseRequests = []databaseRequest{
+	{"redis", []byte("*1\r\n$4\r\nPING\r\n"), matchRedis, true},
+	{"postgresql", []byte{0, 0, 0, 8, 4, 210, 22, 47}, matchPostgres, false},
+	{"mssql", tdsPrelogin, matchTDS, false},
+	{"mongodb", mongoHello(), matchMongo, false},
+	{"bolt", boltHello, matchBolt, false},
+	{"cql", []byte{4, 0, 0, 0, 5, 0, 0, 0, 0}, matchCQL, false},
+	{"memcached", []byte("version\r\n"), matchMemcached, true},
+	// "srvr" is a read-only four-letter-word status command.
+	{"zookeeper", []byte("srvr"), matchZooKeeper, false},
+	{"http", []byte("GET / HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n"), matchHTTPDatabase, false},
+}
+
+// preferredDatabase is the exchange a port number or a response hint puts
+// first. It orders the attempts and never excludes another protocol.
+func preferredDatabase(port uint16, redisHint bool) string {
 	switch {
-	case redisHint || redisPorts[t.Port]:
-		return e.databaseExchange(ctx, t, o, []byte("*1\r\n$4\r\nPING\r\n"), matchRedis)
-	case memcachePorts[t.Port]:
-		return e.databaseExchange(ctx, t, o, []byte("version\r\n"), matchMemcached)
-	case postgresPorts[t.Port]:
-		return e.databaseExchange(ctx, t, o, []byte{0, 0, 0, 8, 4, 210, 22, 47}, matchPostgres)
-	case mongoPorts[t.Port]:
-		return e.databaseExchange(ctx, t, o, mongoHello(), matchMongo)
-	case boltPorts[t.Port]:
-		return e.databaseExchange(ctx, t, o, boltHello, matchBolt)
-	case cqlPorts[t.Port]:
-		return e.databaseExchange(ctx, t, o, []byte{4, 0, 0, 0, 5, 0, 0, 0, 0}, matchCQL)
-	case tdsPorts[t.Port]:
-		return e.databaseExchange(ctx, t, o, tdsPrelogin, matchTDS)
-	case zookeeperPorts[t.Port]:
-		// "srvr" is a read-only four-letter-word status command.
-		return e.databaseExchange(ctx, t, o, []byte("srvr"), matchZooKeeper)
-	case httpDBPorts[t.Port]:
-		return e.databaseExchange(ctx, t, o, []byte("GET / HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n"), matchHTTPDatabase)
-	default:
-		// Server-first protocols and currently unsupported ports remain unknown.
-		return false
+	case redisHint || redisPorts[port]:
+		return "redis"
+	case memcachePorts[port]:
+		return "memcached"
+	case postgresPorts[port]:
+		return "postgresql"
+	case mongoPorts[port]:
+		return "mongodb"
+	case boltPorts[port]:
+		return "bolt"
+	case cqlPorts[port]:
+		return "cql"
+	case tdsPorts[port]:
+		return "mssql"
+	case zookeeperPorts[port]:
+		return "zookeeper"
+	case httpDBPorts[port]:
+		return "http"
 	}
+	return ""
+}
+
+// probeDatabase identifies a client-first database on any port, trying the
+// preferred exchange and then the rest, each on its own connection, until
+// one matches. Server-first MySQL is recognized from the banner instead.
+// The HTTP exchange is skipped unless preferred when the HTTP probe is
+// enabled, because that probe already checks its response for a database.
+//
+// The sequence stops when a connection cannot be made, when the Redis or
+// memcached text request meets silence, or at the second silent timeout:
+// each unanswered request spends the full probe budget.
+func (e *Engine) probeDatabase(ctx context.Context, t Target, o *observe.Observation, redisHint bool) bool {
+	preferred := preferredDatabase(t.Port, redisHint)
+	order := make([]databaseRequest, 0, len(databaseRequests))
+	for _, x := range databaseRequests {
+		if x.name == preferred {
+			order = append([]databaseRequest{x}, order...)
+		} else if x.name != "http" || !e.enabled[ProbeHTTP] {
+			order = append(order, x)
+		}
+	}
+	silent := 0
+	for _, x := range order {
+		if ctx.Err() != nil {
+			return false
+		}
+		if e.databaseExchange(ctx, t, o, x.request, x.match) {
+			return true
+		}
+		ev := o.Evidence[len(o.Evidence)-1]
+		if len(ev.Response) > 0 {
+			continue
+		}
+		if len(ev.Request) == 0 {
+			return false
+		}
+		if isTimeout(ev.Error) {
+			if silent++; x.line || silent == 2 {
+				return false
+			}
+		}
+	}
+	return false
 }
 
 type databaseMatcher func([]byte, *observe.Observation) bool

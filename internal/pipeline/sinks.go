@@ -126,9 +126,35 @@ func firstReceivedPreview(evidence []observe.Evidence) string {
 				label = "binary banner"
 			}
 		}
-		return fmt.Sprintf("%s (%d bytes) [%s]", label, len(ev.Response), hexPreview(ev.Response))
+		preview := decodedPreview(ev)
+		if preview == "" {
+			preview = hexPreview(ev.Response)
+		}
+		return fmt.Sprintf("%s (%d bytes) [%s]", label, len(ev.Response), preview)
 	}
 	return ""
+}
+
+// decodedPreview pairs each decoded field in the first 16 bytes with its short
+// meaning: "15 alert, 03 03 TLS 1.2, ...". Notes stay in the JSON evidence.
+func decodedPreview(ev observe.Evidence) string {
+	var parts []string
+	end := 0
+	for _, f := range ev.Decoded {
+		if f.Offset != end || f.Offset+f.Length > 16 {
+			break
+		}
+		parts = append(parts, f.Bytes+" "+f.Value)
+		end += f.Length
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	out := strings.Join(parts, ", ")
+	if end < len(ev.Response) {
+		out += " …"
+	}
+	return out
 }
 
 func readableBanner(data []byte) bool {

@@ -17,6 +17,7 @@ import (
 
 	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/observe"
+	"github.com/matusso/nyxr/internal/tlsrecord"
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 )
 
@@ -462,6 +463,7 @@ func (s *Store) evidence(ctx context.Context, observationID int64) ([]observe.Ev
 			return nil, err
 		}
 		ev.Started, ev.Duration = parseTS(started), time.Duration(duration)
+		ev.Decoded = tlsrecord.Decode(ev.Response) // derived, so not stored
 		out = append(out, ev)
 	}
 	return out, rows.Err()

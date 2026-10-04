@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/matusso/nyxr/internal/observe"
+	"github.com/matusso/nyxr/internal/tlsrecord"
 )
 
 // TLS-wrapped protocols where the server speaks first after the handshake.
@@ -43,6 +44,9 @@ func (e *Engine) probeTLS(ctx context.Context, t Target, o *observe.Observation)
 	tc, ev, ok := e.handshake(ctx, t, alpn)
 	o.Evidence = append(o.Evidence, ev)
 	if !ok {
+		if desc, alert := tlsrecord.Alert(ev.Response); alert && desc == tlsrecord.NoApplicationProtocol {
+			return e.directPostgres(ctx, t, o)
+		}
 		return false
 	}
 	defer tc.Close()
@@ -74,11 +78,33 @@ func (e *Engine) probeTLS(ctx context.Context, t Target, o *observe.Observation)
 		stop()
 		e.finish(&inEv, rc, err)
 		o.Evidence = append(o.Evidence, inEv)
-		if len(data) > 0 {
+		if len(data) > 0 && !e.bannerInsideTLS(o, &o.Evidence[len(o.Evidence)-1], data) {
 			o.Attributes = map[string]string{"tls.inner_banner": printable(data, 256)}
 			o.Reason += "; service inside TLS unrecognized, banner retained"
 		}
 	}
+	return true
+}
+
+// directPostgres retries a handshake refused for its ALPN offer as a
+// PostgreSQL 17+ client using direct SSL (sslnegotiation=direct), which must
+// offer ALPN "postgresql". The server agreeing to it identifies the service.
+func (e *Engine) directPostgres(ctx context.Context, t Target, o *observe.Observation) bool {
+	tc, ev, ok := e.handshake(ctx, t, []string{"postgresql"})
+	if ok {
+		defer tc.Close()
+		ok = tc.ConnectionState().NegotiatedProtocol == "postgresql"
+	}
+	if !ok {
+		ev.Matched = ""
+		o.Evidence = append(o.Evidence, ev)
+		return false
+	}
+	ev.Matched = ProbeDatabase
+	o.Evidence = append(o.Evidence, ev)
+	identifyDatabase(o, "postgresql", "PostgreSQL-compatible", "", "TLS handshake negotiated ALPN postgresql (direct SSL)", 100)
+	o.Probe, o.TLS = ProbeTLS+"+"+ProbeDatabase, summarizeTLS(tc.ConnectionState())
+	o.Attributes = map[string]string{"postgresql.ssl_supported": "true", "postgresql.direct_ssl": "true"}
 	return true
 }
 
@@ -93,10 +119,26 @@ func (e *Engine) httpInsideTLS(ctx context.Context, t Target, tc *tls.Conn, o *o
 			o.Service, o.Probe = "https", ProbeTLS+"+"+ProbeHTTP
 		}
 		o.Reason = "TLS handshake completed; " + o.Reason
-	} else {
+	} else if len(ev.Response) == 0 || !e.bannerInsideTLS(o, &o.Evidence[len(o.Evidence)-1], ev.Response) {
 		o.Service, o.Reason = service, reason+"; no HTTP response inside TLS"
 	}
 	o.TLS = tlsInfo
+}
+
+// bannerInsideTLS identifies a server-first protocol from bytes read inside
+// TLS. A server that greets first does so before reading anything, so the
+// greeting also leads the reply to an HTTP request on a port that is not
+// known to be server-first. It reports false and leaves o alone otherwise.
+func (e *Engine) bannerInsideTLS(o *observe.Observation, ev *observe.Evidence, data []byte) bool {
+	reason, tlsInfo := o.Reason, o.TLS
+	matched := e.matchBanner(o, data)
+	if matched == "" {
+		return false
+	}
+	ev.Matched = matched
+	o.Probe, o.TLS = ProbeTLS+"+"+matched, tlsInfo
+	o.Reason = reason + "; " + o.Reason + " inside TLS"
+	return true
 }
 
 func (e *Engine) handshake(ctx context.Context, t Target, alpn []string) (*tls.Conn, observe.Evidence, bool) {
