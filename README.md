@@ -35,8 +35,8 @@ that prove it.
 **Homebrew** (macOS, Linux):
 
 ```sh
-brew tap matusso/nyxr https://github.com/matusso/nyxr
-brew install nyxr
+brew install matusso/tap/nyxr
+brew upgrade nyxr        # later, to get the newest release
 ```
 
 **Release binaries** for Linux, macOS and Windows (`amd64`, `arm64`) are on the
