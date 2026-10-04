@@ -294,10 +294,40 @@ func Build(o Options) (Config, error) {
 		UDPProbes: udpProbes, UDPMode: udpMode, UDPRetries: retries, NmapUDPSource: o.NmapUDPProbes, NmapUDPSHA: nmapUDPSHA,
 		TCPMode: mode, Interface: o.Interface, SourceIP: sourceIP, SourceMAC: sourceMAC, NextHopMAC: nextHopMAC,
 	}
+	if err := cfg.defaultSYNInterface(); err != nil {
+		return Config{}, err
+	}
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+// EgressInterface names the interface the routing table sends a target
+// through. The scan package installs it; Build uses it when a SYN scan omits
+// its raw interface.
+var EgressInterface func(netip.Addr) (string, error)
+
+// defaultSYNInterface picks the interface that routes the first target, as
+// the explicit --interface would.
+func (c *Config) defaultSYNInterface() error {
+	if c.TCPMode != "syn" || c.Interface != "" || EgressInterface == nil {
+		return nil
+	}
+	var target netip.Addr
+	c.EachTarget(func(t netip.Addr) bool {
+		target = t
+		return false
+	})
+	if !target.Is4() {
+		return nil
+	}
+	iface, err := EgressInterface(target)
+	if err != nil {
+		return fmt.Errorf("TCP SYN mode requires an Ethernet interface; choose one with --interface (route lookup: %w)", err)
+	}
+	c.Interface = iface
+	return nil
 }
 
 func first(values ...string) string {

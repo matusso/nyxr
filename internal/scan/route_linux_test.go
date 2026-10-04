@@ -16,3 +16,14 @@ func TestParseIPv4Routes(t *testing.T) {
 		t.Fatalf("routes: %+v, %v", routes, err)
 	}
 }
+
+func TestParseIPv4RoutesAllDevices(t *testing.T) {
+	input := "Iface Destination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT\n" +
+		"wlan0 00000000 0101A8C0 0003 0 0 600 00000000 0 0 0\n" +
+		"eth0 00000000 0102000A 0003 0 0 100 00000000 0 0 0\n" +
+		"wlan0 0001A8C0 00000000 0001 0 0 600 00FFFFFF 0 0 0\n"
+	routes, err := parseIPv4Routes(strings.NewReader(input), "")
+	if err != nil || len(routes) != 3 || routes[0].device != "wlan0" || routes[1].device != "eth0" {
+		t.Fatalf("routes: %+v, %v", routes, err)
+	}
+}

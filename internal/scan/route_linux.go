@@ -15,6 +15,7 @@ import (
 type ipv4Route struct {
 	network, gateway netip.Addr
 	bits, metric     int
+	device           string
 }
 
 func loadIPv4Routes(device string) (func(netip.Addr) (netip.Addr, error), error) {
@@ -46,12 +47,40 @@ func loadIPv4Routes(device string) (func(netip.Addr) (netip.Addr, error), error)
 	}, nil
 }
 
+// egressInterface names the interface the main IPv4 table sends target
+// through: the longest prefix, then the lowest metric.
+func egressInterface(target netip.Addr) (string, error) {
+	f, err := os.Open("/proc/net/route")
+	if err != nil {
+		return "", fmt.Errorf("read IPv4 routes: %w", err)
+	}
+	defer f.Close()
+	routes, err := parseIPv4Routes(f, "")
+	if err != nil {
+		return "", err
+	}
+	best := -1
+	for i, route := range routes {
+		if netip.PrefixFrom(route.network, route.bits).Contains(target) &&
+			(best < 0 || route.bits > routes[best].bits ||
+				(route.bits == routes[best].bits && route.metric < routes[best].metric)) {
+			best = i
+		}
+	}
+	if best < 0 {
+		return "", fmt.Errorf("no IPv4 route to %s", target)
+	}
+	return routes[best].device, nil
+}
+
+// parseIPv4Routes reads /proc/net/route; an empty device keeps every
+// interface's routes.
 func parseIPv4Routes(r io.Reader, device string) ([]ipv4Route, error) {
 	var routes []ipv4Route
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
-		if len(fields) < 8 || fields[0] != device {
+		if len(fields) < 8 || (device != "" && fields[0] != device) {
 			continue
 		}
 		flags, err := strconv.ParseUint(fields[3], 16, 32)
@@ -70,12 +99,15 @@ func parseIPv4Routes(r io.Reader, device string) ([]ipv4Route, error) {
 		if !valid {
 			continue
 		}
-		routes = append(routes, ipv4Route{network: netip.PrefixFrom(network, bits).Masked().Addr(), gateway: gateway, bits: bits, metric: metric})
+		routes = append(routes, ipv4Route{network: netip.PrefixFrom(network, bits).Masked().Addr(), gateway: gateway, bits: bits, metric: metric, device: fields[0]})
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
 	if len(routes) == 0 {
+		if device == "" {
+			return nil, fmt.Errorf("no IPv4 routes")
+		}
 		return nil, fmt.Errorf("no IPv4 routes for interface %s", device)
 	}
 	return routes, nil

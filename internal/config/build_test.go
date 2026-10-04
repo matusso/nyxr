@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+	"net/netip"
 	"strings"
 	"testing"
 )
@@ -310,5 +312,26 @@ func TestResolvePorts(t *testing.T) {
 	}
 	if _, err := ResolvePorts("22,443"); err != nil {
 		t.Fatalf("numeric list should still work: %v", err)
+	}
+}
+
+func TestBuildSYNDefaultsInterfaceFromRoute(t *testing.T) {
+	defer func(old func(netip.Addr) (string, error)) { EgressInterface = old }(EgressInterface)
+	var asked netip.Addr
+	EgressInterface = func(target netip.Addr) (string, error) {
+		asked = target
+		return "en7", nil
+	}
+	cfg, err := Build(Options{Targets: []string{"192.0.2.9", "192.0.2.10"}, TCPMode: "syn"})
+	if err != nil || cfg.Interface != "en7" || asked != netip.MustParseAddr("192.0.2.9") {
+		t.Fatalf("interface=%q asked=%v err=%v", cfg.Interface, asked, err)
+	}
+	cfg, err = Build(Options{Targets: []string{"192.0.2.9"}, TCPMode: "syn", Interface: "eth1"})
+	if err != nil || cfg.Interface != "eth1" {
+		t.Fatalf("explicit interface: %q err=%v", cfg.Interface, err)
+	}
+	EgressInterface = func(netip.Addr) (string, error) { return "", errors.New("no IPv4 route") }
+	if _, err := Build(Options{Targets: []string{"192.0.2.9"}, TCPMode: "syn"}); err == nil || !strings.Contains(err.Error(), "--interface") {
+		t.Fatalf("route failure: %v", err)
 	}
 }
