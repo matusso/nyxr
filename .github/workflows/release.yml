@@ -70,6 +70,31 @@ jobs:
           git commit -m "brew: nyxr ${TAG#v}" -- Formula/nyxr.rb
           git push origin HEAD:main
           git checkout --detach "$TAG"
+      - name: Update Homebrew tap
+        if: ${{ !contains(env.TAG, '-') }}
+        env:
+          # SSH private key of a write deploy key on matusso/homebrew-tap.
+          HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          if [ -z "$HOMEBREW_TAP_DEPLOY_KEY" ]; then
+            echo "::warning::HOMEBREW_TAP_DEPLOY_KEY is not set, skipping matusso/homebrew-tap"
+            exit 0
+          fi
+          key="$RUNNER_TEMP/tap_key"
+          printf '%s\n' "$HOMEBREW_TAP_DEPLOY_KEY" > "$key"
+          chmod 600 "$key"
+          export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          tap="$RUNNER_TEMP/homebrew-tap"
+          git clone --depth 1 git@github.com:matusso/homebrew-tap.git "$tap"
+          mkdir -p "$tap/Formula"
+          scripts/homebrew-formula.sh "$TAG" dist/SHA256SUMS > "$tap/Formula/nyxr.rb"
+          cd "$tap"
+          if git diff --quiet -- Formula/nyxr.rb && git ls-files --error-unmatch Formula/nyxr.rb >/dev/null 2>&1; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/nyxr.rb
+          git commit -m "nyxr $TAG"
+          git push origin HEAD:main
       - name: Set image tags
         id: image
         run: |
