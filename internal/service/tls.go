@@ -78,7 +78,7 @@ func (e *Engine) probeTLS(ctx context.Context, t Target, o *observe.Observation)
 		stop()
 		e.finish(&inEv, rc, err)
 		o.Evidence = append(o.Evidence, inEv)
-		if len(data) > 0 {
+		if len(data) > 0 && !e.bannerInsideTLS(o, &o.Evidence[len(o.Evidence)-1], data) {
 			o.Attributes = map[string]string{"tls.inner_banner": printable(data, 256)}
 			o.Reason += "; service inside TLS unrecognized, banner retained"
 		}
@@ -119,10 +119,26 @@ func (e *Engine) httpInsideTLS(ctx context.Context, t Target, tc *tls.Conn, o *o
 			o.Service, o.Probe = "https", ProbeTLS+"+"+ProbeHTTP
 		}
 		o.Reason = "TLS handshake completed; " + o.Reason
-	} else {
+	} else if len(ev.Response) == 0 || !e.bannerInsideTLS(o, &o.Evidence[len(o.Evidence)-1], ev.Response) {
 		o.Service, o.Reason = service, reason+"; no HTTP response inside TLS"
 	}
 	o.TLS = tlsInfo
+}
+
+// bannerInsideTLS identifies a server-first protocol from bytes read inside
+// TLS. A server that greets first does so before reading anything, so the
+// greeting also leads the reply to an HTTP request on a port that is not
+// known to be server-first. It reports false and leaves o alone otherwise.
+func (e *Engine) bannerInsideTLS(o *observe.Observation, ev *observe.Evidence, data []byte) bool {
+	reason, tlsInfo := o.Reason, o.TLS
+	matched := e.matchBanner(o, data)
+	if matched == "" {
+		return false
+	}
+	ev.Matched = matched
+	o.Probe, o.TLS = ProbeTLS+"+"+matched, tlsInfo
+	o.Reason = reason + "; " + o.Reason + " inside TLS"
+	return true
 }
 
 func (e *Engine) handshake(ctx context.Context, t Target, alpn []string) (*tls.Conn, observe.Evidence, bool) {

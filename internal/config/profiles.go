@@ -94,7 +94,7 @@ var profiles = []Profile{
 		Name: "tcp-full", Description: "All 65535 TCP ports, then full service identification",
 		Availability: StatusAvailable,
 		Ports:        "all", Protocols: "tcp", Timeout: "1s", Rate: 1000, Workers: 256,
-		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks", Fallback: "tls,http", Timeout: "8s", Workers: 32, Rate: 50},
+		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks,database", Fallback: "tls,http,database", Timeout: "8s", Workers: 32, Rate: 50},
 	},
 	{
 		Name: "udp-basic", Description: "Empty UDP datagram per port with response and ICMP classification",
@@ -115,7 +115,7 @@ var profiles = []Profile{
 		Name: "deep-scan", Description: "tcp-full plus udp-common: all TCP ports with service identification and common UDP ports",
 		Availability: StatusAvailable,
 		Ports:        "all", UDPPorts: "udp", Protocols: "tcp,udp", Timeout: "1500ms", Rate: 1000, Workers: 256,
-		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks", Fallback: "tls,http", Timeout: "8s", Workers: 32, Rate: 50},
+		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks,database", Fallback: "tls,http,database", Timeout: "8s", Workers: 32, Rate: 50},
 	},
 	{
 		Name: "windows", Description: "Windows/Active Directory hosts: SMB, RDP, MSRPC, NetBIOS, WinRM, LDAP and Kerberos with deep identification",

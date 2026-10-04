@@ -63,8 +63,9 @@ var probeTimeouts = map[string]time.Duration{
 // Config controls the deep-probe stage.
 type Config struct {
 	Probes []string
-	// Fallback probes run, in order, on ports with no banner and no port
-	// hint. An empty list interrogates only hinted ports beyond the banner.
+	// Fallback probes are candidates on every port the banner leaves
+	// unidentified, hinted or not; the planner orders them. An empty list
+	// interrogates only hinted ports beyond the banner.
 	Fallback []string
 	Timeout  time.Duration // upper bound for each probe
 	Workers  int

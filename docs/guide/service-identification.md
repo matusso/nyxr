@@ -53,8 +53,16 @@ from the current evidence:
    | TLS ports such as 443, 8443, 993 | `tls`, `http` |
    | HTTP ports such as 80, 8080 | `http`, `tls` |
 
-3. **Fallback probes** on other ports, set by `--service-fallback`:
-   `tls,http` for `tcp-common`, `tcp-full`, `deep-scan`, `windows` and `web`; or `none`.
+3. **Fallback probes** on every port the banner leaves unidentified, set by
+   `--service-fallback`: `tls,http,database` for `tcp-full` and `deep-scan`;
+   `tls,http` for `tcp-common`, `windows`, `filesystem` and `web`; or `none`.
+
+   On a port with no database exchange of its own, the `database` probe tries
+   a Redis PING, a PostgreSQL SSLRequest, a TDS PRELOGIN and a MongoDB hello in
+   turn, each on its own connection. It stops at the first match, at the first
+   request the port ignores, or when a connection fails. With `database`
+   enabled, a MySQL or MariaDB greeting is recognized from the banner on any
+   port.
 
 After each active response, Nyxr updates `P(protocol family | evidence)` using
 the probe's match likelihood. It estimates each untried probe's expected
@@ -102,7 +110,11 @@ TLS is one shared subsystem. For every handshake it records:
 
 Trust is not verified; the chain is recorded as presented. nyxr then identifies
 the service inside TLS: HTTP (reported as `https`, re-asking for HTTP/1.1 when
-ALPN selected h2) or a server-first banner such as IMAPS.
+ALPN selected h2) or a server-first banner such as IMAPS. On ports not known
+to be server-first, a greeting that arrives ahead of the HTTP reply is matched
+with the same banner rules, so IMAPS or SMTPS on an unusual port is still
+named. A PostgreSQL 17+ listener that refuses the HTTP ALPN offer is retried
+with ALPN `postgresql` (direct SSL).
 
 SNI for hostname targets and alternative ClientHello profiles are not
 implemented yet.

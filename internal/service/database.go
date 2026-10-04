@@ -95,9 +95,42 @@ func (e *Engine) probeDatabase(ctx context.Context, t Target, o *observe.Observa
 	case httpDBPorts[t.Port]:
 		return e.databaseExchange(ctx, t, o, []byte("GET / HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n"), matchHTTPDatabase)
 	default:
-		// Server-first protocols and currently unsupported ports remain unknown.
-		return false
+		return e.databaseSweep(ctx, t, o)
 	}
+}
+
+// sweepExchanges are tried in order on a port that selects no exchange. Each
+// uses its own connection, and each request is malformed enough for the other
+// protocols that they reject it quickly. Redis goes first because it alone
+// waits silently on a binary request that has no line ending.
+var sweepExchanges = []struct {
+	request []byte
+	match   databaseMatcher
+}{
+	{[]byte("*1\r\n$4\r\nPING\r\n"), matchRedis},
+	{[]byte{0, 0, 0, 8, 4, 210, 22, 47}, matchPostgres},
+	{tdsPrelogin, matchTDS},
+	{mongoHello(), matchMongo},
+}
+
+// databaseSweep identifies a client-first database on a port that does not
+// suggest one. Server-first MySQL is already recognized from the banner.
+// The sweep stops at a silent timeout, since a port that ignores one request
+// is unlikely to answer the others and each would spend the full budget, and
+// when a connection cannot be made at all.
+func (e *Engine) databaseSweep(ctx context.Context, t Target, o *observe.Observation) bool {
+	for _, x := range sweepExchanges {
+		if ctx.Err() != nil {
+			return false
+		}
+		if e.databaseExchange(ctx, t, o, x.request, x.match) {
+			return true
+		}
+		if ev := o.Evidence[len(o.Evidence)-1]; len(ev.Response) == 0 && (isTimeout(ev.Error) || len(ev.Request) == 0) {
+			return false
+		}
+	}
+	return false
 }
 
 type databaseMatcher func([]byte, *observe.Observation) bool

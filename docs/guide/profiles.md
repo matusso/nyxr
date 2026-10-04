@@ -71,7 +71,8 @@ replacement:
 
 `tcp-common`, `tcp-full`, `deep-scan`, `windows`, `filesystem` and `web` run the
 deep-probe stage on every open TCP port and try `tls,http` on ports that send
-nothing. `tcp-basic` only reports port state; add `--service` to identify
+nothing. `tcp-full` and `deep-scan` also enable the `database` probe and add it
+to the fallback, so databases on unusual ports are identified too. `tcp-basic` only reports port state; add `--service` to identify
 services with it.
 
 | Profile | TCP ports | Rate |

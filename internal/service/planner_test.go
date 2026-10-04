@@ -224,3 +224,45 @@ func TestTLSIdentifiesDirectSSLPostgres(t *testing.T) {
 		t.Fatalf("expected refused handshake then the postgresql retry: %+v", o.Evidence)
 	}
 }
+
+func TestTLSIdentifiesServerFirstProtocolOnUnusualPort(t *testing.T) {
+	cert := httptest.NewTLSServer(http.NotFoundHandler())
+	certs := cert.TLS.Certificates
+	cert.Close()
+	ln, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{Certificates: certs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer c.Close()
+				if c.(*tls.Conn).Handshake() != nil {
+					return // passive banner connection never sends a ClientHello
+				}
+				_, _ = io.WriteString(c, "* OK [CAPABILITY IMAP4rev1 AUTH=PLAIN] ready\r\n")
+				_ = c.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+				_, _ = io.Copy(io.Discard, c)
+			}()
+		}
+	}()
+	target := targetOf(t, ln.Addr().String())
+	e, err := Start(context.Background(), Config{
+		Probes:   []string{ProbeBanner, ProbeTLS, ProbeHTTP},
+		Fallback: []string{ProbeTLS}, Timeout: 500 * time.Millisecond, Workers: 1,
+	}, func(observe.Observation) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	o := e.Interrogate(context.Background(), target)
+	if o.Service != "imap" || o.Probe != ProbeTLS+"+"+ProbeBanner || o.TLS == nil ||
+		o.Evidence[len(o.Evidence)-1].Matched != ProbeBanner || o.ServiceHypotheses[0].Family != "imap" {
+		t.Fatalf("IMAP inside TLS not identified: %+v", o)
+	}
+}

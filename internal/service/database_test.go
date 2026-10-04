@@ -121,3 +121,52 @@ func TestDatabaseProfileInterrogatesRedis(t *testing.T) {
 		t.Fatalf("Redis interrogation: %+v", o)
 	}
 }
+
+func TestDatabaseSweepFindsPostgresOnUnusualPort(t *testing.T) {
+	target := serve(t, func(c net.Conn) {
+		var request [8]byte
+		if _, err := io.ReadFull(c, request[:]); err != nil {
+			return // passive banner connection
+		}
+		// Like PostgreSQL, reject anything but a startup-shaped packet.
+		if bytes.Equal(request[:], []byte{0, 0, 0, 8, 4, 210, 22, 47}) {
+			_, _ = c.Write([]byte("N"))
+		}
+	})
+	e, err := Start(context.Background(), Config{
+		Probes:   []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDatabase},
+		Fallback: []string{ProbeTLS, ProbeHTTP, ProbeDatabase}, Timeout: 500 * time.Millisecond, Workers: 1,
+	}, func(observe.Observation) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	o := e.Interrogate(context.Background(), target)
+	if o.Service != "postgresql" || o.Attributes["postgresql.ssl_supported"] != "false" {
+		t.Fatalf("PostgreSQL on unusual port not identified: %+v", o)
+	}
+	if last := o.ProbesAttempted[len(o.ProbesAttempted)-1]; last != ProbeDatabase {
+		t.Fatalf("database sweep should follow TLS and HTTP: %v", o.ProbesAttempted)
+	}
+}
+
+func TestDatabaseSweepStopsOnSilentPort(t *testing.T) {
+	target := serve(t, func(c net.Conn) { _, _ = io.Copy(io.Discard, c) })
+	e, err := Start(context.Background(), Config{
+		Probes: []string{ProbeDatabase}, Fallback: []string{ProbeDatabase}, Timeout: 200 * time.Millisecond, Workers: 1,
+	}, func(observe.Observation) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	o := e.Interrogate(context.Background(), target)
+	var exchanges int
+	for _, ev := range o.Evidence {
+		if ev.Probe == ProbeDatabase {
+			exchanges++
+		}
+	}
+	if o.Fingerprint != observe.FingerprintUnknown || exchanges != 1 {
+		t.Fatalf("silent port should end the sweep after one exchange, got %d: %+v", exchanges, o)
+	}
+}
