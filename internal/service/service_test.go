@@ -155,8 +155,46 @@ func TestPlainHTTPOnTLSPortFallsBack(t *testing.T) {
 	if o.Service != "http" || o.TLS != nil {
 		t.Fatalf("plain HTTP on 443 must be identified as http: %+v", o)
 	}
-	if got := strings.Join(o.ProbesAttempted, ","); got != "banner,tls,http" {
+	// Go's server answers the ClientHello with a plaintext 400, which is
+	// enough to identify HTTP without a separate GET.
+	if got := strings.Join(o.ProbesAttempted, ","); got != "banner,tls" {
 		t.Fatalf("probe order %s", got)
+	}
+}
+
+// nginx with a catch-all "return 444" server closes on GET / without a reply
+// but answers the bytes of a TLS ClientHello with its own plaintext 400.
+func TestPlainHTTPIdentifiedFromClientHelloReply(t *testing.T) {
+	target := serve(t, func(c net.Conn) {
+		var first [1]byte
+		if _, err := io.ReadFull(c, first[:]); err != nil || first[0] != 0x16 {
+			return
+		}
+		_, _ = io.WriteString(c, "HTTP/1.1 400 Bad Request\r\nServer: nginx\r\nContent-Type: text/html\r\n"+
+			"Content-Length: 50\r\nConnection: close\r\n\r\n<html><head><title>400 Bad Request</title></head>")
+	})
+	e, err := Start(context.Background(), Config{Probes: Names(), Timeout: 600 * time.Millisecond, Workers: 1,
+		Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, network, net.JoinHostPort(target.Addr.String(), strconv.Itoa(int(target.Port))))
+		}}, func(observe.Observation) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	o := e.Interrogate(context.Background(), Target{Addr: target.Addr, Port: 80})
+	if o.Service != "http" || o.Product != "nginx" || o.TLS != nil || o.Fingerprint != observe.FingerprintMatched ||
+		o.Attributes["http.status"] != "400" {
+		t.Fatalf("plaintext HTTP answering a ClientHello must be identified as http: %+v", o)
+	}
+	if got := strings.Join(o.ProbesAttempted, ","); got != "banner,http,tls" {
+		t.Fatalf("probe order %s", got)
+	}
+	if last := o.Evidence[len(o.Evidence)-1]; last.Probe != ProbeTLS || last.Matched != ProbeHTTP {
+		t.Fatalf("ClientHello exchange should be credited to HTTP: %+v", last)
+	}
+	if o.ServiceHypotheses[0].Family != ProbeHTTP {
+		t.Fatalf("HTTP family should lead the posterior: %+v", o.ServiceHypotheses)
 	}
 }
 

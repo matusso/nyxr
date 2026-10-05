@@ -192,6 +192,11 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 			ev := o.Evidence[firstEvidence]
 			if ev.Error != "" && ev.Error != "timeout" && len(ev.Response) == 0 {
 				planner.attempted[p] = true // connection failures say nothing about protocol
+			} else if p == ProbeTLS && ev.Matched == ProbeHTTP {
+				// Plaintext HTTP answered the ClientHello: credit the
+				// HTTP family, not TLS.
+				planner.attempted[p] = true
+				planner.update(ProbeHTTP, true, ev.Response, e)
 			} else {
 				planner.update(p, matched, ev.Response, e)
 			}

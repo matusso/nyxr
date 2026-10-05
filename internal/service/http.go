@@ -86,8 +86,13 @@ func readHTTP(c net.Conn) ([]byte, error) {
 	return buf, nil
 }
 
-// parseHTTP fills service fields from an HTTP/1.x response.
+// parseHTTP fills service fields from an HTTP/1.x response to GET /.
 func parseHTTP(o *observe.Observation, data []byte) bool {
+	return parseHTTPReply(o, data, "GET /")
+}
+
+// parseHTTPReply fills service fields from an HTTP/1.x response to request.
+func parseHTTPReply(o *observe.Observation, data []byte, request string) bool {
 	if !bytes.HasPrefix(data, []byte("HTTP/1.")) {
 		return false
 	}
@@ -128,7 +133,7 @@ func parseHTTP(o *observe.Observation, data []byte) bool {
 		o.Attributes[k] = v
 	}
 	o.Service, o.Confidence, o.Probe = "http", 100, ProbeHTTP
-	o.Reason = "HTTP/1.x response to GET /"
+	o.Reason = "HTTP/1.x response to " + request
 	if server := attrs["http.server"]; server != "" {
 		token, _, _ := strings.Cut(server, " ")
 		o.Product, o.Version = splitSoftware(token, "/")
