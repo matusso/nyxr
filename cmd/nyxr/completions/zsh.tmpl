@@ -73,6 +73,7 @@ _nyxr() {
                         '--service-workers=[concurrent service probe workers]:workers:' \
                         '--service-rate=[new service connections per second (0 = unlimited)]:rate:' \
                         '--nmap-service-probes=[import an nmap-service-probes file for banner matching]:probes file:_files' \
+                        '--protocol-definitions=[local Nyxr Protocol DSL files]:protocol files:_files -g "*.(yaml|yml)"' \
                         '--nse-scripts=[comma list of installed safe NSE scripts]:scripts:' \
                         '--nse-timeout=[maximum Nmap time per host]:duration (e.g. 30s):' \
                         '--pcapng=[write packet evidence to a pcapng file]:pcapng file:_files -g "*.pcapng"' \
@@ -134,9 +135,9 @@ _nyxr() {
                     ;;
                 probe)
                     _arguments \
-                        '1:subcommand:(import)' \
+                        '1:subcommand:(import validate)' \
                         '--json[machine-readable summary]' \
-                        '*:nmap-service-probes file:_files' && ret=0
+                        '*:probe file:_files' && ret=0
                     ;;
                 completion)
                     _arguments '1:shell:(bash zsh fish powershell)' && ret=0

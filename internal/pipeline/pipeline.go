@@ -204,8 +204,25 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 				nsePortCount++
 				nseMu.Unlock()
 			}
-			if o.Transport == "tcp" && o.State == "open" {
-				t := service.Target{Addr: o.Target, Port: o.Port}
+			eligible := o.Transport == "tcp" && o.State == "open"
+			if o.Transport == "udp" && (o.State == "open" || o.State == "open|filtered") {
+				for _, d := range opts.Service.Definitions {
+					if d.Transport != "udp" {
+						continue
+					}
+					for _, port := range d.Ports {
+						if port == o.Port {
+							eligible = true
+							break
+						}
+					}
+					if eligible {
+						break
+					}
+				}
+			}
+			if eligible {
+				t := service.Target{Addr: o.Target, Port: o.Port, Transport: o.Transport, State: o.State}
 				if cfg.Profile == "ot-safe" {
 					otOpen = append(otOpen, t)
 				} else if engine != nil {

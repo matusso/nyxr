@@ -100,6 +100,7 @@ Usage:
   nyxr sniff --interface eth0 [flags]    capture and decode live frames
   nyxr history [--db file] [flags]       list or query stored scans, assets and evidence
   nyxr probe import file [--json]        import and summarize an nmap-service-probes file
+  nyxr probe validate file [--json]      validate a Nyxr Protocol DSL file
   nyxr serve [--db file] [flags]         serve the REST API and web UI (unprivileged)
   nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
   nyxr version                           print the version
@@ -162,13 +163,14 @@ Flags:
                         default); targets, if given, narrow it by IP, CIDR or range
 
 Service identification, evidence and storage:
-  --service             deep probes on open TCP ports (on for tcp-common, tcp-full, deep-scan, windows, filesystem, web, database, iot)
+  --service             deep probes on open TCP ports, or UDP with Protocol DSL definitions
   --service-probes list banner, ssh, tls, http, dns, socks, modbus, ethernetip, nmap, database, smb, rdp, msrpc, ldap, kerberos, nfs
   --service-fallback l  probes for silent ports without a port hint, or none
   --service-timeout d   upper bound for each service probe
   --service-workers int concurrent service probe workers
   --service-rate int    new service connections/second (0 = unlimited)
   --nmap-service-probes f  import an nmap-service-probes file to match banners
+  --protocol-definitions files  comma-separated Nyxr Protocol DSL YAML files
   --nse-scripts list    run named, installed safe Nmap NSE scripts on discovered open ports
   --nse-timeout d       maximum Nmap execution time per host (default 30s)
   --pcapng file         capture scan traffic on --interface as pcapng evidence
@@ -407,6 +409,9 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 		// A payload flag replaces any payload named in the file.
 		req.UDPProbeFile, req.SendHex, req.SendBase64, req.PayloadFile = *probeFlag, *hexFlag, *base64Flag, *fileFlag
 	} else if req.UDPProbeFile != "" && *configFlag != "" {
+		baseDir = filepath.Dir(*configFlag)
+	}
+	if baseDir == "" && req.ProtocolDefinitions != "" && *configFlag != "" {
 		baseDir = filepath.Dir(*configFlag)
 	}
 	if err := stages.overlay(&req); err != nil {

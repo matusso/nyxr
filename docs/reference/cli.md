@@ -8,6 +8,7 @@ nyxr decode [--tui] --last             decode the last scan's capture (~/.nyxr/l
 nyxr sniff --interface eth0 [flags]    capture and decode live frames
 nyxr history [--db file] [flags]       list or query stored scans, assets and evidence
 nyxr probe import file [--json]        import and summarize an nmap-service-probes file
+nyxr probe validate file [--json]      validate a Nyxr Protocol DSL file
 nyxr serve [--db file] [flags]         serve the REST API and web UI (unprivileged)
 nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
 nyxr version                           print the version
@@ -91,13 +92,14 @@ Guide: [Research packets](../guide/research-packets.md).
 
 | Flag | Meaning |
 | --- | --- |
-| `--service` | Deep probes on open TCP ports (on for `tcp-common`, `tcp-full`, `deep-scan`, `windows`, `filesystem`, `web`, `database`, `iot`, `ot-safe`) |
+| `--service` | Deep probes on open TCP ports, or open UDP ports with Protocol DSL definitions (on for `tcp-common`, `tcp-full`, `deep-scan`, `windows`, `filesystem`, `web`, `database`, `iot`, `ot-safe`) |
 | `--service-probes LIST` | `banner`, `ssh`, `tls`, `http`, `dns`, `socks`, `modbus`, `ethernetip`, `nmap`, `database`, `smb`, `rdp`, `msrpc`, `ldap`, `kerberos`, `nfs` |
 | `--service-fallback LIST` | Probes for silent ports without a port hint, or `none` |
 | `--service-timeout DURATION` | Upper bound for each service probe |
 | `--service-workers N` | Concurrent service probe workers |
 | `--service-rate N` | New service connections per second (`0` = unlimited) |
 | `--nmap-service-probes FILE` | Match banners against a local `nmap-service-probes` file |
+| `--protocol-definitions FILES` | Load comma-separated local `nyxr/protocol/v1` YAML definitions for TCP or UDP service identification |
 | `--nse-scripts LIST` | Run selected installed NSE scripts in Nmap's `safe` category on open ports |
 | `--nse-timeout DURATION` | Maximum Nmap time per host (default `30s`) |
 | `--fingerprint` | Classify devices from independent observations |
@@ -107,7 +109,7 @@ Guide: [Research packets](../guide/research-packets.md).
 | `--db FILE` | SQLite database (default `~/.nyxr/nyxr.db`) |
 | `--no-db` | Do not store the scan |
 
-Guides: [Service identification](../guide/service-identification.md),
+Guides: [Service identification](../guide/service-identification.md), [Protocol DSL](../guide/protocol-dsl.md),
 [OT and IoT](../guide/ot-and-iot.md),
 [Packet capture](../guide/packet-capture.md).
 
@@ -165,6 +167,10 @@ Guide: [Storage and history](../guide/storage-and-history.md).
 Import an `nmap-service-probes` file and print what can be used from it. The
 file is read at runtime and never bundled. `--json` prints a machine-readable
 summary.
+
+## nyxr probe validate
+
+Validate a local `nyxr/protocol/v1` YAML file and print its transport, ports, and timeout. `--json` prints a machine-readable summary. See the [Protocol DSL guide](../guide/protocol-dsl.md).
 
 ## nyxr serve
 

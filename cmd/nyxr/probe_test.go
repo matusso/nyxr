@@ -58,6 +58,28 @@ func TestProbeImportJSON(t *testing.T) {
 	}
 }
 
+func TestProtocolDSLValidateCLI(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "protocol.yaml")
+	definition := "schema: nyxr/protocol/v1\nprotocol: demo\ntransport: tcp\nports: [1234]\nsteps:\n  - send: {text: PING}\n  - receive: {max_bytes: 4}\n  - expect: {prefix: PONG}\n"
+	if err := os.WriteFile(path, []byte(definition), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := run([]string{"probe", "validate", "--json", path}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), `"protocol":"demo"`) {
+		t.Fatalf("invalid summary: %s", out.String())
+	}
+	out.Reset()
+	if err := run([]string{"scan", "--profile", "tcp-basic", "--service", "--protocol-definitions", path, "--ports", "1234", "--dry-run", "--json", "192.0.2.1"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), `"protocol_definitions"`) {
+		t.Fatalf("definition omitted from plan: %s", out.String())
+	}
+}
+
 func TestProbeImportText(t *testing.T) {
 	path := writeProbes(t)
 	var out bytes.Buffer

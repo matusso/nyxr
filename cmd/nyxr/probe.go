@@ -8,11 +8,13 @@ import (
 	"io"
 
 	"github.com/matusso/nyxr/internal/nmapdb"
+	"github.com/matusso/nyxr/internal/service"
 	"github.com/matusso/nyxr/internal/ui"
 )
 
 func probeUsage(out io.Writer) {
 	fmt.Fprint(out, `Usage: nyxr probe import file [--json]
+       nyxr probe validate file [--json]
 
 Import an nmap-service-probes file into nyxr's match model and print a summary.
 The file is read at runtime and never bundled into nyxr; its data is licensed
@@ -45,17 +47,40 @@ type probeSummary struct {
 func runProbe(args []string, out io.Writer, style *ui.Styler) error {
 	if len(args) == 0 {
 		probeUsage(out)
-		return errors.New("probe requires a subcommand (import)")
+		return errors.New("probe requires a subcommand (import or validate)")
 	}
 	switch args[0] {
 	case "import":
 		return runProbeImport(args[1:], out, style)
+	case "validate":
+		return runProbeValidate(args[1:], out)
 	case "help", "-h", "--help":
 		probeUsage(out)
 		return nil
 	default:
-		return fmt.Errorf("unknown probe subcommand %q (try nyxr probe import)", args[0])
+		return fmt.Errorf("unknown probe subcommand %q (try nyxr probe validate)", args[0])
 	}
+}
+
+func runProbeValidate(args []string, out io.Writer) error {
+	fs := flag.NewFlagSet("probe validate", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	jsonFlag := fs.Bool("json", false, "machine-readable summary")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return errors.New("probe validate requires exactly one protocol YAML file")
+	}
+	d, err := service.LoadProtocolFile(fs.Arg(0))
+	if err != nil {
+		return err
+	}
+	if *jsonFlag {
+		return json.NewEncoder(out).Encode(map[string]any{"protocol": d.Name, "transport": d.Transport, "ports": d.Ports, "timeout": d.Timeout.String()})
+	}
+	_, err = fmt.Fprintf(out, "%s/%s: valid on %d ports (%s timeout)\n", d.Name, d.Transport, len(d.Ports), d.Timeout)
+	return err
 }
 
 func runProbeImport(args []string, out io.Writer, style *ui.Styler) error {

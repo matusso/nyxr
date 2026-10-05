@@ -45,19 +45,20 @@ func (b *optionalBool) IsBoolFlag() bool { return true }
 // stageFlags are the scan flags for Phase 3 stages: deep service probes,
 // packet evidence and storage.
 type stageFlags struct {
-	service         optionalBool
-	serviceProbes   *string
-	serviceFallback *string
-	serviceTimeout  *time.Duration
-	serviceWorkers  *int
-	serviceRate     *int
-	nmapProbes      *string
-	nseScripts      *string
-	nseTimeout      *time.Duration
-	pcapng          *string
-	pcapngMaxMB     *int
-	db              dbFlags
-	fingerprint     *bool
+	service             optionalBool
+	serviceProbes       *string
+	serviceFallback     *string
+	serviceTimeout      *time.Duration
+	serviceWorkers      *int
+	serviceRate         *int
+	nmapProbes          *string
+	protocolDefinitions *string
+	nseScripts          *string
+	nseTimeout          *time.Duration
+	pcapng              *string
+	pcapngMaxMB         *int
+	db                  dbFlags
+	fingerprint         *bool
 }
 
 func addStageFlags(fs *flag.FlagSet) *stageFlags {
@@ -69,6 +70,7 @@ func addStageFlags(fs *flag.FlagSet) *stageFlags {
 	s.serviceWorkers = fs.Int("service-workers", -1, "concurrent service probe workers")
 	s.serviceRate = fs.Int("service-rate", -1, "new service connections per second (0 unlimited)")
 	s.nmapProbes = fs.String("nmap-service-probes", "", "import this nmap-service-probes file for banner matching")
+	s.protocolDefinitions = fs.String("protocol-definitions", "", "comma-separated local Nyxr Protocol DSL files")
 	s.nseScripts = fs.String("nse-scripts", "", "comma list of installed safe Nmap NSE scripts")
 	s.nseTimeout = fs.Duration("nse-timeout", 0, "maximum Nmap NSE execution time per host (default 30s)")
 	s.pcapng = fs.String("pcapng", "", "write packet evidence to this pcapng file")
@@ -95,6 +97,7 @@ func (s *stageFlags) overlay(r *config.Request) error {
 	r.ServiceWorkers = mergeInt(*s.serviceWorkers, r.ServiceWorkers)
 	r.ServiceRate = mergeInt(*s.serviceRate, r.ServiceRate)
 	r.NmapServiceProbes = first(*s.nmapProbes, r.NmapServiceProbes)
+	r.ProtocolDefinitions = first(*s.protocolDefinitions, r.ProtocolDefinitions)
 	r.NSEScripts = first(*s.nseScripts, r.NSEScripts)
 	r.NSETimeout = first(timeoutText(*s.nseTimeout), r.NSETimeout)
 	r.PCAPNG = first(*s.pcapng, r.PCAPNG)
@@ -122,6 +125,9 @@ func emitStagePlan(out io.Writer, r config.Resolved, db string, asJSON bool, sty
 		fmt.Fprintf(out, "%s%s\n", key("svc-timeout"), style.Dim(fmt.Sprintf("%s, %d workers, %s", p.Timeout, p.Workers, rateText(p.Rate))))
 		if p.NmapProbes != "" {
 			fmt.Fprintf(out, "%s%s\n", key("nmap-probes"), p.NmapProbes)
+		}
+		if len(p.ProtocolDefinitions) > 0 {
+			fmt.Fprintf(out, "%s%s\n", key("protocol DSL"), strings.Join(p.ProtocolDefinitions, ", "))
 		}
 	}
 	if p := plan.NSE; p != nil {

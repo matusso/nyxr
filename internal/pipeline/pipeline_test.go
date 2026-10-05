@@ -80,6 +80,50 @@ func TestNSEReceivesOnlyDiscoveredOpenPorts(t *testing.T) {
 	}
 }
 
+func TestUDPProtocolDSLVerifiesOpenFilteredPort(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "udp-protocol.yaml")
+	definition := "schema: nyxr/protocol/v1\nprotocol: udp_identity\ntransport: udp\nports: [9999]\nsteps:\n  - send: {text: PING}\n  - receive: {max_bytes: 4}\n  - expect: {prefix: PONG}\n"
+	if err := os.WriteFile(path, []byte(definition), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	on := true
+	resolved, err := (config.Request{Targets: []string{"127.0.0.1"}, Profile: "udp-basic", Ports: "9999", Service: &on, ProtocolDefinitions: filepath.Base(path)}).Resolve(config.ResolveOptions{BaseDir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	opts := FromResolved(resolved)
+	opts.Sinks = []Sink{NewJSONSink(&output)}
+	opts.Discover = func(_ context.Context, _ config.Config, emit func(scan.Observation) error) error {
+		return emit(scan.Observation{Target: netip.MustParseAddr("127.0.0.1"), Transport: "udp", Port: 9999, State: "open|filtered"})
+	}
+	opts.ServiceDial = func(ctx context.Context, network, address string) (net.Conn, error) {
+		if network != "udp" {
+			t.Errorf("wrong network: %s", network)
+		}
+		client, server := net.Pipe()
+		go func() {
+			defer server.Close()
+			var request [4]byte
+			_, _ = io.ReadFull(server, request[:])
+			_, _ = server.Write([]byte("PONG"))
+		}()
+		return client, nil
+	}
+	summary, err := Run(context.Background(), resolved.Config, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.Services != 1 {
+		t.Fatalf("expected verified service: %+v", summary)
+	}
+	_, records := decodeKinds(t, output.Bytes())
+	if len(records) < 2 || records[1]["kind"] != observe.KindService || records[1]["state"] != "open" || records[1]["service"] != "udp_identity" {
+		t.Fatalf("UDP observation was not upgraded by DSL: %+v", records)
+	}
+}
+
 func sshServer(t *testing.T) (netip.Addr, uint16) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

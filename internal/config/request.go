@@ -49,18 +49,19 @@ type Request struct {
 
 	// Stage settings: deep service probes, device fingerprinting and packet
 	// evidence. Service nil keeps the profile default.
-	Service           *bool  `yaml:"service" json:"service,omitempty"`
-	ServiceProbes     string `yaml:"service_probes" json:"service_probes,omitempty"`
-	ServiceFallback   string `yaml:"service_fallback" json:"service_fallback,omitempty"`
-	ServiceTimeout    string `yaml:"service_timeout" json:"service_timeout,omitempty"`
-	ServiceWorkers    *int   `yaml:"service_workers" json:"service_workers,omitempty"`
-	ServiceRate       *int   `yaml:"service_rate" json:"service_rate,omitempty"`
-	NmapServiceProbes string `yaml:"nmap_service_probes" json:"nmap_service_probes,omitempty"`
-	NSEScripts        string `yaml:"nse_scripts" json:"nse_scripts,omitempty"`
-	NSETimeout        string `yaml:"nse_timeout" json:"nse_timeout,omitempty"`
-	Fingerprint       bool   `yaml:"fingerprint" json:"fingerprint,omitempty"`
-	PCAPNG            string `yaml:"pcapng" json:"pcapng,omitempty"`
-	PCAPNGMaxMB       *int   `yaml:"pcapng_max_mb" json:"pcapng_max_mb,omitempty"`
+	Service             *bool  `yaml:"service" json:"service,omitempty"`
+	ServiceProbes       string `yaml:"service_probes" json:"service_probes,omitempty"`
+	ServiceFallback     string `yaml:"service_fallback" json:"service_fallback,omitempty"`
+	ServiceTimeout      string `yaml:"service_timeout" json:"service_timeout,omitempty"`
+	ServiceWorkers      *int   `yaml:"service_workers" json:"service_workers,omitempty"`
+	ServiceRate         *int   `yaml:"service_rate" json:"service_rate,omitempty"`
+	NmapServiceProbes   string `yaml:"nmap_service_probes" json:"nmap_service_probes,omitempty"`
+	ProtocolDefinitions string `yaml:"protocol_definitions" json:"protocol_definitions,omitempty"`
+	NSEScripts          string `yaml:"nse_scripts" json:"nse_scripts,omitempty"`
+	NSETimeout          string `yaml:"nse_timeout" json:"nse_timeout,omitempty"`
+	Fingerprint         bool   `yaml:"fingerprint" json:"fingerprint,omitempty"`
+	PCAPNG              string `yaml:"pcapng" json:"pcapng,omitempty"`
+	PCAPNGMaxMB         *int   `yaml:"pcapng_max_mb" json:"pcapng_max_mb,omitempty"`
 
 	// KnownOpen rescans only the ports the database last saw open; Targets
 	// then narrow the stored addresses (IPs, CIDRs or ranges).
@@ -155,6 +156,9 @@ func (r Request) Resolve(o ResolveOptions) (Resolved, error) {
 		if r.NmapServiceProbes != "" {
 			return Resolved{}, errors.New("remote requests cannot read server files; nmap_service_probes is a local path")
 		}
+		if r.ProtocolDefinitions != "" {
+			return Resolved{}, errors.New("remote requests cannot read server files; protocol_definitions is a local path")
+		}
 		if r.NSEScripts != "" || r.NSETimeout != "" {
 			return Resolved{}, errors.New("NSE scripts require a local CLI request")
 		}
@@ -190,7 +194,8 @@ func (r Request) Resolve(o ResolveOptions) (Resolved, error) {
 	}
 	cfg.TargetPorts = restrict
 	svc, err := BuildService(cfg, ServiceOptions{Enable: r.Service, Probes: r.ServiceProbes, Fallback: r.ServiceFallback,
-		Timeout: r.ServiceTimeout, Workers: r.ServiceWorkers, Rate: r.ServiceRate, NmapProbes: r.NmapServiceProbes})
+		Timeout: r.ServiceTimeout, Workers: r.ServiceWorkers, Rate: r.ServiceRate, NmapProbes: r.NmapServiceProbes,
+		ProtocolDefinitions: r.ProtocolDefinitions, BaseDir: o.BaseDir})
 	if err != nil {
 		return Resolved{}, err
 	}
