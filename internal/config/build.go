@@ -38,6 +38,7 @@ type Options struct {
 	Payload       PayloadSource
 	TCPMode       string
 	Interface     string
+	XDPPinDir     string
 	SourceIP      string
 	SourceMAC     string
 	NextHopMAC    string
@@ -292,7 +293,7 @@ func Build(o Options) (Config, error) {
 		Timeout: timeout, Rate: rate, HostRate: valueOr(o.HostRate, 0), SubnetRate: valueOr(o.SubnetRate, 0),
 		InterfaceRate: valueOr(o.InterfaceRate, 0), Workers: workers, Profile: name,
 		UDPProbes: udpProbes, UDPMode: udpMode, UDPRetries: retries, NmapUDPSource: o.NmapUDPProbes, NmapUDPSHA: nmapUDPSHA,
-		TCPMode: mode, Interface: o.Interface, SourceIP: sourceIP, SourceMAC: sourceMAC, NextHopMAC: nextHopMAC,
+		TCPMode: mode, Interface: o.Interface, XDPPinDir: o.XDPPinDir, SourceIP: sourceIP, SourceMAC: sourceMAC, NextHopMAC: nextHopMAC,
 	}
 	if err := cfg.defaultSYNInterface(); err != nil {
 		return Config{}, err

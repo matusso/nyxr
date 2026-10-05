@@ -53,6 +53,7 @@ func TestRemoteRequestCannotNameServerFiles(t *testing.T) {
 		"pcapng dot":   func(r *Request) { r.PCAPNG = ".x.pcapng" },
 		"pcapng ext":   func(r *Request) { r.PCAPNG = "x.txt" },
 		"pcapng win":   func(r *Request) { r.PCAPNG = `..\x.pcapng` },
+		"XDP maps":     func(r *Request) { r.XDPPinDir = "/sys/fs/bpf/nyxr" },
 	} {
 		r := base
 		mutate(&r)
@@ -68,6 +69,21 @@ func TestRemoteRequestCannotNameServerFiles(t *testing.T) {
 	}
 	if res.PCAPNG != "evidence.pcapng" || res.PCAPNGMaxBytes != DefaultPCAPNGMaxMB<<20 {
 		t.Fatalf("capture = %q %d", res.PCAPNG, res.PCAPNGMaxBytes)
+	}
+}
+
+func TestXDPPinDirRequiresLocalSYN(t *testing.T) {
+	r := Request{Targets: []string{"192.0.2.10"}, TCPMode: "syn", Interface: "eth0", XDPPinDir: "/sys/fs/bpf/nyxr"}
+	resolved, err := r.Resolve(ResolveOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.Plan().XDPPinDir != r.XDPPinDir {
+		t.Fatalf("XDP plan lost pin directory: %+v", resolved.Plan())
+	}
+	r.TCPMode = "connect"
+	if _, err := r.Resolve(ResolveOptions{}); err == nil || !strings.Contains(err.Error(), "AF_XDP requires TCP SYN") {
+		t.Fatalf("connect scan accepted AF_XDP: %v", err)
 	}
 }
 

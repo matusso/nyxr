@@ -57,6 +57,13 @@ On a privileged Linux host, the namespace lab adds a live AF_PACKET workload:
 sudo bash tests/lab/linux-netns.sh tests/performance/latest-linux
 ```
 
+To compare the AF_XDP fast path against AF_PACKET on the same disposable
+veth pair, set `NYXR_LAB_XDP=1`. The lab repeats the classification and fixed
+100-port workload, then saves `xdp-results.jsonl`, `xdp-load.jsonl`,
+`xdp-summary.txt`, map details, and before/after NIC counters in the same
+output directory. The AF_XDP test requires `clang`, `bpftool`, a writable
+bpffs mount, and BPF and network administration privileges.
+
 After its classification and discovery checks, the script scans 100 closed
 ports with raw SYN, four workers and a 100 ms timeout. It saves the command,
 environment, per-probe results, throughput, observed reply loss, and the

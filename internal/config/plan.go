@@ -34,6 +34,7 @@ type Plan struct {
 	NmapUDPSHA     string        `json:"nmap_udp_sha256,omitempty"`
 	TCPMode        string        `json:"tcp_mode"`
 	Interface      string        `json:"interface,omitempty"`
+	XDPPinDir      string        `json:"xdp_pin_dir,omitempty"`
 	SourceIP       string        `json:"source_ip,omitempty"`
 	SourceMAC      string        `json:"source_mac,omitempty"`
 	NextHopMAC     string        `json:"next_hop_mac,omitempty"`
@@ -74,7 +75,7 @@ func (c Config) Plan() Plan {
 		UDPMode:       c.UDPMode,
 		NmapUDPSource: c.NmapUDPSource, NmapUDPSHA: c.NmapUDPSHA,
 		TCPMode:   c.TCPMode,
-		Interface: c.Interface,
+		Interface: c.Interface, XDPPinDir: c.XDPPinDir,
 	}
 	if c.SourceIP.IsValid() {
 		p.SourceIP = c.SourceIP.String()

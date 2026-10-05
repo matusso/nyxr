@@ -8,6 +8,7 @@ and update the [Roadmap](../roadmap.md) when a gate passes.
 | Gate | Platform | Automation |
 | --- | --- | --- |
 | [Linux AF_PACKET](#linux-af_packet) | Linux | Scripted, disposable network namespaces |
+| [Linux AF_XDP](#linux-af_xdp) | Linux | Scripted, disposable network namespaces |
 | [macOS BPF](#macos-bpf-manual-gate) | macOS | Manual, isolated test network |
 | [Windows Npcap](#windows-npcap-manual-gate) | Windows | Manual, isolated test network |
 | [UDP ICMP](#udp-icmp-manual-gate-macos-and-windows) | macOS, Windows | Manual, isolated test network |
@@ -29,6 +30,22 @@ named run.
 The filtered case needs `iptables`.
 No external target or permanent network setting is used. A container needs
 `CAP_NET_ADMIN` and `CAP_NET_RAW` in addition to root.
+
+## Linux AF_XDP
+
+On a privileged Linux host with the AF_PACKET gate's dependencies plus
+`clang`, `bpftool`, GCC and BPF capabilities, run the same namespace lab with
+`NYXR_LAB_XDP=1`. It attaches the Nyxr XDP program to the disposable source
+veth, repeats the open/closed/filtered SYN classification and fixed 100-port
+load scan through AF_XDP, records the per-probe results and veth counters, and
+detaches the program during cleanup. The program attaches only to the
+disposable source veth; its pins are removed during cleanup. Require all
+classifications to match AF_PACKET and zero observed reply loss before
+recording a performance comparison. A Linux cross-build alone does not pass
+this gate. In a container where `ip netns exec` hides `/sys/fs/bpf`, mount
+bpffs outside `/sys` and set `NYXR_LAB_BPFFS` to that mountpoint. Set
+`NYXR_LAB_SKIP_NDP=1` only when verifying AF_XDP in an environment that lacks
+working IPv6 neighbor discovery; record that the NDP gate was skipped.
 
 ## macOS BPF manual gate
 
