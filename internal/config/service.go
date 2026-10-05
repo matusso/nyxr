@@ -138,8 +138,12 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 			if path == "" {
 				return Service{}, errors.New("empty protocol definition path")
 			}
+			// Absolute paths are the local operator's explicit choice (remote
+			// requests cannot name protocol definitions); relative paths must
+			// stay inside the base directory.
+			relative := !filepath.IsAbs(path)
 			candidate := path
-			if !filepath.IsAbs(candidate) {
+			if relative {
 				candidate = filepath.Join(absBase, candidate)
 			}
 			absPath, err := filepath.Abs(candidate)
@@ -147,7 +151,7 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 				return Service{}, fmt.Errorf("resolve protocol definition path %s: %w", path, err)
 			}
 			absPath = filepath.Clean(absPath)
-			if absPath != absBase && !strings.HasPrefix(absPath, basePrefix) {
+			if relative && absPath != absBase && !strings.HasPrefix(absPath, basePrefix) {
 				return Service{}, fmt.Errorf("protocol definition %s escapes base directory", path)
 			}
 			definition, err := service.LoadProtocolFile(absPath)
