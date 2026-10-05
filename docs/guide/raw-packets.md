@@ -8,6 +8,7 @@ ARP and NDP neighbor discovery, and ICMP echo.
 - [ARP and NDP discovery](#arp-and-ndp-discovery)
 - [ICMP echo](#icmp-echo)
 - [Platform requirements](#platform-requirements)
+- [Linux AF_XDP](#linux-af_xdp)
 - [Packet I/O design](#packet-io-design)
 - [Validation status](#validation-status)
 
@@ -79,6 +80,7 @@ reported as an observation; nyxr does not silently switch scan methods.
 | Platform | Backend | Requirement |
 | --- | --- | --- |
 | Linux | AF_PACKET | Root or `CAP_NET_RAW`, and an Ethernet interface |
+| Linux (opt-in) | AF_XDP copy mode | Root or suitable BPF/network capabilities, an XDP-capable interface, pinned Nyxr maps |
 | macOS | `/dev/bpf` | Access to a free BPF device, and an Ethernet interface |
 | Windows | Npcap (`wpcap.dll`, loaded at runtime) | Npcap installed; the adapter must expose Ethernet frames |
 
@@ -93,6 +95,38 @@ To run raw scans without giving privileges to the scanner itself, use
 ```sh
 nyxr scan --packetd /run/nyxr/packetd.sock --tcp-mode syn --interface eth0 192.0.2.10
 ```
+
+## Linux AF_XDP
+
+AF_XDP is an optional backend for IPv4 raw TCP SYN scans. Nyxr opens one
+preallocated UMEM and RX socket per NIC queue, batches RX and TX descriptors,
+and sends from queue zero. The XDP program redirects matching SYN/ACK,
+RST/ACK, and ICMP unreachable replies to those sockets; unrelated traffic
+continues through the kernel. ARP resolution and packet evidence still use
+AF_PACKET. The default backend remains AF_PACKET on Linux.
+
+On a Linux host with `clang` (BPF target), `bpftool`, `iproute2`, GCC, and a
+mounted bpffs at `/sys/fs/bpf`, attach the supplied program once per interface:
+
+```sh
+sudo bash tools/xdp/setup.sh eth0 /sys/fs/bpf/nyxr-eth0
+sudo nyxr scan --tcp-mode syn --interface eth0 \
+  --xdp-pin-dir /sys/fs/bpf/nyxr-eth0 --protocols tcp --ports 80,443 192.0.2.10
+```
+
+The pin directory must be unique to that interface. Setup fails if the
+directory exists or the interface already has an incompatible XDP program.
+Nyxr reserves its scan source port in the host TCP stack, and permits one
+active AF_XDP scan per pin directory. It clears its redirect and socket-map
+entries when the scan ends. To remove the program after all scans finish,
+run `sudo ip link set dev eth0 xdp off`, then remove that program's pin
+directory. Only detach a program you attached yourself.
+
+`--xdp-pin-dir` is unavailable through `nyxr-packetd` or remote API requests.
+If AF_XDP setup fails, remove the option to use AF_PACKET. The current backend
+uses copy mode and 4 KiB single-frame UMEM slots; larger frames are rejected
+instead of truncated. Measure live throughput and drops before treating it as
+faster than AF_PACKET on a specific NIC.
 
 ## Packet I/O design
 

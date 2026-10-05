@@ -72,6 +72,20 @@ func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observatio
 		return err
 	}
 	port := uint16(49152 + binary.BigEndian.Uint16(seed[:])%16384)
+	if filter, ok := io.(interface{ SetSYNFilter(uint16) error }); ok {
+		// Reserve the source port in the host TCP stack while XDP redirects
+		// replies for it. This prevents an unrelated connection from being
+		// assigned the same ephemeral port and losing its packets to Nyxr.
+		listener, err := net.ListenTCP("tcp4", &net.TCPAddr{IP: net.IP(source.AsSlice())})
+		if err != nil {
+			return fmt.Errorf("reserve AF_XDP SYN port: %w", err)
+		}
+		defer listener.Close()
+		port = uint16(listener.Addr().(*net.TCPAddr).Port)
+		if err := filter.SetSYNFilter(port); err != nil {
+			return fmt.Errorf("configure AF_XDP SYN filter: %w", err)
+		}
+	}
 	destination := cfg.NextHopMAC
 	if len(destination) == 0 {
 		destination = srcMAC

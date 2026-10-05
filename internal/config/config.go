@@ -40,6 +40,7 @@ type Config struct {
 	NmapUDPSHA    string // SHA-256 of the imported file
 	TCPMode       string // connect (default) or syn
 	Interface     string // required for raw Ethernet SYN scans
+	XDPPinDir     string // pinned maps for opt-in Linux AF_XDP SYN I/O
 	SourceIP      netip.Addr
 	SourceMAC     net.HardwareAddr
 	NextHopMAC    net.HardwareAddr
@@ -168,6 +169,9 @@ func (c Config) Validate() error {
 	}
 	if c.TCPMode != "" && c.TCPMode != "connect" && c.TCPMode != "syn" {
 		return fmt.Errorf("unknown TCP mode %q", c.TCPMode)
+	}
+	if c.XDPPinDir != "" && c.TCPMode != "syn" {
+		return errors.New("AF_XDP requires TCP SYN mode")
 	}
 	if c.TCPMode == "syn" {
 		if !c.TCP || c.UDP || c.ICMP || c.ARP || c.NDP {

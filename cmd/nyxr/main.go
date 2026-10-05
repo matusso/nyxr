@@ -133,6 +133,7 @@ Flags:
   --udp-retries int     extra retries per UDP probe
   --tcp-mode string     connect (default) or raw Ethernet syn
   --interface string    Ethernet interface for SYN mode
+  --xdp-pin-dir dir     use Linux AF_XDP with pinned Nyxr XDP maps (SYN mode)
   --source-ip string    interface IPv4 address for SYN mode (auto if unique)
   --source-mac string   source Ethernet MAC (for Npcap adapter names)
   --next-hop-mac string destination or gateway MAC for SYN mode
@@ -323,6 +324,7 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	udpRetriesFlag := fs.Int("udp-retries", -1, "extra retries for each UDP probe")
 	tcpModeFlag := fs.String("tcp-mode", "", "connect or syn")
 	interfaceFlag := fs.String("interface", "", "Ethernet interface for SYN mode")
+	xdpPinDirFlag := fs.String("xdp-pin-dir", "", "pinned Nyxr AF_XDP maps for SYN mode")
 	sourceIPFlag := fs.String("source-ip", "", "interface IPv4 address for SYN mode")
 	sourceMACFlag := fs.String("source-mac", "", "source Ethernet MAC for SYN mode")
 	nextHopMACFlag := fs.String("next-hop-mac", "", "destination or gateway MAC for SYN mode")
@@ -375,6 +377,7 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	req.Timeout = first(timeoutText(*timeoutFlag), req.Timeout)
 	req.TCPMode = first(*tcpModeFlag, req.TCPMode)
 	req.Interface = first(*interfaceFlag, req.Interface)
+	req.XDPPinDir = first(*xdpPinDirFlag, req.XDPPinDir)
 	req.SourceIP = first(*sourceIPFlag, req.SourceIP)
 	req.SourceMAC = first(*sourceMACFlag, req.SourceMAC)
 	req.NextHopMAC = first(*nextHopMACFlag, req.NextHopMAC)
@@ -427,6 +430,9 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	resolved, err := req.Resolve(opts)
 	if err != nil {
 		return err
+	}
+	if *packetdFlag != "" && resolved.Config.XDPPinDir != "" {
+		return errors.New("AF_XDP opens local privileged sockets and cannot use --packetd")
 	}
 	if *dryRunFlag {
 		return emitStagePlan(out, resolved, db, *jsonFlag, style)

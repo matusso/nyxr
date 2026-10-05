@@ -35,6 +35,7 @@ type Request struct {
 	PayloadFile     string   `yaml:"payload_file" json:"payload_file,omitempty"`
 	TCPMode         string   `yaml:"tcp_mode" json:"tcp_mode,omitempty"`
 	Interface       string   `yaml:"interface" json:"interface,omitempty"`
+	XDPPinDir       string   `yaml:"xdp_pin_dir" json:"xdp_pin_dir,omitempty"`
 	SourceIP        string   `yaml:"source_ip" json:"source_ip,omitempty"`
 	SourceMAC       string   `yaml:"source_mac" json:"source_mac,omitempty"`
 	NextHopMAC      string   `yaml:"next_hop_mac" json:"next_hop_mac,omitempty"`
@@ -142,6 +143,9 @@ func (r Resolved) Plan() StagePlan {
 // for every interface.
 func (r Request) Resolve(o ResolveOptions) (Resolved, error) {
 	if o.Remote {
+		if r.XDPPinDir != "" {
+			return Resolved{}, errors.New("AF_XDP pin directory requires a local CLI request")
+		}
 		if r.Profile == "research" {
 			return Resolved{}, errors.New("research packet experiments require a local CLI request")
 		}
@@ -177,7 +181,7 @@ func (r Request) Resolve(o ResolveOptions) (Resolved, error) {
 		Workers: r.Workers, UDPRetries: r.UDPRetries, NmapUDPProbes: r.NmapUDPProbes,
 		Payload: PayloadSource{ProbeFile: r.UDPProbeFile, SendHex: r.SendHex, SendBase64: r.SendBase64,
 			PayloadFile: r.PayloadFile, BaseDir: o.BaseDir},
-		TCPMode: r.TCPMode, Interface: r.Interface, SourceIP: r.SourceIP, SourceMAC: r.SourceMAC, NextHopMAC: r.NextHopMAC,
+		TCPMode: r.TCPMode, Interface: r.Interface, XDPPinDir: r.XDPPinDir, SourceIP: r.SourceIP, SourceMAC: r.SourceMAC, NextHopMAC: r.NextHopMAC,
 		Research: ResearchOptions{Kind: r.ResearchKind, IPProtocol: r.IPProtocol, TCPFlags: r.TCPFlags, FragmentSize: r.FragmentSize,
 			BadChecksum: r.BadChecksum, IPLength: r.IPLength, PayloadHex: r.ForgePayloadHex},
 	})

@@ -75,6 +75,14 @@ func runSYN(parent context.Context, cfg config.Config, emit func(Observation) er
 			}
 		}
 	}
+	if cfg.XDPPinDir != "" {
+		xdp, err := packetio.OpenXDP(cfg.Interface, cfg.XDPPinDir, net.IP(source.AsSlice()))
+		if err != nil {
+			return fmt.Errorf("AF_XDP on %s: %w", cfg.Interface, err)
+		}
+		defer xdp.Close()
+		io = xdp
+	}
 	if len(cfg.NextHopMAC) == 0 {
 		// Neighbor resolution and SYN reception must not compete for reads
 		// on one BPF/AF_PACKET/packetd handle.
