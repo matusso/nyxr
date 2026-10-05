@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -119,6 +120,16 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 	var definitions []service.ProtocolDefinition
 	var files []string
 	if o.ProtocolDefinitions != "" {
+		baseDir := o.BaseDir
+		if strings.TrimSpace(baseDir) == "" {
+			baseDir = "."
+		}
+		absBase, err := filepath.Abs(baseDir)
+		if err != nil {
+			return Service{}, fmt.Errorf("resolve protocol definitions base directory: %w", err)
+		}
+		absBase = filepath.Clean(absBase)
+		basePrefix := absBase + string(os.PathSeparator)
 		for _, path := range strings.Split(o.ProtocolDefinitions, ",") {
 			if len(files) >= 32 {
 				return Service{}, errors.New("at most 32 protocol definitions are allowed")
@@ -127,17 +138,26 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 			if path == "" {
 				return Service{}, errors.New("empty protocol definition path")
 			}
-			if !filepath.IsAbs(path) {
-				path = filepath.Join(o.BaseDir, path)
+			candidate := path
+			if !filepath.IsAbs(candidate) {
+				candidate = filepath.Join(absBase, candidate)
 			}
-			definition, err := service.LoadProtocolFile(path)
+			absPath, err := filepath.Abs(candidate)
 			if err != nil {
-				return Service{}, fmt.Errorf("protocol definition %s: %w", path, err)
+				return Service{}, fmt.Errorf("resolve protocol definition path %s: %w", path, err)
+			}
+			absPath = filepath.Clean(absPath)
+			if absPath != absBase && !strings.HasPrefix(absPath, basePrefix) {
+				return Service{}, fmt.Errorf("protocol definition %s escapes base directory", path)
+			}
+			definition, err := service.LoadProtocolFile(absPath)
+			if err != nil {
+				return Service{}, fmt.Errorf("protocol definition %s: %w", absPath, err)
 			}
 			if definition.Transport == "tcp" && !cfg.TCP || definition.Transport == "udp" && !cfg.UDP {
-				return Service{}, fmt.Errorf("protocol definition %s requires %s scanning", path, definition.Transport)
+				return Service{}, fmt.Errorf("protocol definition %s requires %s scanning", absPath, definition.Transport)
 			}
-			files = append(files, path)
+			files = append(files, absPath)
 			definitions = append(definitions, definition)
 		}
 	}
