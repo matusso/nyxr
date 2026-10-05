@@ -102,16 +102,15 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 		}
 		return Service{}, nil
 	}
-	if !cfg.TCP && (!cfg.UDP || o.ProtocolDefinitions == "") {
-		return Service{}, errors.New("deep service probes require the TCP protocol or UDP protocol definitions")
-	}
 	d := defaultService
 	if profile.Service != nil {
 		d = *profile.Service
+	} else if cfg.UDP && !cfg.TCP {
+		d = ServiceDefaults{Probes: service.ProbeQUIC + "," + service.ProbeDTLS, Timeout: "5s", Workers: 16, Rate: 50}
 	}
 	var probes []string
 	var err error
-	if cfg.TCP {
+	if cfg.TCP || cfg.UDP {
 		probes, err = serviceList(first(o.Probes, d.Probes))
 		if err != nil {
 			return Service{}, err
@@ -165,6 +164,15 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 			definitions = append(definitions, definition)
 		}
 	}
+	if cfg.UDP && !cfg.TCP && len(definitions) == 0 {
+		nativeEnabled := false
+		for _, name := range probes {
+			nativeEnabled = nativeEnabled || name == service.ProbeQUIC || name == service.ProbeDTLS
+		}
+		if !nativeEnabled {
+			return Service{}, errors.New("UDP deep service probes require quic, dtls, or UDP protocol definitions")
+		}
+	}
 	// The nmap probe reads an nmap-service-probes file. Supplying the file
 	// enables the probe; naming the probe without a file is an error.
 	hasNmap := false
@@ -181,7 +189,7 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 		return Service{}, errors.New("the nmap service probe requires --nmap-service-probes <file>")
 	}
 	var fallback []string
-	if f := first(o.Fallback, d.Fallback); cfg.TCP && f != "" && f != "none" {
+	if f := first(o.Fallback, d.Fallback); f != "" && f != "none" {
 		if fallback, err = serviceList(f); err != nil {
 			return Service{}, err
 		}
@@ -212,6 +220,14 @@ func (s Service) ValidateFor(cfg Config) error {
 	}
 	if err := s.Engine().Validate(); err != nil {
 		return err
+	}
+	for _, name := range append(append([]string(nil), s.Probes...), s.Fallback...) {
+		if (name == service.ProbeQUIC || name == service.ProbeDTLS) && !cfg.UDP {
+			return fmt.Errorf("%s service probe requires UDP scanning", name)
+		}
+		if name != service.ProbeQUIC && name != service.ProbeDTLS && !cfg.TCP {
+			return fmt.Errorf("%s service probe requires TCP scanning", name)
+		}
 	}
 	if cfg.Profile == "ot-safe" {
 		if len(s.Definitions) != 0 {

@@ -206,6 +206,17 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 			}
 			eligible := o.Transport == "tcp" && o.State == "open"
 			if o.Transport == "udp" && (o.State == "open" || o.State == "open|filtered") {
+				for _, name := range opts.Service.Probes {
+					if name == service.ProbeQUIC && service.QUICPort(o.Port) ||
+						name == service.ProbeDTLS && service.DTLSPort(o.Port) {
+						eligible = true
+					}
+				}
+				for _, name := range opts.Service.Fallback {
+					if name == service.ProbeQUIC || name == service.ProbeDTLS {
+						eligible = true
+					}
+				}
 				for _, d := range opts.Service.Definitions {
 					if d.Transport != "udp" {
 						continue

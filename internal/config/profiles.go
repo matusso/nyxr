@@ -102,20 +102,22 @@ var profiles = []Profile{
 		Ports:        "udp", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
 	},
 	{
-		Name: "udp-common", Description: "UDP payloads associated with each selected port",
+		Name: "udp-common", Description: "UDP payloads per port plus QUIC and DTLS identification on common ports",
 		Availability: StatusAvailable,
 		Ports:        "udp", Protocols: "udp", Timeout: "1500ms", Rate: 50, Workers: 32,
+		Service: &ServiceDefaults{Probes: "quic,dtls", Fallback: "none", Timeout: "5s", Workers: 8, Rate: 25},
 	},
 	{
-		Name: "udp-full", Description: "Every available UDP payload on each selected port, one retry",
+		Name: "udp-full", Description: "Every UDP payload per port, one retry, plus QUIC and DTLS identification",
 		Availability: StatusAvailable,
 		Ports:        "udp", Protocols: "udp", Timeout: "2s", Rate: 25, Workers: 16, UDPRetries: 1,
+		Service: &ServiceDefaults{Probes: "quic,dtls", Fallback: "none", Timeout: "5s", Workers: 8, Rate: 25},
 	},
 	{
 		Name: "deep-scan", Description: "tcp-full plus udp-common: all TCP ports with service identification and common UDP ports",
 		Availability: StatusAvailable,
 		Ports:        "all", UDPPorts: "udp", Protocols: "tcp,udp", Timeout: "1500ms", Rate: 1000, Workers: 256,
-		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks,database", Fallback: "tls,http,database", Timeout: "8s", Workers: 32, Rate: 50},
+		Service: &ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks,database,quic,dtls", Fallback: "tls,http,database", Timeout: "8s", Workers: 32, Rate: 50},
 	},
 	{
 		Name: "windows", Description: "Windows/Active Directory hosts: SMB, RDP, MSRPC, NetBIOS, WinRM, LDAP and Kerberos with deep identification",

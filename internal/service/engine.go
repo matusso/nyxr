@@ -1,4 +1,4 @@
-// Package service interrogates open TCP ports found by discovery. It is the
+// Package service interrogates TCP and eligible UDP ports found by discovery. It is the
 // deep path: a fixed worker pool drains a bounded queue, every exchange is
 // kept as evidence, and every probe is an unauthenticated, read-only
 // handshake. Nothing here runs on the packet receive path.
@@ -35,11 +35,13 @@ const (
 	ProbeLDAP       = "ldap"       // anonymous rootDSE search; identifies LDAP and Active Directory
 	ProbeKerberos   = "kerberos"   // AS-REQ over TCP; identifies the KDC and its realm from the reply
 	ProbeNFS        = "nfs"        // RPC NULL to NFS and a portmapper dump of the RPC programs
+	ProbeQUIC       = "quic"       // QUIC handshake and HTTP/3 identity over UDP
+	ProbeDTLS       = "dtls"       // DTLS handshake and peer certificate over UDP
 )
 
 // Names lists every probe in the order they are documented.
 func Names() []string {
-	return []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDNS, ProbeSOCKS, ProbeModbus, ProbeEtherNetIP, ProbeNmap, ProbeDatabase, ProbeSMB, ProbeRDP, ProbeMSRPC, ProbeLDAP, ProbeKerberos, ProbeNFS}
+	return []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDNS, ProbeSOCKS, ProbeModbus, ProbeEtherNetIP, ProbeNmap, ProbeDatabase, ProbeSMB, ProbeRDP, ProbeMSRPC, ProbeLDAP, ProbeKerberos, ProbeNFS, ProbeQUIC, ProbeDTLS}
 }
 
 // Per-probe time budgets. Config.Timeout caps each of them.
@@ -58,6 +60,8 @@ var probeTimeouts = map[string]time.Duration{
 	ProbeLDAP:       4 * time.Second,
 	ProbeKerberos:   4 * time.Second,
 	ProbeNFS:        4 * time.Second,
+	ProbeQUIC:       5 * time.Second,
+	ProbeDTLS:       5 * time.Second,
 }
 
 // Config controls the deep-probe stage.
@@ -119,14 +123,14 @@ func (c Config) Validate() error {
 	for _, list := range [][]string{c.Probes, c.Fallback} {
 		for _, p := range list {
 			if !known[p] {
-				return fmt.Errorf("unknown service probe %q (known: banner, ssh, tls, http, dns, socks, modbus, ethernetip, nmap, database, smb, rdp, msrpc, ldap, kerberos, nfs)", p)
+				return fmt.Errorf("unknown service probe %q (known: %v)", p, Names())
 			}
 		}
 	}
 	return nil
 }
 
-// Target is one open TCP port to interrogate.
+// Target is one discovered port to interrogate.
 type Target struct {
 	Addr      netip.Addr
 	Port      uint16

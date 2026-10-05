@@ -163,8 +163,8 @@ Flags:
                         default); targets, if given, narrow it by IP, CIDR or range
 
 Service identification, evidence and storage:
-  --service             deep probes on open TCP ports, or UDP with Protocol DSL definitions
-  --service-probes list banner, ssh, tls, http, dns, socks, modbus, ethernetip, nmap, database, smb, rdp, msrpc, ldap, kerberos, nfs
+  --service             deep probes on open TCP ports, or UDP with QUIC/DTLS/Protocol DSL
+  --service-probes list banner, ssh, tls, http, dns, socks, modbus, ethernetip, nmap, database, smb, rdp, msrpc, ldap, kerberos, nfs, quic, dtls
   --service-fallback l  probes for silent ports without a port hint, or none
   --service-timeout d   upper bound for each service probe
   --service-workers int concurrent service probe workers
