@@ -47,6 +47,14 @@ func (e *Engine) probeTLS(ctx context.Context, t Target, o *observe.Observation)
 		if desc, alert := tlsrecord.Alert(ev.Response); alert && desc == tlsrecord.NoApplicationProtocol {
 			return e.directPostgres(ctx, t, o)
 		}
+		// A plaintext HTTP listener parses the ClientHello as a malformed
+		// request and answers with its own error, e.g. nginx "400 Bad
+		// Request". That can be the only answer when a catch-all virtual
+		// host closes on GET / without replying.
+		if parseHTTPReply(o, ev.Response, "TLS ClientHello (plaintext listener)") {
+			o.Evidence[len(o.Evidence)-1].Matched = ProbeHTTP
+			return true
+		}
 		return false
 	}
 	defer tc.Close()
