@@ -81,13 +81,14 @@ func TestNSEReceivesOnlyDiscoveredOpenPorts(t *testing.T) {
 }
 
 func TestUDPProtocolDSLVerifiesOpenFilteredPort(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "udp-protocol.yaml")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "udp-protocol.yaml")
 	definition := "schema: nyxr/protocol/v1\nprotocol: udp_identity\ntransport: udp\nports: [9999]\nsteps:\n  - send: {text: PING}\n  - receive: {max_bytes: 4}\n  - expect: {prefix: PONG}\n"
 	if err := os.WriteFile(path, []byte(definition), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	on := true
-	resolved, err := (config.Request{Targets: []string{"127.0.0.1"}, Profile: "udp-basic", Ports: "9999", Service: &on, ProtocolDefinitions: path}).Resolve(config.ResolveOptions{})
+	resolved, err := (config.Request{Targets: []string{"127.0.0.1"}, Profile: "udp-basic", Ports: "9999", Service: &on, ProtocolDefinitions: filepath.Base(path)}).Resolve(config.ResolveOptions{BaseDir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
