@@ -324,12 +324,21 @@ func OpenXDP(device, pinDir string, source net.IP) (PacketIO, error) {
 }
 
 func xdpQueues(device string) ([]uint32, error) {
+<<<<<<< New base: Potential fix for pull request finding 'CodeQL / Uncontrolled data used in path 
 	// Device must be a single interface-name component, not a path.
 	if device == "" || device == "." || device == ".." ||
 		device != filepath.Base(device) ||
 		strings.ContainsAny(device, `/\`) {
 		return nil, fmt.Errorf("invalid interface name %q", device)
 	}
+||||||| Common ancestor
+=======
+	// Mirror the kernel's dev_valid_name so the name cannot escape /sys/class/net.
+	if device == "" || len(device) >= unix.IFNAMSIZ || device == "." || strings.Contains(device, "..") ||
+		strings.ContainsAny(device, "/: \t\n\v\f\r") {
+		return nil, fmt.Errorf("invalid interface name %q", device)
+	}
+>>>>>>> Current commit: Validate interface name before reading sysfs RX queues
 	entries, err := os.ReadDir(filepath.Join("/sys/class/net", device, "queues"))
 	if err != nil {
 		return nil, err
