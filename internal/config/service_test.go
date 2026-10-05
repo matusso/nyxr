@@ -1,10 +1,36 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestProtocolDefinitionsResolveAndPolicy(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "custom.yaml")
+	if err := os.WriteFile(path, []byte("schema: nyxr/protocol/v1\nprotocol: custom\ntransport: tcp\nports: [5432]\nsteps:\n  - send: {text: PING}\n  - receive: {max_bytes: 4}\n  - expect: {prefix: PONG}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	on := true
+	r := Request{Targets: []string{"192.0.2.1"}, Profile: "tcp-basic", Service: &on, ProtocolDefinitions: "custom.yaml"}
+	resolved, err := r.Resolve(ResolveOptions{BaseDir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resolved.Service.Definitions) != 1 || resolved.Service.Definitions[0].Name != "custom" || resolved.Service.Plan().ProtocolDefinitions[0] != path {
+		t.Fatalf("definition not loaded or planned: %+v", resolved.Service)
+	}
+	if _, err := r.Resolve(ResolveOptions{Remote: true}); err == nil || !strings.Contains(err.Error(), "remote requests") {
+		t.Fatalf("remote file access allowed: %v", err)
+	}
+	r.Profile, r.AllowTargets = "ot-safe", []string{"192.0.2.1"}
+	if _, err := r.Resolve(ResolveOptions{BaseDir: dir}); err == nil || !strings.Contains(err.Error(), "does not allow custom") {
+		t.Fatalf("ot-safe accepted custom definition: %v", err)
+	}
+}
 
 func build(t *testing.T, o Options) Config {
 	t.Helper()

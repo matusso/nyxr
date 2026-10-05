@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"math"
 	"sort"
+	"strings"
 
 	"github.com/matusso/nyxr/internal/observe"
 )
 
 // The planner's hypotheses are wire-protocol families, not products. A
 // product/version claim still requires a protocol parser and its evidence.
-var serviceFamilies = [...]string{
+var serviceFamilies = []string{
 	ProbeTLS, ProbeHTTP, ProbeDNS, ProbeSOCKS, ProbeModbus,
 	ProbeEtherNetIP, ProbeDatabase, ProbeSSH,
 	ProbeSMB, ProbeRDP, ProbeMSRPC,
@@ -42,7 +43,9 @@ var probeModel = map[string]struct {
 const incidentalMatch = 0.001
 
 type probePlanner struct {
-	prob                 [len(serviceFamilies)]float64
+	prob                 []float64
+	families             []string
+	transport            string
 	candidates           map[string]bool
 	attempted            map[string]bool
 	redisHint            bool
@@ -51,43 +54,73 @@ type probePlanner struct {
 }
 
 func newProbePlanner(e *Engine, port uint16) *probePlanner {
-	p := &probePlanner{candidates: map[string]bool{}, attempted: map[string]bool{}}
+	return newProbePlannerFor(e, port, "tcp")
+}
+
+func newProbePlannerFor(e *Engine, port uint16, transport string) *probePlanner {
+	families := append([]string(nil), serviceFamilies...)
+	if transport == "udp" {
+		families = []string{"unknown"}
+	}
+	p := &probePlanner{candidates: map[string]bool{}, attempted: map[string]bool{}, families: families, transport: transport}
+	for _, d := range e.cfg.Definitions {
+		if d.Transport == transport {
+			p.families = append(p.families, "dsl/"+d.Name)
+		}
+	}
+	p.prob = make([]float64, len(p.families))
 	for i := range p.prob {
 		p.prob[i] = 1
 	}
-	p.prob[len(p.prob)-1] = 3 // leave room for protocols we cannot probe
-	for _, name := range e.cfg.Fallback {
-		p.add(e, name)
-	}
-	// Hints change priors and eligibility. Multiple hints may apply to one
-	// port; none excludes a different protocol from a positive response.
-	for _, hint := range []struct {
-		ports map[uint16]bool
-		name  string
-		boost float64
-	}{
-		{tlsPorts, ProbeTLS, 24}, {httpPorts, ProbeHTTP, 20},
-		{dnsPorts, ProbeDNS, 30}, {socksPorts, ProbeSOCKS, 30},
-		{modbusPorts, ProbeModbus, 30}, {ethernetIPPorts, ProbeEtherNetIP, 30},
-		{databasePorts, ProbeDatabase, 24},
-		{smbPorts, ProbeSMB, 30}, {rdpPorts, ProbeRDP, 30}, {msrpcPorts, ProbeMSRPC, 30},
-		{ldapPorts, ProbeLDAP, 30}, {kerberosPorts, ProbeKerberos, 30}, {nfsPorts, ProbeNFS, 30},
-	} {
-		if hint.ports[port] {
-			p.prob[familyIndex(hint.name)] *= hint.boost
-			p.add(e, hint.name)
+	p.prob[len(families)-1] = 3 // leave room for protocols we cannot probe
+	index := len(families)
+	for _, d := range e.cfg.Definitions {
+		if d.Transport != transport {
+			continue
 		}
+		for _, hinted := range d.Ports {
+			if hinted == port {
+				p.prob[index] *= 24
+				p.candidates["dsl/"+d.Name] = true
+				break
+			}
+		}
+		index++
 	}
-	// A common web port should be tested both with and without TLS. The
-	// posterior chooses the order and changes it after the first response.
-	if tlsPorts[port] {
-		p.add(e, ProbeHTTP)
-	}
-	if httpPorts[port] {
-		p.add(e, ProbeTLS)
-	}
-	if port == 22 {
-		p.prob[familyIndex(ProbeSSH)] *= 30
+	if transport == "tcp" {
+		for _, name := range e.cfg.Fallback {
+			p.add(e, name)
+		}
+		// Hints change priors and eligibility. Multiple hints may apply to one
+		// port; none excludes a different protocol from a positive response.
+		for _, hint := range []struct {
+			ports map[uint16]bool
+			name  string
+			boost float64
+		}{
+			{tlsPorts, ProbeTLS, 24}, {httpPorts, ProbeHTTP, 20},
+			{dnsPorts, ProbeDNS, 30}, {socksPorts, ProbeSOCKS, 30},
+			{modbusPorts, ProbeModbus, 30}, {ethernetIPPorts, ProbeEtherNetIP, 30},
+			{databasePorts, ProbeDatabase, 24},
+			{smbPorts, ProbeSMB, 30}, {rdpPorts, ProbeRDP, 30}, {msrpcPorts, ProbeMSRPC, 30},
+			{ldapPorts, ProbeLDAP, 30}, {kerberosPorts, ProbeKerberos, 30}, {nfsPorts, ProbeNFS, 30},
+		} {
+			if hint.ports[port] {
+				p.prob[familyIndex(hint.name)] *= hint.boost
+				p.add(e, hint.name)
+			}
+		}
+		// A common web port should be tested both with and without TLS. The
+		// posterior chooses the order and changes it after the first response.
+		if tlsPorts[port] {
+			p.add(e, ProbeHTTP)
+		}
+		if httpPorts[port] {
+			p.add(e, ProbeTLS)
+		}
+		if port == 22 {
+			p.prob[familyIndex(ProbeSSH)] *= 30
+		}
 	}
 	p.normalize()
 	return p
@@ -123,7 +156,7 @@ func (p *probePlanner) normalize() {
 	}
 }
 
-func entropy(prob [len(serviceFamilies)]float64) float64 {
+func entropy(prob []float64) float64 {
 	var h float64
 	for _, v := range prob {
 		if v > 0 {
@@ -135,6 +168,9 @@ func entropy(prob [len(serviceFamilies)]float64) float64 {
 
 func likelihood(probe string, family string) float64 {
 	if probe == family {
+		if strings.HasPrefix(probe, "dsl/") {
+			return 0.95
+		}
 		return probeModel[probe].match
 	}
 	return incidentalMatch
@@ -144,9 +180,9 @@ func likelihood(probe string, family string) float64 {
 // versus every other response. Its calculation uses the same likelihoods as
 // the posterior update, so the scheduler and inference cannot drift apart.
 func (p *probePlanner) informationGain(probe string) float64 {
-	var matched, missed [len(serviceFamilies)]float64
+	matched, missed := make([]float64, len(p.prob)), make([]float64, len(p.prob))
 	var matchProbability float64
-	for i, family := range serviceFamilies {
+	for i, family := range p.families {
 		q := likelihood(probe, family)
 		matched[i] = p.prob[i] * q
 		missed[i] = p.prob[i] * (1 - q)
@@ -169,7 +205,11 @@ func (p *probePlanner) next() (string, float64, float64) {
 			continue
 		}
 		gain := p.informationGain(name)
-		score := gain / probeModel[name].cost
+		cost := probeModel[name].cost
+		if cost == 0 {
+			cost = 1.3
+		}
+		score := gain / cost
 		if score > bestScore || (score == bestScore && (best == "" || name < best)) {
 			best, bestGain, bestScore = name, gain, score
 		}
@@ -183,7 +223,7 @@ func (p *probePlanner) next() (string, float64, float64) {
 func (p *probePlanner) update(probe string, matched bool, response []byte, e *Engine) {
 	p.attempted[probe] = true
 	hint := responseHint(response)
-	for i, family := range serviceFamilies {
+	for i, family := range p.families {
 		q := likelihood(probe, family)
 		if matched {
 			p.prob[i] *= q
@@ -203,6 +243,9 @@ func (p *probePlanner) update(probe string, matched bool, response []byte, e *En
 		}
 	}
 	p.normalize()
+	if p.transport != "tcp" {
+		return
+	}
 	if hint == "redis" && !matched {
 		p.redisHint = true
 		p.add(e, ProbeDatabase)
@@ -215,7 +258,7 @@ func (p *probePlanner) observeBanner(response []byte, e *Engine) {
 	if responseHint(response) != "redis" {
 		return
 	}
-	for i, family := range serviceFamilies {
+	for i, family := range p.families {
 		if family == ProbeDatabase {
 			p.prob[i] *= 0.80
 		} else {
@@ -228,7 +271,7 @@ func (p *probePlanner) observeBanner(response []byte, e *Engine) {
 }
 
 func (p *probePlanner) confirmPassive(family string) {
-	for i, name := range serviceFamilies {
+	for i, name := range p.families {
 		if name == family {
 			p.prob[i] *= 0.999
 		} else {
@@ -277,8 +320,8 @@ func (p *probePlanner) probabilities() []observe.ServiceHypothesis {
 			{Family: "unknown", Probability: 1 - p.confirmedProbability},
 		}
 	}
-	out := make([]observe.ServiceHypothesis, len(serviceFamilies))
-	for i, family := range serviceFamilies {
+	out := make([]observe.ServiceHypothesis, len(p.families))
+	for i, family := range p.families {
 		out[i] = observe.ServiceHypothesis{Family: family, Probability: p.prob[i]}
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -288,4 +331,13 @@ func (p *probePlanner) probabilities() []observe.ServiceHypothesis {
 		return out[i].Probability > out[j].Probability
 	})
 	return out
+}
+
+func (p *probePlanner) confidence(family string) int {
+	for i, name := range p.families {
+		if name == family {
+			return max(1, min(99, int(math.Round(100*p.prob[i]))))
+		}
+	}
+	return 1
 }

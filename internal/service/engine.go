@@ -85,6 +85,8 @@ type Config struct {
 	// built-in matchers do not recognize is matched against the database's
 	// NULL-probe rules. It sends no additional traffic.
 	Nmap *nmapdb.Database
+	// Definitions are validated protocol state machines loaded for this scan.
+	Definitions []ProtocolDefinition
 }
 
 // Validate reports an unusable configuration.
@@ -99,7 +101,16 @@ func (c Config) Validate() error {
 		return errors.New("service rate, queue size and evidence limit must be nonnegative")
 	}
 	if len(c.Probes) == 0 {
-		return errors.New("at least one service probe is required")
+		if len(c.Definitions) == 0 {
+			return errors.New("at least one service probe is required")
+		}
+	}
+	seen := map[string]bool{}
+	for _, d := range c.Definitions {
+		if d.Name == "" || len(d.steps) == 0 || seen[d.Name] {
+			return errors.New("invalid or duplicate protocol definition")
+		}
+		seen[d.Name] = true
 	}
 	known := make(map[string]bool)
 	for _, n := range Names() {
@@ -117,8 +128,10 @@ func (c Config) Validate() error {
 
 // Target is one open TCP port to interrogate.
 type Target struct {
-	Addr netip.Addr
-	Port uint16
+	Addr      netip.Addr
+	Port      uint16
+	Transport string // empty defaults to tcp
+	State     string // discovery state, including open|filtered for UDP
 }
 
 // Engine runs a fixed pool of interrogation workers.

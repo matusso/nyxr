@@ -55,8 +55,42 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 		Kind: observe.KindService, Timestamp: time.Now().UTC(), Target: t.Addr, Transport: "tcp", Port: t.Port,
 		State: "open", Fingerprint: observe.FingerprintUnknown,
 	}
-	planner := newProbePlanner(e, t.Port)
+	transport := t.Transport
+	if transport == "" {
+		transport = "tcp"
+	}
+	planner := newProbePlannerFor(e, t.Port, transport)
 	defer func() { o.ServiceHypotheses = planner.probabilities() }()
+	if t.Transport == "udp" {
+		o.Transport = "udp"
+		if t.State != "" {
+			o.State = t.State
+		}
+		for ctx.Err() == nil {
+			name, gain, score := planner.next()
+			if name == "" {
+				break
+			}
+			o.ProbeDecisions = append(o.ProbeDecisions, observe.ProbeDecision{Probe: name, InformationGain: gain, Score: score, Hypotheses: planner.probabilities()})
+			o.ProbesAttempted = append(o.ProbesAttempted, name)
+			for _, d := range e.cfg.Definitions {
+				if name != "dsl/"+d.Name || d.Transport != "udp" {
+					continue
+				}
+				matched := e.probeProtocol(ctx, t, d, &o)
+				planner.update(name, matched, o.Evidence[len(o.Evidence)-1].Response, e)
+				if matched {
+					o.State = "open"
+					o.Confidence = planner.confidence(name)
+					o.Fingerprint = observe.FingerprintMatched
+					return o
+				}
+				break
+			}
+		}
+		o.Reason = "no protocol definition matched"
+		return o
+	}
 	if e.enabled[ProbeBanner] || e.enabled[ProbeSSH] || e.enabled[ProbeNmap] || e.enabled[ProbeDatabase] {
 		ev, banner := e.probeBanner(ctx, t)
 		o.Evidence = append(o.Evidence, ev)
@@ -124,6 +158,13 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 			matched = e.probeKerberos(ctx, t, &o)
 		case ProbeNFS:
 			matched = e.probeNFS(ctx, t, &o)
+		default:
+			for _, d := range e.cfg.Definitions {
+				if p == "dsl/"+d.Name && d.Transport == "tcp" {
+					matched = e.probeProtocol(ctx, t, d, &o)
+					break
+				}
+			}
 		}
 		if len(o.Evidence) > firstEvidence {
 			ev := o.Evidence[firstEvidence]
@@ -136,6 +177,9 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 			planner.attempted[p] = true
 		}
 		if matched {
+			if strings.HasPrefix(p, "dsl/") {
+				o.Confidence = planner.confidence(p)
+			}
 			// A database answering HTTP, or any service other than HTTP
 			// identified inside TLS, is a named result beyond the families.
 			if (p == ProbeHTTP && o.Probe == ProbeDatabase) ||
