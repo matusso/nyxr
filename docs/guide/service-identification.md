@@ -1,7 +1,7 @@
 # Service identification
 
 Discovery tells you a port is open. The service stage tells you what is
-listening, and keeps every byte it exchanged so the claim can be checked.
+listening, and keeps probe evidence so the claim can be checked.
 
 - [Enable the service stage](#enable-the-service-stage)
 - [How a port is identified](#how-a-port-is-identified)
@@ -15,18 +15,23 @@ listening, and keeps every byte it exchanged so the claim can be checked.
 
 ## Enable the service stage
 
-The `tcp-common`, `tcp-full`, `deep-scan`, `windows`, `web`, `database`, `iot` and `ot-safe` profiles
-run it automatically. Add `--service` to run it with any other TCP profile:
+The `tcp-common`, `tcp-full`, `udp-common`, `udp-full`, `deep-scan`, `windows`,
+`web`, `database`, `iot` and `ot-safe` profiles run it automatically. Add
+`--service` to run it with another profile:
 
 ```sh
 nyxr scan --profile tcp-common 192.0.2.0/28
 nyxr scan --profile tcp-full 192.0.2.10
 nyxr scan --profile tcp-basic --ports 1-1024 --service 192.0.2.10
+nyxr scan --profile udp-common --ports 443,5684 --json 192.0.2.10
 ```
 
-The stage consumes discovery results, not packets. Every open TCP port goes into
-a bounded queue served by a fixed worker pool. When the queue is full it slows
-the discovery consumer, never the packet receive path.
+The stage consumes discovery results, not packets. Every open TCP port and
+eligible UDP port goes into a bounded queue served by a fixed worker pool.
+UDP ports reported `open|filtered` remain eligible for QUIC, DTLS and defined
+UDP protocols because a handshake can settle an otherwise silent result.
+When the queue is full it slows the discovery consumer, never the packet
+receive path.
 
 ## How a port is identified
 

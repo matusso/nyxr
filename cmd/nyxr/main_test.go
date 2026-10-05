@@ -109,7 +109,7 @@ func TestScanImportedUDPPayload(t *testing.T) {
 		State string `json:"state"`
 		Probe string `json:"probe"`
 	}
-	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+	if err := json.NewDecoder(&output).Decode(&got); err != nil {
 		t.Fatal(err)
 	}
 	if got.State != "open" || got.Probe != "nmap-Hello" {

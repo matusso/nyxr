@@ -38,6 +38,8 @@ var probeModel = map[string]struct {
 	ProbeLDAP:       {0.96, 1.35},
 	ProbeKerberos:   {0.96, 1.30},
 	ProbeNFS:        {0.95, 1.35},
+	ProbeQUIC:       {0.98, 1.50},
+	ProbeDTLS:       {0.96, 1.40},
 }
 
 const incidentalMatch = 0.001
@@ -60,7 +62,7 @@ func newProbePlanner(e *Engine, port uint16) *probePlanner {
 func newProbePlannerFor(e *Engine, port uint16, transport string) *probePlanner {
 	families := append([]string(nil), serviceFamilies...)
 	if transport == "udp" {
-		families = []string{"unknown"}
+		families = []string{ProbeQUIC, ProbeDTLS, "unknown"}
 	}
 	p := &probePlanner{candidates: map[string]bool{}, attempted: map[string]bool{}, families: families, transport: transport}
 	for _, d := range e.cfg.Definitions {
@@ -122,9 +124,38 @@ func newProbePlannerFor(e *Engine, port uint16, transport string) *probePlanner 
 			p.prob[familyIndex(ProbeSSH)] *= 30
 		}
 	}
+	if transport == "udp" && e.enabled[ProbeQUIC] {
+		if QUICPort(port) {
+			p.prob[0] *= 24
+			p.candidates[ProbeQUIC] = true
+		}
+		for _, name := range e.cfg.Fallback {
+			if name == ProbeQUIC {
+				p.candidates[ProbeQUIC] = true
+			}
+		}
+	}
+	if transport == "udp" && e.enabled[ProbeDTLS] {
+		if DTLSPort(port) {
+			p.prob[1] *= 24
+			p.candidates[ProbeDTLS] = true
+		}
+		for _, name := range e.cfg.Fallback {
+			if name == ProbeDTLS {
+				p.candidates[ProbeDTLS] = true
+			}
+		}
+	}
 	p.normalize()
 	return p
 }
+
+// QUICPort is a conservative port hint. A fallback probe can test other UDP
+// ports explicitly without sending a QUIC handshake to every common service.
+func QUICPort(port uint16) bool { return port == 443 || port == 4433 || port == 8443 }
+
+// DTLSPort covers common DTLS listeners without probing every UDP service.
+func DTLSPort(port uint16) bool { return port == 5684 || port == 5349 }
 
 func (p *probePlanner) add(e *Engine, name string) {
 	if e.enabled[name] {

@@ -7,6 +7,8 @@ errors to individual probes, and states how confident each result is.
 - [How results are classified](#how-results-are-classified)
 - [Probe strategies](#probe-strategies)
 - [Built-in probe catalog](#built-in-probe-catalog)
+- [QUIC and HTTP/3](#quic-and-http3)
+- [DTLS](#dtls)
 - [Custom payloads](#custom-payloads)
 - [Native probe definitions](#native-probe-definitions)
 - [Using Nmap UDP probes](#using-nmap-udp-probes)
@@ -50,8 +52,8 @@ get one additional adaptive retry. `--rate` counts retries too.
 | Profile | What is sent |
 | --- | --- |
 | `udp-basic` | An empty datagram per port |
-| `udp-common` | The payloads listed for each requested port; an empty datagram when none apply |
-| `udp-full` | Every available payload on every requested port, until a reply validates a service or the catalog is exhausted |
+| `udp-common` | The payloads listed for each requested port; an empty datagram when none apply; QUIC service probing on hinted ports |
+| `udp-full` | Every available payload on every requested port, until a reply validates a service or the catalog is exhausted; QUIC service probing on hinted ports |
 
 All three select the 32 UDP ports of the `udp` port set by default. `--ports`
 replaces that list. `udp-full` retries each probe once.
@@ -98,6 +100,46 @@ A few protocol notes:
   payloads on every selected port.
 
 BACnet behavior is described in [OT and IoT](ot-and-iot.md#bacnet).
+
+## QUIC and HTTP/3
+
+`udp-common`, `udp-full`, and `deep-scan` run a native QUIC handshake on
+UDP/443, 4433, and 8443 after discovery, including ports classified
+`open|filtered` because ordinary UDP payloads received no reply. A completed
+handshake upgrades the service observation to `open`. The probe negotiates
+HTTP/3, records the negotiated QUIC version, version negotiation when it
+occurs, connection IDs, peer transport parameters, TLS 1.3 details and
+certificate chain, ALPN, peer datagram support, and HTTP/3 SETTINGS. It then
+sends a read-only `HEAD /` and records the status, `Server`, and `Alt-Svc`
+headers when returned.
+
+```sh
+nyxr scan --profile udp-common --ports 443 --json 192.0.2.10
+```
+
+To try QUIC on other UDP ports, enable the service stage and select `quic` as
+the fallback probe:
+
+```sh
+nyxr scan --protocols udp --ports 7443 --service \
+  --service-probes quic --service-fallback quic --json 192.0.2.10
+```
+
+The probe accepts self-signed or name-mismatched certificates so it can report
+their identity. Its certificate fields describe what the peer presented; they
+do not assert certificate trust. The HTTP/3 `extended_connect` and datagram
+settings identify prerequisites for WebTransport, not a verified WebTransport
+endpoint. 0-RTT eligibility is not yet reported.
+
+## DTLS
+
+The same UDP profiles perform a DTLS handshake on UDP/5684 and 5349. A valid
+handshake identifies the service as `dtls`, upgrades the port to `open`, and
+records its cipher suite, ALPN and presented certificates without sending
+application data. To try another port, use `--service-probes dtls
+--service-fallback dtls` with `--protocols udp` and `--service`. The current
+DTLS library does not expose the negotiated DTLS version, so nyxr reports
+`DTLS` without a version number.
 
 ## Custom payloads
 

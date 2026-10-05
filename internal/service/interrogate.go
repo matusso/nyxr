@@ -73,6 +73,28 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 			}
 			o.ProbeDecisions = append(o.ProbeDecisions, observe.ProbeDecision{Probe: name, InformationGain: gain, Score: score, Hypotheses: planner.probabilities()})
 			o.ProbesAttempted = append(o.ProbesAttempted, name)
+			if name == ProbeQUIC {
+				matched := e.probeQUIC(ctx, t, &o)
+				planner.update(name, matched, nil, e)
+				if matched {
+					o.State = "open"
+					o.Confidence = planner.confidence(name)
+					o.Fingerprint = observe.FingerprintMatched
+					return o
+				}
+				continue
+			}
+			if name == ProbeDTLS {
+				matched := e.probeDTLS(ctx, t, &o)
+				planner.update(name, matched, nil, e)
+				if matched {
+					o.State = "open"
+					o.Confidence = planner.confidence(name)
+					o.Fingerprint = observe.FingerprintMatched
+					return o
+				}
+				continue
+			}
 			for _, d := range e.cfg.Definitions {
 				if name != "dsl/"+d.Name || d.Transport != "udp" {
 					continue
@@ -88,7 +110,7 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 				break
 			}
 		}
-		o.Reason = "no protocol definition matched"
+		o.Reason = "no UDP service probe matched"
 		return o
 	}
 	if e.enabled[ProbeBanner] || e.enabled[ProbeSSH] || e.enabled[ProbeNmap] || e.enabled[ProbeDatabase] {

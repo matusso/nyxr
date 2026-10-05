@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/matusso/nyxr/internal/service"
 )
 
 func TestProtocolDefinitionsResolveAndPolicy(t *testing.T) {
@@ -85,23 +87,29 @@ func TestServiceOverrides(t *testing.T) {
 }
 
 func TestServiceRejections(t *testing.T) {
-	on := true
 	for name, tc := range map[string]struct {
 		opts Options
 		svc  ServiceOptions
 		want string
 	}{
-		"ot-safe":         {Options{Profile: "ot-safe", AllowTargets: []string{"192.0.2.1"}}, ServiceOptions{Probes: "http"}, "does not allow service probe"},
-		"udp only":        {Options{Profile: "udp-common"}, ServiceOptions{Enable: &on}, "require the TCP protocol"},
-		"unknown probe":   {Options{Profile: "tcp-common"}, ServiceOptions{Probes: "telnet"}, "unknown service probe"},
-		"option w/o flag": {Options{Profile: "tcp-basic"}, ServiceOptions{Probes: "http"}, "require --service"},
-		"bad timeout":     {Options{Profile: "tcp-common"}, ServiceOptions{Timeout: "soon"}, "service timeout"},
-		"empty name":      {Options{Profile: "tcp-common"}, ServiceOptions{Probes: "http,,tls"}, "empty service probe"},
+		"ot-safe":           {Options{Profile: "ot-safe", AllowTargets: []string{"192.0.2.1"}}, ServiceOptions{Probes: "http"}, "does not allow service probe"},
+		"udp without probe": {Options{Profile: "udp-common"}, ServiceOptions{Probes: "http"}, "require quic, dtls, or UDP protocol definitions"},
+		"unknown probe":     {Options{Profile: "tcp-common"}, ServiceOptions{Probes: "telnet"}, "unknown service probe"},
+		"option w/o flag":   {Options{Profile: "tcp-basic"}, ServiceOptions{Probes: "http"}, "require --service"},
+		"bad timeout":       {Options{Profile: "tcp-common"}, ServiceOptions{Timeout: "soon"}, "service timeout"},
+		"empty name":        {Options{Profile: "tcp-common"}, ServiceOptions{Probes: "http,,tls"}, "empty service probe"},
 	} {
 		_, err := BuildService(build(t, tc.opts), tc.svc)
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Fatalf("%s: want %q, got %v", name, tc.want, err)
 		}
+	}
+}
+
+func TestUDPCommonEnablesNativeQUIC(t *testing.T) {
+	s, err := BuildService(build(t, Options{Profile: "udp-common"}), ServiceOptions{})
+	if err != nil || !s.Enabled || len(s.Probes) != 2 || s.Probes[0] != service.ProbeQUIC || s.Probes[1] != service.ProbeDTLS {
+		t.Fatalf("UDP profile should enable QUIC and DTLS: %+v %v", s, err)
 	}
 }
 

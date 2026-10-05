@@ -92,8 +92,8 @@ Guide: [Research packets](../guide/research-packets.md).
 
 | Flag | Meaning |
 | --- | --- |
-| `--service` | Deep probes on open TCP ports, or open UDP ports with Protocol DSL definitions (on for `tcp-common`, `tcp-full`, `deep-scan`, `windows`, `filesystem`, `web`, `database`, `iot`, `ot-safe`) |
-| `--service-probes LIST` | `banner`, `ssh`, `tls`, `http`, `dns`, `socks`, `modbus`, `ethernetip`, `nmap`, `database`, `smb`, `rdp`, `msrpc`, `ldap`, `kerberos`, `nfs` |
+| `--service` | Deep probes on open TCP ports, or UDP ports with QUIC, DTLS or Protocol DSL definitions (on for `tcp-common`, `tcp-full`, `udp-common`, `udp-full`, `deep-scan`, `windows`, `filesystem`, `web`, `database`, `iot`, `ot-safe`) |
+| `--service-probes LIST` | `banner`, `ssh`, `tls`, `http`, `dns`, `socks`, `modbus`, `ethernetip`, `nmap`, `database`, `smb`, `rdp`, `msrpc`, `ldap`, `kerberos`, `nfs`, `quic`, `dtls` |
 | `--service-fallback LIST` | Probes for silent ports without a port hint, or `none` |
 | `--service-timeout DURATION` | Upper bound for each service probe |
 | `--service-workers N` | Concurrent service probe workers |
