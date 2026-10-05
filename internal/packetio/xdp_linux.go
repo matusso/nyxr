@@ -324,6 +324,12 @@ func OpenXDP(device, pinDir string, source net.IP) (PacketIO, error) {
 }
 
 func xdpQueues(device string) ([]uint32, error) {
+	// Device must be a single interface-name component, not a path.
+	if device == "" || device == "." || device == ".." ||
+		device != filepath.Base(device) ||
+		strings.ContainsAny(device, `/\`) {
+		return nil, fmt.Errorf("invalid interface name %q", device)
+	}
 	entries, err := os.ReadDir(filepath.Join("/sys/class/net", device, "queues"))
 	if err != nil {
 		return nil, err
