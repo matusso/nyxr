@@ -136,6 +136,54 @@ var migrations = []string{
 	CREATE INDEX identity_signals_asset ON identity_signals(asset_id);
 	INSERT INTO identity_assets(id, first_seen) SELECT id, first_seen FROM assets;
 	INSERT INTO identity_members(asset_id, identity_id) SELECT id, id FROM assets;`,
+	`CREATE TABLE identity_membership_events (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		address TEXT NOT NULL,
+		from_identity TEXT NOT NULL DEFAULT '',
+		to_identity TEXT NOT NULL DEFAULT '',
+		cause TEXT NOT NULL,
+		observed_at TEXT NOT NULL,
+		recorded_at TEXT NOT NULL,
+		scan_id TEXT NOT NULL DEFAULT ''
+	);
+	CREATE INDEX identity_membership_events_address ON identity_membership_events(address, id);
+	INSERT INTO identity_membership_events(address, to_identity, cause, observed_at, recorded_at)
+		SELECT a.address, printf('NYXR-%012X', m.identity_id), 'migration_baseline', a.last_seen,
+			strftime('%Y-%m-%dT%H:%M:%f', 'now') || '000000Z'
+		FROM identity_members m JOIN assets a ON a.id = m.asset_id;`,
+	`CREATE TABLE identity_namespace (id INTEGER PRIMARY KEY CHECK(id = 1), value TEXT NOT NULL);
+	INSERT INTO identity_namespace(id, value) VALUES (1, lower(hex(randomblob(16))));
+	CREATE TABLE identity_clues (
+		observation_id INTEGER NOT NULL REFERENCES observations(id) ON DELETE CASCADE,
+		asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+		kind TEXT NOT NULL,
+		value TEXT NOT NULL,
+		observed_at TEXT NOT NULL,
+		PRIMARY KEY(observation_id, kind, value)
+	);
+	CREATE INDEX identity_clues_lookup ON identity_clues(kind, value);`,
+	`CREATE TABLE identity_reviews (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		address_a TEXT NOT NULL,
+		address_b TEXT NOT NULL,
+		decision TEXT NOT NULL CHECK(decision IN ('join', 'separate', 'clear')),
+		note TEXT NOT NULL,
+		decided_at TEXT NOT NULL,
+		CHECK(address_a < address_b)
+	);
+	CREATE INDEX identity_reviews_pair ON identity_reviews(address_a, address_b, id);`,
+	`CREATE TABLE passive_links (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		scan_id TEXT NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+		observed_at TEXT NOT NULL,
+		local_interface TEXT NOT NULL DEFAULT '',
+		vlan_id INTEGER NOT NULL DEFAULT 0,
+		source_mac TEXT NOT NULL,
+		chassis_id TEXT NOT NULL,
+		port_id TEXT NOT NULL,
+		management_address TEXT NOT NULL DEFAULT ''
+	);
+	CREATE INDEX passive_links_chassis ON passive_links(chassis_id, observed_at);`,
 }
 
 // Store is safe for concurrent use.
@@ -191,10 +239,17 @@ func (s *Store) migrate(ctx context.Context) error {
 			_ = tx.Rollback()
 			return fmt.Errorf("migration %d: %w", v, err)
 		}
-		if v == 2 {
+		// Replay older observations only after all identity tables are present.
+		if v == 5 && current < 2 {
 			if err := backfillIdentity(ctx, tx); err != nil {
 				_ = tx.Rollback()
 				return fmt.Errorf("migration %d identity backfill: %w", v, err)
+			}
+		}
+		if v == 4 {
+			if err := backfillIdentityClues(ctx, tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("migration %d clue backfill: %w", v, err)
 			}
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)`, v, ts(time.Now())); err != nil {
@@ -285,6 +340,9 @@ func (s *Store) AddObservations(ctx context.Context, batch []observe.Observation
 		if err := resolveIdentity(ctx, tx, id, assetID, o); err != nil {
 			return err
 		}
+		if err := storeIdentityClues(ctx, tx, id, assetID, o); err != nil {
+			return err
+		}
 		for i, ev := range o.Evidence {
 			if _, err := evStmt.ExecContext(ctx, id, i, ev.Probe, ev.Layer, ts(ev.Started), int64(ev.Duration), ev.Request, ev.Response,
 				ev.Truncated, ev.Matched, ev.Error); err != nil {
@@ -318,6 +376,9 @@ func upsertAsset(ctx context.Context, tx *sql.Tx, addr netip.Addr, seen time.Tim
 			return 0, err
 		}
 		_, err = tx.ExecContext(ctx, `INSERT INTO identity_members(asset_id, identity_id) VALUES (?, ?)`, id, identityID)
+		if err == nil {
+			err = recordIdentityEvent(ctx, tx, id, 0, identityID, "first_observed", seen, "")
+		}
 	}
 	return id, err
 }
@@ -672,10 +733,36 @@ func (s *Store) Prune(ctx context.Context, r Retention, now time.Time) (int, err
 		n, _ := res.RowsAffected()
 		deleted += int(n)
 	}
+	removed, err := tx.QueryContext(ctx, `SELECT m.asset_id, m.identity_id FROM identity_members m
+		WHERE m.asset_id NOT IN (SELECT asset_id FROM observations)
+		AND m.asset_id NOT IN (SELECT asset_id FROM packet_flows)`)
+	if err != nil {
+		return 0, err
+	}
+	type removal struct{ assetID, identityID int64 }
+	var removals []removal
+	for removed.Next() {
+		var item removal
+		if err := removed.Scan(&item.assetID, &item.identityID); err != nil {
+			removed.Close()
+			return 0, err
+		}
+		removals = append(removals, item)
+	}
+	err = removed.Err()
+	removed.Close()
+	if err != nil {
+		return 0, err
+	}
+	for _, item := range removals {
+		if err := recordIdentityEvent(ctx, tx, item.assetID, item.identityID, 0, "retention_removed", now, ""); err != nil {
+			return 0, err
+		}
+	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM assets WHERE id NOT IN (SELECT asset_id FROM observations) AND id NOT IN (SELECT asset_id FROM packet_flows)`); err != nil {
 		return 0, err
 	}
-	if err := splitPrunedIdentities(ctx, tx); err != nil {
+	if err := splitPrunedIdentities(ctx, tx, now); err != nil {
 		return 0, err
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM identity_assets WHERE id NOT IN (SELECT identity_id FROM identity_members)`); err != nil {

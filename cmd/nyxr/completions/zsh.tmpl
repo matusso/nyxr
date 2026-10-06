@@ -113,6 +113,15 @@ _nyxr() {
                         '--scan=[print the observations and packet evidence of one scan]:scan id:' \
                         '--assets[print every address with the latest state of each port]' \
 						'--identities[group addresses by strong device identity signals]' \
+						'--identity-events[show identity membership audit]' \
+						'--topology[show imported LLDP neighbors]' \
+						'--import-pcap=[import passive pcap or pcapng]:capture file:_files' \
+						'--import-identifiers=[import scoped inventory IDs]:JSON file:_files' \
+						'--kube-api=[Kubernetes API HTTPS origin]:URL:' \
+						'--kube-token-file=[Kubernetes bearer token file]:token file:_files' \
+						'--kube-ca-file=[Kubernetes CA PEM file]:CA file:_files' \
+						'--kube-cluster-scope=[stable Kubernetes cluster scope]:scope:' \
+						'--capture-interface=[source interface for capture import]:interface:' \
                         '--unknown[print service observations with an unknown fingerprint]' \
                         '--address=[restrict --scan or --unknown to one address]:address:' \
 						'--open[with --assets or --identities, keep open ports]' \

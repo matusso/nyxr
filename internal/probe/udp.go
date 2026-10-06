@@ -189,7 +189,7 @@ func (d Definition) Compile(baseDir string) (Probe, error) {
 		return Probe{}, err
 	}
 	allowed := map[string]string{"dns.rcode": "dns", "dns.txt": "dns", "cldap.attributes": "cldap", "ntp.stratum": "ntp", "stun.message_type": "stun",
-		"tftp.error_code": "tftp", "ssdp.server": "ssdp", "sip.status": "sip", "coap.code": "coap",
+		"tftp.error_code": "tftp", "ssdp.server": "ssdp", "ssdp.uuid": "ssdp", "sip.status": "sip", "coap.code": "coap",
 		"bacnet.device_id": "bacnet", "bacnet.vendor_id": "bacnet", "bacnet.fdt_entries": "bacnet-fdt",
 		"snmp.engine_id": "snmpv3"}
 	if len(d.Extract) > 16 {
@@ -471,6 +471,21 @@ func Extract(p Probe, response []byte) map[string]string {
 					break
 				}
 			}
+		case "ssdp.uuid":
+			for _, line := range bytes.Split(response, []byte("\r\n")) {
+				if !bytes.HasPrefix(bytes.ToLower(line), []byte("usn:")) {
+					continue
+				}
+				value := strings.ToLower(strings.TrimSpace(string(line[4:])))
+				if !strings.HasPrefix(value, "uuid:") {
+					continue
+				}
+				uuid := strings.SplitN(value[5:], "::", 2)[0]
+				if validSSDPDeviceUUID(uuid) {
+					fields[field] = uuid
+				}
+				break
+			}
 		case "sip.status":
 			if len(response) >= 11 {
 				fields[field] = string(response[8:11])
@@ -501,6 +516,22 @@ func Extract(p Probe, response []byte) map[string]string {
 		return nil
 	}
 	return fields
+}
+
+func validSSDPDeviceUUID(value string) bool {
+	if len(value) != 36 {
+		return false
+	}
+	for i, c := range value {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if c != '-' {
+				return false
+			}
+		} else if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return false
+		}
+	}
+	return true
 }
 
 // parseBACnetIAm accepts the minimal BACnet/IP Original-Unicast-NPDU form.

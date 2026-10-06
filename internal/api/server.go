@@ -81,6 +81,11 @@ func Handler(cfg ServerConfig) http.Handler {
 	api.HandleFunc("GET /api/v1/assets", s.assets)
 	api.HandleFunc("GET /api/v1/assets/identities", s.identities)
 	api.HandleFunc("GET /api/v1/assets/identities/{id}", s.identity)
+	api.HandleFunc("GET /api/v1/assets/identity-events", s.identityEvents)
+	api.HandleFunc("GET /api/v1/assets/identity-relations", s.identityRelations)
+	api.HandleFunc("GET /api/v1/assets/identity-reviews", s.identityReviews)
+	api.HandleFunc("POST /api/v1/assets/identity-reviews", s.reviewIdentity)
+	api.HandleFunc("GET /api/v1/assets/topology", s.topology)
 	api.HandleFunc("GET /api/v1/observations", s.observations)
 	api.HandleFunc("GET /api/v1/packets/watch", s.watchPackets)
 	api.HandleFunc("POST /api/v1/packets/send", s.sendPacket)
@@ -460,6 +465,75 @@ func (s *server) identity(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeError(w, http.StatusNotFound, "asset identity not found")
+}
+
+func (s *server) identityEvents(w http.ResponseWriter, r *http.Request) {
+	var address netip.Addr
+	if raw := r.URL.Query().Get("address"); raw != "" {
+		var err error
+		address, err = netip.ParseAddr(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid address")
+			return
+		}
+	}
+	events, err := s.cfg.Store.IdentityHistory(r.Context(), address)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, events)
+}
+
+func (s *server) identityRelations(w http.ResponseWriter, r *http.Request) {
+	relations, err := s.cfg.Store.IdentityRelations(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, relations)
+}
+
+func (s *server) identityReviews(w http.ResponseWriter, r *http.Request) {
+	reviews, err := s.cfg.Store.IdentityReviews(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, reviews)
+}
+
+func (s *server) reviewIdentity(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		AddressA string `json:"address_a"`
+		AddressB string `json:"address_b"`
+		Decision string `json:"decision"`
+		Note     string `json:"note"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid review JSON")
+		return
+	}
+	a, errA := netip.ParseAddr(input.AddressA)
+	b, errB := netip.ParseAddr(input.AddressB)
+	if errA != nil || errB != nil {
+		writeError(w, http.StatusBadRequest, "two valid IP addresses are required")
+		return
+	}
+	if err := s.cfg.Store.ReviewIdentityPair(r.Context(), a, b, input.Decision, input.Note); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"status": "recorded"})
+}
+
+func (s *server) topology(w http.ResponseWriter, r *http.Request) {
+	links, err := s.cfg.Store.PassiveLinks(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, links)
 }
 
 // scanEvents streams Server-Sent Events: buffered history first, then live

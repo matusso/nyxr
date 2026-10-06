@@ -80,6 +80,30 @@ func TestIdentityGraphAPI(t *testing.T) {
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("missing identity: %d", res.StatusCode)
 	}
+	res, body = e.do(t, "GET", "/api/v1/assets/identity-events?address=2001:db8::5", "")
+	var events []storage.IdentityMembershipEvent
+	if res.StatusCode != http.StatusOK || json.Unmarshal(body, &events) != nil || len(events) != 2 ||
+		events[1].Cause != "signal_merge:mac" || events[1].ToIdentity != graph[0].ID {
+		t.Fatalf("identity events: %d %s", res.StatusCode, body)
+	}
+	res, _ = e.do(t, "GET", "/api/v1/assets/identity-events?address=invalid", "")
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("invalid event address: %d", res.StatusCode)
+	}
+	res, body = e.do(t, "POST", "/api/v1/assets/identity-reviews",
+		`{"address_a":"192.0.2.5","address_b":"2001:db8::5","decision":"separate","note":"different hosts"}`)
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("review decision: %d %s", res.StatusCode, body)
+	}
+	res, body = e.do(t, "GET", "/api/v1/assets/identities", "")
+	if json.Unmarshal(body, &graph) != nil || len(graph) != 2 {
+		t.Fatalf("reviewed graph: %d %s", res.StatusCode, body)
+	}
+	res, body = e.do(t, "GET", "/api/v1/assets/identity-reviews", "")
+	var reviews []storage.IdentityReview
+	if res.StatusCode != http.StatusOK || json.Unmarshal(body, &reviews) != nil || len(reviews) != 1 || reviews[0].Note != "different hosts" {
+		t.Fatalf("review log: %d %s", res.StatusCode, body)
+	}
 }
 
 func (e *env) do(t *testing.T, method, path, body string, headers ...string) (*http.Response, []byte) {

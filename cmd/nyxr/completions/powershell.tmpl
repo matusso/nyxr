@@ -79,8 +79,8 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
         }
         'history' {
             # Returning nothing lets PowerShell fall back to path completion.
-            if ($prev -match '^--?(db|scan|address|limit|prune-older-than|keep)$') { return }
-			& $emit @('--db', '--scan', '--assets', '--identities', '--open', '--scope', '--unknown', '--address', '--limit', '--prune-older-than', '--keep', '--json', '--help') 'ParameterName'
+            if ($prev -match '^--?(db|scan|address|limit|prune-older-than|keep|import-pcap|import-identifiers|kube-api|kube-token-file|kube-ca-file|kube-cluster-scope|capture-interface)$') { return }
+			& $emit @('--db', '--scan', '--assets', '--identities', '--identity-events', '--topology', '--import-pcap', '--import-identifiers', '--kube-api', '--kube-token-file', '--kube-ca-file', '--kube-cluster-scope', '--capture-interface', '--open', '--scope', '--unknown', '--address', '--limit', '--prune-older-than', '--keep', '--json', '--help') 'ParameterName'
         }
         'serve' {
             # Returning nothing lets PowerShell fall back to path completion.

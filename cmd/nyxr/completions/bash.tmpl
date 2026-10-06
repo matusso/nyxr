@@ -104,13 +104,13 @@ _nyxr() {
             ;;
         history)
             case "$prev" in
-                --db|-db)
+                --db|-db|--import-pcap|--import-identifiers|--kube-token-file|--kube-ca-file)
                     COMPREPLY=($(compgen -f -- "$cur"))
                     return 0 ;;
-                --scan|-scan|--address|-address|--limit|-limit|--prune-older-than|-prune-older-than|--keep|-keep)
+                --scan|-scan|--address|-address|--limit|-limit|--prune-older-than|-prune-older-than|--keep|-keep|--kube-api|--kube-cluster-scope)
                     return 0 ;;
             esac
-			COMPREPLY=($(compgen -W "--db --scan --assets --identities --open --scope --unknown --address --limit --prune-older-than --keep --json --help" -- "$cur"))
+			COMPREPLY=($(compgen -W "--db --scan --assets --identities --identity-events --topology --import-pcap --import-identifiers --kube-api --kube-token-file --kube-ca-file --kube-cluster-scope --capture-interface --open --scope --unknown --address --limit --prune-older-than --keep --json --help" -- "$cur"))
             ;;
         serve)
             case "$prev" in
