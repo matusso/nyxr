@@ -152,10 +152,19 @@ Query and maintain the scan database.
 | `--scan ID` | Observations and packet evidence of one scan |
 | `--assets` | Asset inventory: latest state and service per port |
 | `--identities` | Correlated asset IDs, addresses and identity evidence |
+| `--identity-events` | Durable membership changes; accepts `--address IP` |
+| `--topology` | LLDP neighbors imported from captures |
+| `--import-pcap FILE` | Import passive sightings from pcap or pcapng |
+| `--capture-interface NAME` | Label the interface for `--import-pcap` |
+| `--import-identifiers FILE` | Import scoped Kubernetes/cloud identifiers from a JSON array |
+| `--kube-api URL` | Collect Kubernetes node UIDs and IP addresses from an HTTPS API |
+| `--kube-token-file FILE` | Bearer token file with permission to list nodes |
+| `--kube-ca-file FILE` | Optional PEM CA for the Kubernetes API |
+| `--kube-cluster-scope ID` | Stable, unique cluster scope for node UIDs |
 | `--open` | Only open ports |
 | `--scope LIST` | Restrict addresses with `--assets`, or select identities by address with `--identities` |
 | `--unknown` | Unknown fingerprints |
-| `--address IP` | Restrict to one address (with `--scan` or `--unknown`) |
+| `--address IP` | Restrict `--scan`, `--unknown`, or `--identity-events` to one address |
 | `--limit N` | Maximum rows (default 50) |
 | `--prune-older-than DURATION` | Delete scans older than this |
 | `--keep N` | Keep only the newest N scans |

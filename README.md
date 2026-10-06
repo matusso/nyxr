@@ -29,8 +29,9 @@ that prove it.
   `nyxr-packetd` process.
 - **Everything is kept.** Every scan goes into a local SQLite inventory you
   can query and rescan, with optional pcapng evidence.
-- **Correlated assets.** Validated MAC, SNMP engine ID and SMB GUID observations
-  link addresses under a persistent local asset ID, with the source evidence kept.
+- **Correlated assets.** Validated MAC, SNMP, SMB and SSH identities, plus scoped
+  inventory IDs, link addresses with an audit trail. The graph also shows
+  candidate clues and imported passive topology.
 
 ## Install
 
