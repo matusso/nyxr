@@ -131,6 +131,16 @@ func TestSNMPv3DiscoveryAndEngineIdentity(t *testing.T) {
 	if Match(discovery, request, response[:len(response)-1]) {
 		t.Fatal("truncated Report accepted")
 	}
+	// Tokens whose low bits are below 0x80 must still produce minimally
+	// encoded two-byte INTEGERs that round-trip through a strict decoder.
+	request = Prepare(discovery, 0x000b000b)
+	if request[9] == 0 && request[10] < 0x80 || request[50] == 0 && request[51] < 0x80 {
+		t.Fatalf("non-minimal SNMPv3 IDs in request %x", request)
+	}
+	msgID := int(binary.BigEndian.Uint16(request[9:11]))
+	if !Match(discovery, request, snmpV3ReportFixture(t, msgID)) {
+		t.Fatalf("SNMPv3 Report rejected for low token, msgID %#x", msgID)
+	}
 }
 
 func snmpV3ReportFixture(t *testing.T, msgID int) []byte {

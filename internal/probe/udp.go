@@ -334,8 +334,8 @@ func Prepare(p Probe, token uint64) []byte {
 			binary.BigEndian.PutUint32(payload[offset:offset+4], uint32(token)&0x7fffffff)
 		}
 	case "snmpv3":
-		binary.BigEndian.PutUint16(payload[9:11], uint16(token)&0x7fff)
-		binary.BigEndian.PutUint16(payload[50:52], uint16(token>>16)&0x7fff)
+		binary.BigEndian.PutUint16(payload[9:11], snmpV3ID(uint16(token)))
+		binary.BigEndian.PutUint16(payload[50:52], snmpV3ID(uint16(token>>16)))
 	case "stun":
 		binary.BigEndian.PutUint64(payload[8:16], token)
 	case "sip":
