@@ -50,6 +50,11 @@ CIDR, range, port or service, with autocomplete. *Scan open ports* starts a
 
 ![Asset inventory](../images/assets.png)
 
+**Identities.** Shows current membership, source evidence, device profile,
+link confidence, competing candidates, shared clues, imported LLDP neighbors,
+and the membership audit. An operator can record a join, separation, or clear
+decision with a reason. See [Asset identity graph](asset-identity.md).
+
 **Services** lists identified services across scans, **profiles** shows the
 catalog, and **packets** watches live traffic (below).
 
@@ -89,6 +94,13 @@ All paths are under `/api/v1`.
 | `GET /scans/{id}/events` | Server-Sent Events: `observation`, `packet-evidence`, `scan` |
 | `GET /scans/{id}/pcapng` | The scan's capture file, for captures in `--evidence-dir` only |
 | `GET /assets` | Asset inventory. Accepts `open=true` and an IP, CIDR or range `scope` |
+| `GET /assets/identities` | Correlated asset IDs, member addresses, per-address ports and source signals |
+| `GET /assets/identities/{id}` | One correlated asset, or 404 |
+| `GET /assets/identity-events?address=IP` | Durable membership audit; address filter optional |
+| `GET /assets/identity-relations` | Shared weak clues between current identities |
+| `GET /assets/identity-reviews` | Manual review audit log |
+| `POST /assets/identity-reviews` | Record `{address_a,address_b,decision,note}`; decision is `join`, `separate`, or `clear` |
+| `GET /assets/topology` | Imported LLDP neighbors, with current identity when management address matches |
 | `GET /observations` | Observations across scans |
 | `GET /packets/watch?interface=eth0` | Live Ethernet frames as Server-Sent Events; requires `--packetd` |
 | `POST /packets/send` | Submit one hex-encoded Ethernet frame; requires `--packetd --allow-packet-send` |

@@ -67,6 +67,10 @@ func normalize(t *testing.T, obs []observe.Observation) []string {
 		o.ScanID, o.Timestamp, o.RTT = "", time.Time{}, 0
 		for i := range o.Evidence {
 			o.Evidence[i].Started, o.Evidence[i].Duration = time.Time{}, 0
+			if o.Evidence[i].Probe == "ssh-host-key" {
+				// SSH key exchange includes a fresh client nonce on every run.
+				o.Evidence[i].Request = nil
+			}
 		}
 		b, err := json.Marshal(o)
 		if err != nil {

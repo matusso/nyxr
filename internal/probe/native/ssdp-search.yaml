@@ -10,4 +10,4 @@ payload:
 timeout: 1500ms
 match:
   - type: ssdp
-extract: [ssdp.server]
+extract: [ssdp.server, ssdp.uuid]

@@ -2,7 +2,11 @@ package service
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"io"
 	"net"
 	"net/http"
@@ -11,10 +15,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/matusso/nyxr/internal/observe"
+	"golang.org/x/crypto/ssh"
 )
 
 func testEngine(t *testing.T, fallback ...string) *Engine {
@@ -62,11 +68,40 @@ func TestSSHBannerIdentified(t *testing.T) {
 	if o.Service != "ssh" || o.Product != "OpenSSH" || o.Version != "9.6p1" || o.Confidence != 100 || o.Fingerprint != observe.FingerprintMatched {
 		t.Fatalf("unexpected SSH identity: %+v", o)
 	}
-	if o.Attributes["ssh.comment"] != "Ubuntu-3ubuntu13.5" || len(o.Evidence) != 1 || o.Evidence[0].Matched != "ssh" {
+	if o.Attributes["ssh.comment"] != "Ubuntu-3ubuntu13.5" || len(o.Evidence) != 2 || o.Evidence[0].Matched != "ssh" {
 		t.Fatalf("SSH evidence missing: %+v", o)
 	}
 	if !strings.HasPrefix(string(o.Evidence[0].Response), "SSH-2.0-") || len(o.Evidence[0].Request) != 0 {
 		t.Fatal("banner probe must be passive and retain the banner")
+	}
+}
+
+func TestSSHHostKeyIsCapturedAfterVerifiedKeyExchange(t *testing.T) {
+	_, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := ssh.NewSignerFromKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var connections atomic.Int32
+	target := serve(t, func(conn net.Conn) {
+		if connections.Add(1) == 1 {
+			_, _ = io.WriteString(conn, "SSH-2.0-test-server\r\n")
+			time.Sleep(300 * time.Millisecond)
+			return
+		}
+		config := &ssh.ServerConfig{NoClientAuth: true}
+		config.AddHostKey(signer)
+		_, _, _, _ = ssh.NewServerConn(conn, config)
+	})
+	o := testEngine(t).Interrogate(context.Background(), target)
+	want := sha256.Sum256(signer.PublicKey().Marshal())
+	if o.Service != "ssh" || o.Attributes["ssh.host_key_sha256"] != hex.EncodeToString(want[:]) ||
+		o.Attributes["ssh.host_key_type"] != ssh.KeyAlgoED25519 || len(o.Evidence) != 2 ||
+		o.Evidence[1].Matched != probeSSHHostKey || len(o.Evidence[1].Request) == 0 || len(o.Evidence[1].Response) == 0 {
+		t.Fatalf("SSH host-key evidence: %+v", o)
 	}
 }
 

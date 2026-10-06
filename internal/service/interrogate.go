@@ -125,6 +125,10 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 			o.Probe = ProbeBanner
 			if matched := e.matchBanner(&o, banner); matched != "" {
 				o.Evidence[len(o.Evidence)-1].Matched = matched
+				if matched == ProbeSSH {
+					o.ProbesAttempted = append(o.ProbesAttempted, probeSSHHostKey)
+					o.Evidence = append(o.Evidence, e.probeSSHHostKey(ctx, t, &o))
+				}
 				if matched == ProbeDatabase || matched == ProbeSSH {
 					planner.confirmPassive(matched)
 				} else {

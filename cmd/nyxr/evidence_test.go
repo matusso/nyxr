@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -40,6 +41,30 @@ func TestServiceDryRunIncludesStage(t *testing.T) {
 	out.Reset()
 	if err := run([]string{"scan", "--profile", "tcp-basic", "--dry-run", "192.0.2.1"}, &out); err != nil || strings.Contains(out.String(), "service") {
 		t.Fatalf("discovery-only plan must not mention a service stage: %v\n%s", err, out.String())
+	}
+}
+
+func TestHistoryImportsScopedIdentifiers(t *testing.T) {
+	dir := t.TempDir()
+	db, input := filepath.Join(dir, "inventory.db"), filepath.Join(dir, "ids.json")
+	data := `[{"address":"192.0.2.5","kind":"cloud.aws.instance_id","scope":"account-1/us-east-1","value":"i-123"},` +
+		`{"address":"192.0.2.6","kind":"cloud.aws.instance_id","scope":"account-1/us-east-1","value":"i-123"}]`
+	if err := os.WriteFile(input, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := run([]string{"history", "--db", db, "--import-identifiers", input, "--json"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), `"profile":"inventory-import"`) {
+		t.Fatalf("import result: %s", out.String())
+	}
+	out.Reset()
+	if err := run([]string{"history", "--db", db, "--identities", "--json"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if lines := strings.Split(strings.TrimSpace(out.String()), "\n"); len(lines) != 1 || !strings.Contains(lines[0], `"link_confidence":99`) {
+		t.Fatalf("correlated import: %s", out.String())
 	}
 }
 
@@ -178,5 +203,12 @@ func TestKnownOpenDryRunAndHistoryFilters(t *testing.T) {
 	}
 	if lines := strings.Split(strings.TrimSpace(out.String()), "\n"); len(lines) != 2 || strings.Contains(out.String(), `"filtered"`) || strings.Contains(out.String(), "198.51.100.1") {
 		t.Fatalf("history --assets --open --scope:\n%s", out.String())
+	}
+	out.Reset()
+	if err := run([]string{"history", "--db", db, "--identities", "--open", "--scope", "192.0.2.1-9", "--json"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if lines := strings.Split(strings.TrimSpace(out.String()), "\n"); len(lines) != 2 || !strings.Contains(out.String(), `"id":"NYXR-`) || strings.Contains(out.String(), "198.51.100.1") {
+		t.Fatalf("history --identities --open --scope:\n%s", out.String())
 	}
 }

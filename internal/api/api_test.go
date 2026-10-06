@@ -46,6 +46,66 @@ func newEnv(t *testing.T, mc ManagerConfig, token string) *env {
 	return &env{srv: srv, manager: m, store: store}
 }
 
+func TestIdentityGraphAPI(t *testing.T) {
+	e := newEnv(t, ManagerConfig{}, testToken)
+	now := time.Now().UTC()
+	if err := e.store.BeginScan(context.Background(), observe.Scan{ID: "identity", Profile: "test", Started: now, Status: "running"}); err != nil {
+		t.Fatal(err)
+	}
+	var obs []observe.Observation
+	for _, address := range []string{"192.0.2.5", "2001:db8::5"} {
+		target := netip.MustParseAddr(address)
+		probe := "arp-solicitation"
+		if target.Is6() {
+			probe = "ndp-solicitation"
+		}
+		o := observe.Observation{Kind: observe.KindHost, Target: target, Timestamp: now, Transport: "arp",
+			State: "responsive", Probe: probe, Confidence: 100, MAC: "02:01:02:03:04:05"}
+		o.Stamp("identity")
+		obs = append(obs, o)
+	}
+	if err := e.store.AddObservations(context.Background(), obs); err != nil {
+		t.Fatal(err)
+	}
+	res, body := e.do(t, "GET", "/api/v1/assets/identities", "")
+	var graph []storage.IdentityAsset
+	if res.StatusCode != http.StatusOK || json.Unmarshal(body, &graph) != nil || len(graph) != 1 || len(graph[0].Addresses) != 2 || len(graph[0].Signals) != 2 {
+		t.Fatalf("identity list: %d %s", res.StatusCode, body)
+	}
+	res, body = e.do(t, "GET", "/api/v1/assets/identities/"+graph[0].ID, "")
+	if res.StatusCode != http.StatusOK || !strings.Contains(string(body), graph[0].ID) {
+		t.Fatalf("identity detail: %d %s", res.StatusCode, body)
+	}
+	res, _ = e.do(t, "GET", "/api/v1/assets/identities/NYXR-MISSING", "")
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("missing identity: %d", res.StatusCode)
+	}
+	res, body = e.do(t, "GET", "/api/v1/assets/identity-events?address=2001:db8::5", "")
+	var events []storage.IdentityMembershipEvent
+	if res.StatusCode != http.StatusOK || json.Unmarshal(body, &events) != nil || len(events) != 2 ||
+		events[1].Cause != "signal_merge:mac" || events[1].ToIdentity != graph[0].ID {
+		t.Fatalf("identity events: %d %s", res.StatusCode, body)
+	}
+	res, _ = e.do(t, "GET", "/api/v1/assets/identity-events?address=invalid", "")
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("invalid event address: %d", res.StatusCode)
+	}
+	res, body = e.do(t, "POST", "/api/v1/assets/identity-reviews",
+		`{"address_a":"192.0.2.5","address_b":"2001:db8::5","decision":"separate","note":"different hosts"}`)
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("review decision: %d %s", res.StatusCode, body)
+	}
+	res, body = e.do(t, "GET", "/api/v1/assets/identities", "")
+	if json.Unmarshal(body, &graph) != nil || len(graph) != 2 {
+		t.Fatalf("reviewed graph: %d %s", res.StatusCode, body)
+	}
+	res, body = e.do(t, "GET", "/api/v1/assets/identity-reviews", "")
+	var reviews []storage.IdentityReview
+	if res.StatusCode != http.StatusOK || json.Unmarshal(body, &reviews) != nil || len(reviews) != 1 || reviews[0].Note != "different hosts" {
+		t.Fatalf("review log: %d %s", res.StatusCode, body)
+	}
+}
+
 func (e *env) do(t *testing.T, method, path, body string, headers ...string) (*http.Response, []byte) {
 	t.Helper()
 	req, err := http.NewRequest(method, e.srv.URL+path, strings.NewReader(body))

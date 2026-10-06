@@ -222,6 +222,12 @@ correlate
 
 # 3. Asset Identity Graph
 
+## Implementation status (October 2026)
+
+**Implemented:** Nyxr assigns persistent local IDs and database-namespaced global IDs. Validated MAC, SNMP engine ID, SMB GUID, signature-verified SSH host key, and scoped Kubernetes/cloud IDs can join addresses. Kubernetes node UIDs and addresses can be collected directly from the HTTPS API; scoped Kubernetes/cloud IDs can also be imported from inventory JSON. The graph shows current membership, source observations, conservative link confidence, competing weak-clue hypotheses, and device class/model/OS claims. Membership events preserve joins, splits, and removal from the migration baseline onward. The CLI, API, and web UI support manual join/separate/clear reviews with an audit log. SSDP supplies UPnP UUID clues; hostname and leaf certificate clues remain relationships, never automatic merge keys. Pcap/pcapng import supplies passive IP sightings and LLDP chassis/port, capture-interface, and VLAN topology observations; matched LLDP links appear on graph assets. See the [asset identity guide](guide/asset-identity.md) for commands and API paths.
+
+**Remaining:** Earlier ownership history cannot be reconstructed when an existing database receives its migration baseline. Namespaced global IDs distinguish database lineages, and scoped inventory signals yield matching portable IDs across databases, but other devices still need controller reconciliation. LLDP and passive evidence enter through capture import, not a live graph pipeline; LLDP without a management address has no asset link. Cloud IDs enter through scoped operator inventory import, not direct cloud API collection. Interface ownership, VLAN membership over time, and topology beyond imported LLDP sightings still need a full graph model. Model/OS synthesis covers validated Modbus/EtherNet/IP, SMB, Nmap, and device-class observations, not every device family. Confidence scores are heuristics rather than calibrated probabilities. Shared certificates, hostnames, MAC OUIs, HTTP headers, and software banners remain deliberately excluded from automatic merge keys.
+
 Nyxr should stop treating IP addresses as independent scan results.
 
 Instead of:

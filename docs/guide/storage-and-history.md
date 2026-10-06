@@ -24,6 +24,7 @@ nyxr is refused rather than modified.
 | --- | --- |
 | Scans | ID, profile, timing, status and counters |
 | Assets | Each address with first-seen and last-seen times |
+| Identity graph | Local and namespaced IDs, current membership, validated signals, weak clues, review decisions, and durable membership events |
 | Observations | Every record with its full JSON |
 | Evidence | Request and response bytes, in their own table |
 | Packet index | Links from flows to pcapng packet IDs |
@@ -37,6 +38,12 @@ database always stores closed and filtered results too.
 nyxr history                                       # scans, newest first
 nyxr history --scan <scan-id>                      # observations and packet evidence of one scan
 nyxr history --assets                              # latest state and service per port
+nyxr history --identities --json                   # correlated assets, addresses and source signals
+nyxr history --identity-events --address 192.0.2.10 # membership audit for one address
+nyxr history --topology --json                     # LLDP neighbors from imported captures
+nyxr history --import-pcap capture.pcapng --capture-interface en0
+nyxr history --import-identifiers inventory.json  # scoped Kubernetes/cloud IDs
+nyxr history --kube-api https://api.example:6443 --kube-token-file ./token --kube-cluster-scope cluster-a # Kubernetes nodes
 nyxr history --assets --open --scope 192.0.2.0/24  # current open ports in a subnet
 nyxr history --scan <scan-id> --address 192.0.2.10 # one host within a scan
 nyxr history --unknown --json                      # unrecognized responses, for signature work
@@ -46,9 +53,15 @@ nyxr history --unknown --json                      # unrecognized responses, for
 | --- | --- |
 | `--scan ID` | Show one scan |
 | `--assets` | Show the asset inventory |
+| `--identities` | Group addresses by strong device identity signals |
+| `--identity-events` | Show membership changes; optionally filter by `--address` |
+| `--topology` | Show imported LLDP neighbors and their current identity links |
+| `--import-pcap FILE` | Import passive IP and LLDP observations |
+| `--import-identifiers FILE` | Import scoped Kubernetes/cloud inventory IDs |
+| `--kube-api URL` | Collect Kubernetes node UIDs and IP addresses; requires `--kube-token-file` and `--kube-cluster-scope`, with optional `--kube-ca-file` |
 | `--open` | Only ports whose latest state is open |
-| `--scope LIST` | With `--assets`, restrict to IPs, CIDRs or ranges |
-| `--address IP` | With `--scan` or `--unknown`, restrict to one address |
+| `--scope LIST` | With `--assets`, restrict addresses; with `--identities`, select identities having a matching address |
+| `--address IP` | With `--scan`, `--unknown`, or `--identity-events`, restrict to one address |
 | `--unknown` | List unknown fingerprints |
 | `--limit N` | Maximum rows (default 50) |
 | `--json` | JSON output, including evidence |
@@ -64,5 +77,7 @@ nyxr history --keep 20                 # keep only the newest 20 scans
 ```
 
 Pruning deletes scans with their observations, evidence and packet index, then
-removes assets that no longer have any records. pcapng files on disk are left
+removes assets and identity graph nodes that no longer have any records. pcapng files on disk are left
 in place.
+
+See [Asset identity graph](asset-identity.md) for correlation rules and limits.

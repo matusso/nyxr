@@ -65,6 +65,35 @@ func TestBuiltinsAndTokens(t *testing.T) {
 	}
 }
 
+func TestSSDPExtractsValidatedDeviceUUID(t *testing.T) {
+	all, err := Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ssdp Probe
+	for _, p := range ForPort(all, 1900) {
+		if p.Matcher == "ssdp" {
+			ssdp = p
+			break
+		}
+	}
+	if ssdp.Name == "" {
+		t.Fatal("SSDP probe missing")
+	}
+	response := []byte("HTTP/1.1 200 OK\r\nUSN: uuid:00112233-4455-6677-8899-aabbccddeeff::upnp:rootdevice\r\nSERVER: test\r\n\r\n")
+	if !Match(ssdp, ssdp.Payload, response) {
+		t.Fatal("SSDP response rejected")
+	}
+	fields := Extract(ssdp, response)
+	if fields["ssdp.uuid"] != "00112233-4455-6677-8899-aabbccddeeff" {
+		t.Fatalf("UUID: %+v", fields)
+	}
+	bad := []byte("HTTP/1.1 200 OK\r\nUSN: uuid:not-a-uuid\r\n\r\n")
+	if got := Extract(ssdp, bad)["ssdp.uuid"]; got != "" {
+		t.Fatalf("accepted invalid UUID %q", got)
+	}
+}
+
 func TestSNMPv3DiscoveryAndEngineIdentity(t *testing.T) {
 	all, err := Builtins()
 	if err != nil {

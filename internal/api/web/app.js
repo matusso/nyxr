@@ -597,6 +597,60 @@ async function assetsPage() {
     h("div", { class: "asset-search" }, search, suggestions, count), results];
 }
 
+async function identitiesPage() {
+  const [graph, relations, reviews, events, topology] = await Promise.all([
+    api("/assets/identities"), api("/assets/identity-relations"),
+    api("/assets/identity-reviews"), api("/assets/identity-events"), api("/assets/topology")]);
+  const rows = graph.map(asset => h("tr", {},
+    h("td", {}, h("strong", {}, asset.id), h("small", {}, asset.global_id)),
+    h("td", {}, asset.addresses.map(a => a.address).join(", ")),
+    h("td", {}, [asset.profile.class, asset.profile.model, asset.profile.os].filter(Boolean).join(" · ") || "-"),
+	  h("td", {}, [...new Set(asset.clues.filter(c => c.kind === "capture_interface" || c.kind === "vlan_id")
+      .map(c => `${c.kind}: ${c.value}`))].join(" · ") || "-"),
+	  h("td", {}, asset.signals.some(s => s.active) ? [...new Set(asset.signals.filter(s => s.active).map(s => `${s.kind}: ${s.value}`))].join(" · ") : "No strong signal yet"),
+    h("td", {}, asset.link_confidence ? `${asset.link_confidence}%` : "No link"),
+    h("td", {}, (asset.hypotheses || []).map(x => `${x.other_id}: ${x.blocked ? "blocked" : x.confidence + "%"}`).join(" · ") || "-"),
+    h("td", {}, fmtTime(asset.last_seen))));
+  const addresses = [...new Set(graph.flatMap(asset => asset.addresses.map(a => a.address)))].sort();
+  const addressSelect = () => h("select", {}, addresses.map(a => h("option", { value: a }, a)));
+  const a = addressSelect(), b = addressSelect();
+  const decision = h("select", {}, ["join", "separate", "clear"].map(v => h("option", { value: v }, v)));
+  const note = h("input", { type: "text", maxlength: "500", placeholder: "Reason for this review", required: true });
+  const message = h("span", { class: "muted" });
+  const form = h("form", { class: "grid", onsubmit: async ev => {
+    ev.preventDefault();
+    message.textContent = "Saving…";
+    try {
+      await api("/assets/identity-reviews", { body: { address_a: a.value, address_b: b.value,
+        decision: decision.value, note: note.value } });
+      await route();
+    } catch (error) { message.textContent = error.message; }
+  } }, h("label", {}, "First address"), a, h("label", {}, "Second address"), b,
+  h("label", {}, "Decision"), decision, h("label", {}, "Reason"), note,
+  h("div", { class: "actions" }, h("button", { type: "submit", disabled: addresses.length < 2 }, "Record review"), message));
+  return [h("h1", {}, `Asset identities (${graph.length})`),
+    h("p", { class: "muted" }, "Addresses join only when a device-scoped signal matches. Open the scan history to inspect the source observations."),
+    rows.length ? table(["asset ID", "addresses", "device profile", "observed network", "identity evidence", "link confidence", "competing candidates", "last seen"], rows)
+      : h("p", { class: "muted" }, "No assets recorded yet."),
+    h("h2", {}, "Review membership"), form,
+    h("p", { class: "muted" }, "A manual join keeps the addresses together; a separation blocks automatic rejoining. Clear removes the decision."),
+    h("h2", {}, "Shared clues"), relations.length ? table(["identity", "related identity", "clue", "value"],
+      relations.map(r => h("tr", {}, h("td", {}, r.left_id), h("td", {}, r.right_id), h("td", {}, r.kind), h("td", {}, r.value))))
+      : h("p", { class: "muted" }, "No shared identity clues."),
+    h("h2", {}, "LLDP neighbors"), topology.length ? table(["capture interface", "VLAN", "chassis", "port", "management address", "identity"],
+      topology.slice(0, 100).map(link => h("tr", {}, h("td", {}, link.local_interface || "-"), h("td", {}, link.vlan_id || "-"),
+        h("td", {}, link.chassis_id), h("td", {}, link.port_id), h("td", {}, link.management_address || "-"),
+        h("td", {}, link.identity_id || "-")))) : h("p", { class: "muted" }, "No LLDP neighbors imported."),
+    h("h2", {}, "Membership changes"), events.length ? table(["address", "from", "to", "cause", "time"],
+      events.slice(-50).reverse().map(e => h("tr", {}, h("td", {}, e.address), h("td", {}, e.from_identity || "-"),
+        h("td", {}, e.to_identity || "-"), h("td", {}, e.cause), h("td", {}, fmtTime(e.recorded_at)))))
+      : h("p", { class: "muted" }, "No membership changes yet."),
+    h("h2", {}, "Review log"), reviews.length ? table(["addresses", "decision", "reason", "time"],
+      reviews.slice(-50).reverse().map(r => h("tr", {}, h("td", {}, `${r.address_a} ↔ ${r.address_b}`),
+        h("td", {}, r.decision), h("td", {}, r.note), h("td", {}, fmtTime(r.decided_at)))))
+      : h("p", { class: "muted" }, "No manual reviews yet.")];
+}
+
 async function servicesPage() {
   const obs = await api("/observations?kind=service&limit=2000");
   return [h("h1", {}, `Services (${obs.length} observations)`), table(obsHeaders, obs.map(o => obsRow(o, false)))];
@@ -752,7 +806,7 @@ async function route() {
   const hash = location.hash.replace(/^#/, "") || "/";
   document.querySelectorAll("nav a").forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + hash));
   const section = hash.startsWith("/scans/") ? "Scans" : hash.startsWith("/new") ? "New scan" :
-    ({ "/": "Overview", "/scans": "Scans", "/assets": "Assets", "/services": "Services",
+	({ "/": "Overview", "/scans": "Scans", "/assets": "Assets", "/identities": "Identities", "/services": "Services",
       "/packets": "Packets", "/profiles": "Profiles" })[hash] || "Workspace";
   document.getElementById("current-page").textContent = section;
   if (hash.startsWith("/scans/")) document.querySelector('nav a[href="#/scans"]').classList.add("active");
@@ -765,6 +819,7 @@ async function route() {
   else if (hash.startsWith("/new/known-open/")) page = newScan(decodeURIComponent(hash.slice(16)));
   else if (hash.startsWith("/scans/")) page = scanPage(decodeURIComponent(hash.slice(7)));
   else if (hash === "/assets") page = assetsPage();
+	else if (hash === "/identities") page = identitiesPage();
   else if (hash === "/services") page = servicesPage();
   else if (hash === "/profiles") page = profilesPage();
   else if (hash === "/packets") page = packetsPage();
