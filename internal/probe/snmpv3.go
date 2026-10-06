@@ -21,6 +21,17 @@ var snmpV3DiscoveryTemplate = []byte{
 	0x02, 0x01, 0x00, 0x30, 0x00,
 }
 
+// snmpV3ID keeps a two-byte INTEGER positive and minimally encoded: values
+// below 0x80 would need a redundant leading zero, which strict BER decoders
+// (including encoding/asn1) reject.
+func snmpV3ID(v uint16) uint16 {
+	v &= 0x7fff
+	if v < 0x80 {
+		v |= 0x80
+	}
+	return v
+}
+
 type snmpV3Report struct {
 	engineID []byte
 	boots    int

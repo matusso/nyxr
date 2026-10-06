@@ -245,7 +245,7 @@ func (e *Engine) matchBanner(o *observe.Observation, banner []byte) string {
 		return ProbeDatabase
 	case e.enabled[ProbeSSH] && matchSSH(o, banner):
 		return ProbeSSH
-	case e.enabled[ProbeBanner] && (matchMailBanner(o, banner) || matchRsyncBanner(o, banner) || matchFTPBanner(o, banner) || matchCephBanner(o, banner)):
+	case e.enabled[ProbeBanner] && (matchMailBanner(o, banner) || matchRsyncBanner(o, banner) || matchFTPBanner(o, banner) || matchTelnetBanner(o, banner) || matchCephBanner(o, banner)):
 		return ProbeBanner
 	case e.nmapBanner(o, banner):
 		return ProbeNmap

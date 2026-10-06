@@ -45,8 +45,10 @@ from the current evidence:
    SMTP greetings containing `SMTP` or `ESMTP`, POP3 greetings identifying
    Dovecot or POP3, IMAP greetings with `IMAP4rev1` or `IMAP4rev2` capabilities,
    complete ManageSieve capability greetings, FTP greetings with an explicit
-   `FTP` token, and rsync daemon greetings beginning `@RSYNCD:` are also
-   recognized. A bare `220` or `+OK` stays unknown because other protocols
+   `FTP` token, rsync daemon greetings beginning `@RSYNCD:`, and Telnet
+   greetings that open with well-formed RFC 854 option negotiation are also
+   recognized. Telnet results list the negotiated options (for example
+   `DO NAWS`) and any login prompt that followed them. A bare `220` or `+OK` stays unknown because other protocols
    use those codes. Unrecognized banners remain in the final evidence.
 2. **Port hints** raise the initial probability of familiar protocols and
    make their probes eligible. They do not assert an identity:
