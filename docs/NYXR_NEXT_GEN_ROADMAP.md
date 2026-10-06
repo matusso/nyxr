@@ -222,6 +222,12 @@ correlate
 
 # 3. Asset Identity Graph
 
+## Implementation status (October 2026)
+
+**Implemented foundation:** Nyxr now assigns a persistent, database-local `NYXR-…` ID to each observed address and joins addresses into one identity when a validated, device-scoped MAC address, SNMPv3 engine ID, or SMB server GUID matches. The SQLite graph stores the observation, scan, address, timestamp, and signal used for each link. A changed SNMP engine ID or SMB GUID retires prior merge evidence for that address and gives it a new identity; a changed MAC does the same when no stronger device ID is known. Existing databases are migrated and their stored observations are backfilled. The graph is available through `nyxr history --identities`, `/api/v1/assets/identities`, and the web UI's **Identities** view. Per-address port history remains available separately.
+
+**Still to implement:** Identity confidence and competing hypotheses; historical address membership and full split/merge audit; a manual review and override workflow; interface, VLAN, and topology relationships; cross-database or controller-wide IDs; collection and correlation of SSH host keys, LLDP chassis IDs, UPnP UUIDs, Kubernetes and cloud identifiers; safe hostname and certificate relationships; device model/OS synthesis on the graph; and passive observations. Shared certificates, hostnames, MAC OUIs, HTTP headers, and software banners are deliberately not automatic merge keys. Current IDs are local to one database, and the graph represents current membership while retaining signal observations, not a complete time-versioned ownership history.
+
 Nyxr should stop treating IP addresses as independent scan results.
 
 Instead of:

@@ -29,6 +29,8 @@ that prove it.
   `nyxr-packetd` process.
 - **Everything is kept.** Every scan goes into a local SQLite inventory you
   can query and rescan, with optional pcapng evidence.
+- **Correlated assets.** Validated MAC, SNMP engine ID and SMB GUID observations
+  link addresses under a persistent local asset ID, with the source evidence kept.
 
 ## Install
 
@@ -76,6 +78,7 @@ nyxr scan --profile deep-scan 192.0.2.10            # every TCP port plus common
 nyxr scan --dry-run --profile tcp-full 10.0.0.0/24  # show the plan, send nothing
 
 nyxr history --assets --open                        # what is open right now, per host
+nyxr history --identities                           # correlated addresses and asset IDs
 nyxr serve                                          # web UI at http://127.0.0.1:8484
 ```
 

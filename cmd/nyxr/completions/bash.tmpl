@@ -110,7 +110,7 @@ _nyxr() {
                 --scan|-scan|--address|-address|--limit|-limit|--prune-older-than|-prune-older-than|--keep|-keep)
                     return 0 ;;
             esac
-            COMPREPLY=($(compgen -W "--db --scan --assets --open --scope --unknown --address --limit --prune-older-than --keep --json --help" -- "$cur"))
+			COMPREPLY=($(compgen -W "--db --scan --assets --identities --open --scope --unknown --address --limit --prune-older-than --keep --json --help" -- "$cur"))
             ;;
         serve)
             case "$prev" in

@@ -79,6 +79,8 @@ func Handler(cfg ServerConfig) http.Handler {
 	api.HandleFunc("GET /api/v1/scans/{id}/events", s.scanEvents)
 	api.HandleFunc("GET /api/v1/scans/{id}/pcapng", s.scanPCAPNG)
 	api.HandleFunc("GET /api/v1/assets", s.assets)
+	api.HandleFunc("GET /api/v1/assets/identities", s.identities)
+	api.HandleFunc("GET /api/v1/assets/identities/{id}", s.identity)
 	api.HandleFunc("GET /api/v1/observations", s.observations)
 	api.HandleFunc("GET /api/v1/packets/watch", s.watchPackets)
 	api.HandleFunc("POST /api/v1/packets/send", s.sendPacket)
@@ -433,6 +435,31 @@ func (s *server) assets(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// identities exposes the correlated asset graph with its source observations.
+func (s *server) identities(w http.ResponseWriter, r *http.Request) {
+	graph, err := s.cfg.Store.IdentityGraph(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, graph)
+}
+
+func (s *server) identity(w http.ResponseWriter, r *http.Request) {
+	graph, err := s.cfg.Store.IdentityGraph(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for _, asset := range graph {
+		if asset.ID == r.PathValue("id") {
+			writeJSON(w, http.StatusOK, asset)
+			return
+		}
+	}
+	writeError(w, http.StatusNotFound, "asset identity not found")
 }
 
 // scanEvents streams Server-Sent Events: buffered history first, then live

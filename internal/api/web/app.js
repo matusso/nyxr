@@ -597,6 +597,19 @@ async function assetsPage() {
     h("div", { class: "asset-search" }, search, suggestions, count), results];
 }
 
+async function identitiesPage() {
+  const graph = await api("/assets/identities");
+  const rows = graph.map(asset => h("tr", {},
+    h("td", {}, h("strong", {}, asset.id)),
+    h("td", {}, asset.addresses.map(a => a.address).join(", ")),
+	  h("td", {}, asset.signals.some(s => s.active) ? [...new Set(asset.signals.filter(s => s.active).map(s => `${s.kind}: ${s.value}`))].join(" · ") : "No strong signal yet"),
+    h("td", {}, fmtTime(asset.last_seen))));
+  return [h("h1", {}, `Asset identities (${graph.length})`),
+    h("p", { class: "muted" }, "Addresses join only when a device-scoped signal matches. Open the scan history to inspect the source observations."),
+    rows.length ? table(["asset ID", "addresses", "identity evidence", "last seen"], rows)
+      : h("p", { class: "muted" }, "No assets recorded yet.")];
+}
+
 async function servicesPage() {
   const obs = await api("/observations?kind=service&limit=2000");
   return [h("h1", {}, `Services (${obs.length} observations)`), table(obsHeaders, obs.map(o => obsRow(o, false)))];
@@ -752,7 +765,7 @@ async function route() {
   const hash = location.hash.replace(/^#/, "") || "/";
   document.querySelectorAll("nav a").forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + hash));
   const section = hash.startsWith("/scans/") ? "Scans" : hash.startsWith("/new") ? "New scan" :
-    ({ "/": "Overview", "/scans": "Scans", "/assets": "Assets", "/services": "Services",
+	({ "/": "Overview", "/scans": "Scans", "/assets": "Assets", "/identities": "Identities", "/services": "Services",
       "/packets": "Packets", "/profiles": "Profiles" })[hash] || "Workspace";
   document.getElementById("current-page").textContent = section;
   if (hash.startsWith("/scans/")) document.querySelector('nav a[href="#/scans"]').classList.add("active");
@@ -765,6 +778,7 @@ async function route() {
   else if (hash.startsWith("/new/known-open/")) page = newScan(decodeURIComponent(hash.slice(16)));
   else if (hash.startsWith("/scans/")) page = scanPage(decodeURIComponent(hash.slice(7)));
   else if (hash === "/assets") page = assetsPage();
+	else if (hash === "/identities") page = identitiesPage();
   else if (hash === "/services") page = servicesPage();
   else if (hash === "/profiles") page = profilesPage();
   else if (hash === "/packets") page = packetsPage();

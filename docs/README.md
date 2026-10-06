@@ -20,6 +20,7 @@ New to nyxr? Start with **[Getting started](getting-started.md)**.
 | [Research packets](guide/research-packets.md) | Crafted TCP flags, SCTP, raw IP protocols, fragmentation |
 | [Packet capture and analysis](guide/packet-capture.md) | pcapng evidence, `decode`, the terminal packet browser, `sniff` |
 | [Storage and history](guide/storage-and-history.md) | The SQLite database, `nyxr history`, retention |
+| [Asset identity graph](guide/asset-identity.md) | Persistent IDs, address correlation, source signals and limits |
 | [Web UI and REST API](guide/web-ui-and-api.md) | `nyxr serve`, UI tour, API endpoints, live events, security model |
 | [Deployment](guide/deployment.md) | `nyxr-packetd` privilege separation, exposing the server, containers |
 

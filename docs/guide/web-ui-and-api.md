@@ -50,6 +50,10 @@ CIDR, range, port or service, with autocomplete. *Scan open ports* starts a
 
 ![Asset inventory](../images/assets.png)
 
+**Identities.** Groups addresses under persistent database-local asset IDs
+when validated MAC, SNMP engine ID or SMB server GUID values match. The view
+shows current identity evidence. See [Asset identity graph](asset-identity.md).
+
 **Services** lists identified services across scans, **profiles** shows the
 catalog, and **packets** watches live traffic (below).
 
@@ -89,6 +93,8 @@ All paths are under `/api/v1`.
 | `GET /scans/{id}/events` | Server-Sent Events: `observation`, `packet-evidence`, `scan` |
 | `GET /scans/{id}/pcapng` | The scan's capture file, for captures in `--evidence-dir` only |
 | `GET /assets` | Asset inventory. Accepts `open=true` and an IP, CIDR or range `scope` |
+| `GET /assets/identities` | Correlated asset IDs, member addresses, per-address ports and source signals |
+| `GET /assets/identities/{id}` | One correlated asset, or 404 |
 | `GET /observations` | Observations across scans |
 | `GET /packets/watch?interface=eth0` | Live Ethernet frames as Server-Sent Events; requires `--packetd` |
 | `POST /packets/send` | Submit one hex-encoded Ethernet frame; requires `--packetd --allow-packet-send` |

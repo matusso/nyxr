@@ -114,6 +114,28 @@ var migrations = []string{
 		summary     TEXT NOT NULL,
 		PRIMARY KEY (flow_id, packet_id)
 	);`,
+	`CREATE TABLE identity_assets (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		first_seen TEXT NOT NULL
+	);
+	CREATE TABLE identity_members (
+		asset_id INTEGER PRIMARY KEY REFERENCES assets(id) ON DELETE CASCADE,
+		identity_id INTEGER NOT NULL REFERENCES identity_assets(id)
+	);
+	CREATE INDEX identity_members_identity ON identity_members(identity_id);
+	CREATE TABLE identity_signals (
+		observation_id INTEGER NOT NULL REFERENCES observations(id) ON DELETE CASCADE,
+		asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+		kind TEXT NOT NULL,
+		value TEXT NOT NULL,
+		observed_at TEXT NOT NULL,
+		active INTEGER NOT NULL DEFAULT 1,
+		PRIMARY KEY(observation_id, kind, value)
+	);
+	CREATE INDEX identity_signals_lookup ON identity_signals(kind, value);
+	CREATE INDEX identity_signals_asset ON identity_signals(asset_id);
+	INSERT INTO identity_assets(id, first_seen) SELECT id, first_seen FROM assets;
+	INSERT INTO identity_members(asset_id, identity_id) SELECT id, id FROM assets;`,
 }
 
 // Store is safe for concurrent use.
@@ -168,6 +190,12 @@ func (s *Store) migrate(ctx context.Context) error {
 		if _, err := tx.ExecContext(ctx, migrations[v-1]); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("migration %d: %w", v, err)
+		}
+		if v == 2 {
+			if err := backfillIdentity(ctx, tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("migration %d identity backfill: %w", v, err)
+			}
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)`, v, ts(time.Now())); err != nil {
 			_ = tx.Rollback()
@@ -254,6 +282,9 @@ func (s *Store) AddObservations(ctx context.Context, batch []observe.Observation
 		if err != nil {
 			return err
 		}
+		if err := resolveIdentity(ctx, tx, id, assetID, o); err != nil {
+			return err
+		}
 		for i, ev := range o.Evidence {
 			if _, err := evStmt.ExecContext(ctx, id, i, ev.Probe, ev.Layer, ts(ev.Started), int64(ev.Duration), ev.Request, ev.Response,
 				ev.Truncated, ev.Matched, ev.Error); err != nil {
@@ -271,6 +302,23 @@ func upsertAsset(ctx context.Context, tx *sql.Tx, addr netip.Addr, seen time.Tim
 			first_seen = min(first_seen, excluded.first_seen),
 			last_seen = max(last_seen, excluded.last_seen)
 		RETURNING id`, addr.String(), ts(seen), ts(seen)).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	var identityID int64
+	err = tx.QueryRowContext(ctx, `SELECT identity_id FROM identity_members WHERE asset_id = ?`, id).Scan(&identityID)
+	if errors.Is(err, sql.ErrNoRows) {
+		var res sql.Result
+		res, err = tx.ExecContext(ctx, `INSERT INTO identity_assets(first_seen) VALUES (?)`, ts(seen))
+		if err != nil {
+			return 0, err
+		}
+		identityID, err = res.LastInsertId()
+		if err != nil {
+			return 0, err
+		}
+		_, err = tx.ExecContext(ctx, `INSERT INTO identity_members(asset_id, identity_id) VALUES (?, ?)`, id, identityID)
+	}
 	return id, err
 }
 
@@ -538,10 +586,11 @@ type PortSummary struct {
 
 // Asset is the durable view of one address across scans.
 type Asset struct {
-	Address   netip.Addr    `json:"address"`
-	FirstSeen time.Time     `json:"first_seen"`
-	LastSeen  time.Time     `json:"last_seen"`
-	Ports     []PortSummary `json:"ports,omitempty"`
+	IdentityID string        `json:"identity_id"`
+	Address    netip.Addr    `json:"address"`
+	FirstSeen  time.Time     `json:"first_seen"`
+	LastSeen   time.Time     `json:"last_seen"`
+	Ports      []PortSummary `json:"ports,omitempty"`
 }
 
 // Assets returns every address with the latest discovery state of each port,
@@ -552,9 +601,9 @@ func (s *Store) Assets(ctx context.Context) ([]Asset, error) {
 			SELECT o.*, ROW_NUMBER() OVER (PARTITION BY o.asset_id, o.transport, o.port, o.kind ORDER BY o.observed_at DESC, o.id DESC) AS rn
 			FROM observations o WHERE o.kind IN ('port', 'service')
 		)
-		SELECT a.address, a.first_seen, a.last_seen, p.transport, p.port, p.state, p.scan_id, p.observed_at,
+		SELECT m.identity_id, a.address, a.first_seen, a.last_seen, p.transport, p.port, p.state, p.scan_id, p.observed_at,
 			COALESCE(s.service, ''), COALESCE(s.product, ''), COALESCE(s.version, '')
-		FROM assets a
+		FROM assets a JOIN identity_members m ON m.asset_id = a.id
 		LEFT JOIN ranked p ON p.asset_id = a.id AND p.kind = 'port' AND p.rn = 1
 		LEFT JOIN ranked s ON s.asset_id = a.id AND s.kind = 'service' AND s.rn = 1 AND s.transport = p.transport AND s.port = p.port
 			AND s.observed_at >= p.observed_at
@@ -565,16 +614,17 @@ func (s *Store) Assets(ctx context.Context) ([]Asset, error) {
 	defer rows.Close()
 	var out []Asset
 	for rows.Next() {
+		var identityID int64
 		var address, first, last string
 		var transport, state, scanID, observed sql.NullString
 		var port sql.NullInt64
 		var ps PortSummary
-		if err := rows.Scan(&address, &first, &last, &transport, &port, &state, &scanID, &observed, &ps.Service, &ps.Product, &ps.Version); err != nil {
+		if err := rows.Scan(&identityID, &address, &first, &last, &transport, &port, &state, &scanID, &observed, &ps.Service, &ps.Product, &ps.Version); err != nil {
 			return nil, err
 		}
 		addr, _ := netip.ParseAddr(address)
 		if len(out) == 0 || out[len(out)-1].Address != addr {
-			out = append(out, Asset{Address: addr, FirstSeen: parseTS(first), LastSeen: parseTS(last)})
+			out = append(out, Asset{IdentityID: identityName(identityID), Address: addr, FirstSeen: parseTS(first), LastSeen: parseTS(last)})
 		}
 		if transport.Valid {
 			ps.Transport, ps.Port, ps.State, ps.ScanID, ps.ObservedAt = transport.String, uint16(port.Int64), state.String, scanID.String, parseTS(observed.String)
@@ -623,6 +673,12 @@ func (s *Store) Prune(ctx context.Context, r Retention, now time.Time) (int, err
 		deleted += int(n)
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM assets WHERE id NOT IN (SELECT asset_id FROM observations) AND id NOT IN (SELECT asset_id FROM packet_flows)`); err != nil {
+		return 0, err
+	}
+	if err := splitPrunedIdentities(ctx, tx); err != nil {
+		return 0, err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM identity_assets WHERE id NOT IN (SELECT identity_id FROM identity_members)`); err != nil {
 		return 0, err
 	}
 	return deleted, tx.Commit()

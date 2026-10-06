@@ -190,8 +190,9 @@ Flags:
   --db file            SQLite database written by nyxr scan (default ~/.nyxr/nyxr.db)
   --scan id            print the observations and packet evidence of one scan
   --assets             print every address with the latest state of each port
-  --open               with --assets, keep only open ports (and hosts that have one)
-  --scope list         with --assets, keep addresses in these IPs, CIDRs or ranges
+  --identities         group addresses by strong device identity signals
+  --open               with --assets or --identities, keep identities with open ports
+  --scope list         with --assets or --identities, select matching addresses
   --unknown            print service observations with an unknown fingerprint
   --address ip         restrict --scan or --unknown to one address
   --limit int          maximum scans or observations (default 50)
@@ -208,6 +209,7 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 	dbFlag := dbFlags{path: fs.String("db", "", "SQLite database")}
 	scanFlag := fs.String("scan", "", "scan ID")
 	assetsFlag := fs.Bool("assets", false, "list assets")
+	identitiesFlag := fs.Bool("identities", false, "list correlated asset identities")
 	openFlag := fs.Bool("open", false, "only open ports")
 	scopeFlag := fs.String("scope", "", "IPs, CIDRs or ranges")
 	unknownFlag := fs.Bool("unknown", false, "list unknown fingerprints")
@@ -255,6 +257,40 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 		}
 		_, err = fmt.Fprintf(out, "deleted %s scans\n", style.Bold(fmt.Sprintf("%d", n)))
 		return err
+	case *identitiesFlag:
+		scope, err := config.ParseScope([]string{*scopeFlag})
+		if err != nil {
+			return err
+		}
+		graph, err := store.IdentityGraph(ctx)
+		if err != nil {
+			return err
+		}
+		rows := [][]string{header(style, "ASSET ID", "ADDRESSES", "SIGNALS", "LAST SEEN")}
+		for _, asset := range graph {
+			var addresses []string
+			for _, a := range asset.Addresses {
+				if !scope.Contains(a.Address) || (*openFlag && len(storage.OpenOnly([]storage.Asset{a})) == 0) {
+					continue
+				}
+				addresses = append(addresses, a.Address.String())
+			}
+			if len(addresses) == 0 {
+				continue
+			}
+			if *jsonFlag {
+				if err := enc.Encode(asset); err != nil {
+					return err
+				}
+				continue
+			}
+			rows = append(rows, []string{style.Bold(asset.ID), strings.Join(addresses, ", "),
+				fmt.Sprint(len(asset.Signals)), style.Dim(asset.LastSeen.Format(time.RFC3339))})
+		}
+		if *jsonFlag {
+			return nil
+		}
+		return style.Table(out, rows)
 	case *assetsFlag:
 		scope, err := config.ParseScope([]string{*scopeFlag})
 		if err != nil {

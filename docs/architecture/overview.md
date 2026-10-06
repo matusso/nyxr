@@ -73,7 +73,7 @@ raw privileges itself.
 | `internal/capture` | Asynchronous pcapng evidence writer and pcapng reader |
 | `internal/dissect` | Field-by-field packet breakdown with explanations |
 | `internal/tui` | Interactive terminal packet browser |
-| `internal/storage` | SQLite store: migrations, assets, observations, evidence, packet index, retention |
+| `internal/storage` | SQLite store: migrations, address inventory, identity graph, observations, evidence, packet index, retention |
 | `internal/api` | REST API, SSE event fan-out, embedded web UI |
 | `internal/netmon` | OS interface counters for on-the-wire statistics |
 | `internal/ui` | Terminal rendering: color, progress bar, summaries |

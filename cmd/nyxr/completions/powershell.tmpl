@@ -80,7 +80,7 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
         'history' {
             # Returning nothing lets PowerShell fall back to path completion.
             if ($prev -match '^--?(db|scan|address|limit|prune-older-than|keep)$') { return }
-            & $emit @('--db', '--scan', '--assets', '--open', '--scope', '--unknown', '--address', '--limit', '--prune-older-than', '--keep', '--json', '--help') 'ParameterName'
+			& $emit @('--db', '--scan', '--assets', '--identities', '--open', '--scope', '--unknown', '--address', '--limit', '--prune-older-than', '--keep', '--json', '--help') 'ParameterName'
         }
         'serve' {
             # Returning nothing lets PowerShell fall back to path completion.

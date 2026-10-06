@@ -179,4 +179,11 @@ func TestKnownOpenDryRunAndHistoryFilters(t *testing.T) {
 	if lines := strings.Split(strings.TrimSpace(out.String()), "\n"); len(lines) != 2 || strings.Contains(out.String(), `"filtered"`) || strings.Contains(out.String(), "198.51.100.1") {
 		t.Fatalf("history --assets --open --scope:\n%s", out.String())
 	}
+	out.Reset()
+	if err := run([]string{"history", "--db", db, "--identities", "--open", "--scope", "192.0.2.1-9", "--json"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if lines := strings.Split(strings.TrimSpace(out.String()), "\n"); len(lines) != 2 || !strings.Contains(out.String(), `"id":"NYXR-`) || strings.Contains(out.String(), "198.51.100.1") {
+		t.Fatalf("history --identities --open --scope:\n%s", out.String())
+	}
 }

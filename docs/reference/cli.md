@@ -151,8 +151,9 @@ Query and maintain the scan database.
 | `--db FILE` | SQLite database |
 | `--scan ID` | Observations and packet evidence of one scan |
 | `--assets` | Asset inventory: latest state and service per port |
+| `--identities` | Correlated asset IDs, addresses and identity evidence |
 | `--open` | Only open ports |
-| `--scope LIST` | IPs, CIDRs or ranges (with `--assets`) |
+| `--scope LIST` | Restrict addresses with `--assets`, or select identities by address with `--identities` |
 | `--unknown` | Unknown fingerprints |
 | `--address IP` | Restrict to one address (with `--scan` or `--unknown`) |
 | `--limit N` | Maximum rows (default 50) |
