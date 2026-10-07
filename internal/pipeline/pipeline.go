@@ -81,6 +81,7 @@ func FromResolved(r config.Resolved) Options {
 // Run executes the scan and returns its summary. The summary is also passed
 // to every sink's Finish, including when the scan fails.
 func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan, error) {
+	cfg.StackFingerprint = opts.Fingerprint && cfg.TCPMode == "syn"
 	if err := cfg.Validate(); err != nil {
 		return observe.Scan{}, err
 	}
@@ -232,7 +233,7 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 					}
 				}
 			}
-			if eligible {
+			if eligible && ctx.Err() == nil {
 				t := service.Target{Addr: o.Target, Port: o.Port, Transport: o.Transport, State: o.State}
 				if cfg.Profile == "ot-safe" {
 					otOpen = append(otOpen, t)
@@ -415,5 +416,6 @@ func fromScan(s scan.Observation) observe.Observation {
 		Timestamp: s.Timestamp, Target: s.Target, Transport: s.Transport, Port: s.Port, State: s.State,
 		Confidence: s.Confidence, Reason: s.Reason, Probe: s.Probe, Service: s.Service, MAC: s.MAC, RTT: s.RTT,
 		PacketsTX: s.PacketsTX, PacketsRX: s.PacketsRX, ProbesAttempted: s.ProbesAttempted, ResponseHex: s.ResponseHex, Fields: s.Fields,
+		TCPStack: s.TCPStack,
 	}
 }

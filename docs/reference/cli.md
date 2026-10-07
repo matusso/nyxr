@@ -102,7 +102,7 @@ Guide: [Research packets](../guide/research-packets.md).
 | `--protocol-definitions FILES` | Load comma-separated local `nyxr/protocol/v1` YAML definitions for TCP or UDP service identification |
 | `--nse-scripts LIST` | Run selected installed NSE scripts in Nmap's `safe` category on open ports |
 | `--nse-timeout DURATION` | Maximum Nmap time per host (default `30s`) |
-| `--fingerprint` | Classify devices from independent observations |
+| `--fingerprint` | Classify devices; collect native TCP/IP stack evidence in raw SYN mode |
 | `--pcapng FILE` | Capture scan traffic on `--interface` as pcapng evidence |
 | `--pcapng-max-mb N` | pcapng size budget (default 1024) |
 | `--no-last-pcapng` | Do not keep this scan's traffic in `~/.nyxr/last.pcapng` (see `decode --last`) |

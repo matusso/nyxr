@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/netip"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,10 +14,12 @@ import (
 )
 
 type state struct {
-	signals  []observe.DeviceSignal
-	seen     map[string]bool
-	verified map[string]bool
-	ports    map[uint16]bool
+	signals       []observe.DeviceSignal
+	seen          map[string]bool
+	verified      map[string]bool
+	ports         map[uint16]bool
+	stackOS       map[string]int
+	applicationOS map[string]bool
 }
 
 type Collector struct{ devices map[netip.Addr]*state }
@@ -29,11 +32,17 @@ func (c *Collector) Add(o observe.Observation) {
 	}
 	s := c.devices[o.Target]
 	if s == nil {
-		s = &state{seen: map[string]bool{}, verified: map[string]bool{}, ports: map[uint16]bool{}}
+		s = &state{seen: map[string]bool{}, verified: map[string]bool{}, ports: map[uint16]bool{}, stackOS: map[string]int{}, applicationOS: map[string]bool{}}
 		c.devices[o.Target] = s
 	}
 	if o.Kind == observe.KindPort && o.State == "open" && o.Transport == "tcp" {
 		s.ports[o.Port] = true
+	}
+	if o.Kind == observe.KindPort && o.TCPStack != nil && o.TCPStack.Status == observe.FingerprintMatched {
+		for _, candidate := range o.TCPStack.Candidates {
+			s.stackOS[candidate.Family] = max(s.stackOS[candidate.Family], candidate.Confidence)
+			c.add(s, "tcp-stack:"+candidate.Family, o, fmt.Sprintf("%s-like TCP stack (%d%%): %s", candidate.Family, candidate.Confidence, o.TCPStack.Signature))
+		}
 	}
 	if o.MAC != "" {
 		parts := strings.Split(strings.ToUpper(o.MAC), ":")
@@ -48,6 +57,12 @@ func (c *Collector) Add(o observe.Observation) {
 		}
 		c.add(s, "service:"+family, o, o.Reason)
 		s.verified[family] = true
+		if o.Service == "smb" && o.Attributes["smb.os_version"] != "" {
+			s.applicationOS["Windows"] = true
+		}
+		if os := o.Attributes["nmap.os"]; o.Probe == "nmap" && os != "" {
+			s.applicationOS[os] = true
+		}
 		if o.Service == "https" && o.TLS != nil && len(o.TLS.Certificates) > 0 {
 			c.add(s, "tls:certificate", o, "presented certificate "+o.TLS.Certificates[0].SHA256)
 		}
@@ -105,10 +120,40 @@ func (c *Collector) Results() []observe.Observation {
 			confidence = 90
 		}
 		attrs := map[string]string{"device.class": class}
+		if len(s.stackOS) == 1 {
+			for family, score := range s.stackOS {
+				conflict := false
+				for appOS := range s.applicationOS {
+					if !compatibleOS(appOS, family) {
+						conflict = true
+					}
+				}
+				if conflict {
+					attrs["device.os_conflict"] = "TCP stack and application OS evidence disagree"
+				} else {
+					attrs["device.os_family"], attrs["device.os_confidence"] = family, strconv.Itoa(score)
+				}
+			}
+		} else if len(s.stackOS) > 1 {
+			attrs["device.os_conflict"] = "TCP stack families differ across ports"
+		}
 		sort.Slice(signals, func(i, j int) bool { return signals[i].Source < signals[j].Source })
 		results = append(results, observe.Observation{Kind: observe.KindDevice, Timestamp: time.Now().UTC(), Target: addr,
 			Transport: "device", State: "identified", Confidence: confidence, Reason: "classification supported by independent observations",
 			Probe: "device-fingerprint", Fingerprint: observe.FingerprintMatched, Attributes: attrs, Signals: signals})
 	}
 	return results
+}
+
+func compatibleOS(application, family string) bool {
+	application = strings.ToLower(application)
+	if family == "BSD/macOS" {
+		for _, name := range []string{"bsd", "macos", "mac os", "darwin"} {
+			if strings.Contains(application, name) {
+				return true
+			}
+		}
+		return false
+	}
+	return strings.Contains(application, strings.ToLower(family))
 }

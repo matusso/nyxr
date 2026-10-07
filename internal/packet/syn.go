@@ -10,13 +10,16 @@ import (
 // SYNTemplate owns one reusable Ethernet/IPv4/TCP frame per transmit worker.
 // The Ethernet and invariant IP/TCP fields are set once; Frame fills target,
 // destination port, sequence token and checksums without allocating.
-type SYNTemplate struct{ frame [54]byte }
+type SYNTemplate struct {
+	frame  [74]byte
+	length int
+}
 
 func NewSYNTemplate(srcMAC, dstMAC net.HardwareAddr, source netip.Addr, sourcePort uint16) (*SYNTemplate, error) {
 	if len(srcMAC) != 6 || len(dstMAC) != 6 || !source.Is4() || sourcePort == 0 {
 		return nil, errors.New("SYN template requires Ethernet MACs, IPv4 source and source port")
 	}
-	t := &SYNTemplate{}
+	t := &SYNTemplate{length: 54}
 	b := t.frame[:]
 	copy(b[:6], dstMAC)
 	copy(b[6:12], srcMAC)
@@ -33,22 +36,36 @@ func NewSYNTemplate(srcMAC, dstMAC net.HardwareAddr, source netip.Addr, sourcePo
 	return t, nil
 }
 
-func (t *SYNTemplate) Frame(target netip.Addr, port uint16, seq uint32) []byte {
+// EnableFingerprint offers MSS, SACK, timestamps and window scaling in a
+// fixed native probe profile. ECE+CWR requests RFC 3168 ECN negotiation.
+// Ordinary discovery keeps its original option-free SYN.
+func (t *SYNTemplate) EnableFingerprint() {
+	t.length = 74
 	b := t.frame[:]
+	binary.BigEndian.PutUint16(b[16:18], 60)
+	b[46], b[47] = 0xa0, 0xc2
+	copy(b[54:], []byte{2, 4, 5, 180, 4, 2, 8, 10, 0, 0, 0, 0, 0, 0, 0, 0, 1, 3, 3, 7})
+}
+
+func (t *SYNTemplate) Frame(target netip.Addr, port uint16, seq uint32) []byte {
+	b := t.frame[:t.length]
 	dst := target.As4()
 	copy(b[30:34], dst[:])
 	binary.BigEndian.PutUint16(b[18:20], uint16(seq))
 	binary.BigEndian.PutUint16(b[36:38], port)
 	binary.BigEndian.PutUint32(b[38:42], seq)
+	if t.length == 74 {
+		binary.BigEndian.PutUint32(b[62:66], seq)
+	}
 	binary.BigEndian.PutUint16(b[24:26], 0)
 	binary.BigEndian.PutUint16(b[24:26], internetChecksum(b[14:34]))
 	binary.BigEndian.PutUint16(b[50:52], 0)
 	var pseudo [12]byte
 	copy(pseudo[:8], b[26:34])
 	pseudo[9] = 6
-	binary.BigEndian.PutUint16(pseudo[10:], 20)
+	binary.BigEndian.PutUint16(pseudo[10:], uint16(t.length-34))
 	sum := checksumWords(pseudo[:], 0)
-	sum = checksumWords(b[34:54], sum)
+	sum = checksumWords(b[34:], sum)
 	binary.BigEndian.PutUint16(b[50:52], foldChecksum(sum))
 	return b
 }

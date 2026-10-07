@@ -63,6 +63,14 @@ summary is always emitted last.
 | `nse` | object | For `script`: Nmap script `id`, readable `output`, and recursive XML `fields` (`kind`, `key`, `value`, `children`) |
 | `evidence` | list | [Probe exchanges](#evidence) |
 | `signals` | list | For `device`: the observations that support the claim (`source`, `transport`, `port`, `detail`) |
+| `tcp_stack` | object | Fingerprinted SYN replies: `signature`, `status`, `probe_profile`, `observation_window_ns`, `collection_complete`, family `candidates` with confidence/reasons, up to eight `samples`, `ip_id_behavior`, `retransmission_behavior`, `repeat_intervals_ns`, `rst_behavior` and optional `truncated` |
+
+Samples preserve TTL/initial-TTL estimate, IPv4 DF/IP ID, window, flags,
+sequence/ACK, option bytes/order, optional MSS/window scale, SACK, timestamps,
+ECN and option validity. See [TCP/IP stack fingerprinting](../guide/tcp-stack-fingerprinting.md).
+Port confidence still describes port state; stack candidate confidence describes
+an OS-family hypothesis. Device attributes may include `device.os_family`,
+`device.os_confidence`, or `device.os_conflict`, separate from class confidence.
 
 NSE `script` records have `state: "reported"`, `probe: "nse/<script-id>"`, and
 the discovered port and transport. Host scripts use `transport: "host"` and

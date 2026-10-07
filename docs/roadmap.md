@@ -2,7 +2,7 @@
 
 This is the execution plan for the product described in the [Design brief](architecture/design.md). It records what the repository implements today and orders the remaining work into testable releases. The design brief remains the long-term product and architecture target; this page is the implementation tracker. For how the current code is structured, see the [Architecture overview](architecture/overview.md).
 
-**Status date:** 2026-10-06. **Legend:** Done = implemented in the repository; Partial = useful code exists but the stated capability is incomplete; Planned = no end-to-end implementation yet. A checked item means the code or workflow exists, not that every target platform has been runtime tested.
+**Status date:** 2026-10-07. **Legend:** Done = implemented in the repository; Partial = useful code exists but the stated capability is incomplete; Planned = no end-to-end implementation yet. A checked item means the code or workflow exists, not that every target platform has been runtime tested.
 
 ## Current baseline
 
@@ -18,6 +18,15 @@ This is the execution plan for the product described in the [Design brief](archi
 | Deep services, UI and agents | Partial | Bounded deep-probe queue fed by discovery: passive banner, SSH, TLS (chain, version, cipher, ALPN, service inside TLS), HTTP, DNS `version.bind`, Modbus and EtherNet/IP identity; SMB (SMB2 negotiate plus anonymous NTLM host/OS/domain identity), RDP (X.224 security negotiation and certificate) and MSRPC endpoint-mapper identification; LDAP rootDSE and Active Directory identification, Kerberos AS-REQ realm discovery, NFS and ONC RPC portmapper enumeration, the Ceph messenger banner and S3-compatible object-storage recognition over HTTP; database profile with common SQL/NoSQL/graph/cache handshakes; runtime-imported `nmap-service-probes` banner matching and a local Nmap bridge for selected safe NSE scripts; every exchange kept as evidence; `tcp-common`, `tcp-full`, `web`, `database`, `deep-scan`, `windows`, `filesystem`, `iot` and `ot-safe` profiles; REST API with bounded SSE events and an embedded web UI served unprivileged (including live packet watching and single-frame resend), with raw I/O in `nyxr-packetd` | SMTP/FTP/SNMP and additional database wire protocols, active imported probes, native scripting and distributed execution |
 
 Cross-compilation confirms that a binary builds; it does **not** prove that live packet capture, raw sockets or every scan mode works on that operating system. A macOS BPF open/bind/timeout smoke test passed on `en0`; no received or transmitted frames were verified. Full BPF and Npcap live runtime gates remain open. Raw SYN supports IPv4 TCP only and resolves next hops with route lookup and ARP; macOS can reuse a valid cached gateway MAC. No packet-rate claim is established yet.
+
+## TCP/IP stack fingerprinting · Partial
+
+- [x] Opt-in raw IPv4 SYN option/ECN profile with token-correlated, bounded SYN/ACK and RST/ACK header evidence, native signatures, family hypotheses and sampled behavior analysis.
+- [x] CLI/JSON/history/API/web evidence, application/stack device synthesis with separate OS confidence, and asset family claims without identity merging.
+- [x] Fixtures for malformed options, token/tuple rejection, bounds, repeats, resets, cancellation, conflicting evidence and persistence.
+- [ ] Live calibration, IPv6 raw SYN, kernel/specific embedded-stack signatures and verified intermediary roles; cross-flow IP ID and longer controlled retransmission experiments.
+
+See the [TCP/IP stack fingerprinting guide](guide/tcp-stack-fingerprinting.md).
 
 ## Delivery rules
 

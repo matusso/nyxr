@@ -31,3 +31,45 @@ func TestIndependentDeviceSignals(t *testing.T) {
 		t.Fatalf("two protocol identities: %+v", got)
 	}
 }
+
+func TestStackAndApplicationEvidenceRemainSeparate(t *testing.T) {
+	addr := netip.MustParseAddr("192.0.2.7")
+	c := New()
+	port := observe.Observation{Kind: observe.KindPort, Target: addr, Transport: "tcp", Port: 443, State: "open",
+		TCPStack: &observe.TCPStack{Status: observe.FingerprintMatched, Signature: "native", Candidates: []observe.StackCandidate{{Family: "Linux", Confidence: 70}}}}
+	c.Add(port)
+	if len(c.Results()) != 0 {
+		t.Fatal("stack alone invented a device class")
+	}
+	c.Add(observe.Observation{Kind: observe.KindService, Target: addr, Transport: "tcp", Port: 443, State: "open", Service: "http", Fingerprint: observe.FingerprintMatched})
+	got := c.Results()
+	if len(got) != 1 || got[0].Attributes["device.os_family"] != "Linux" || got[0].Attributes["device.os_confidence"] != "70" || got[0].Confidence != 65 {
+		t.Fatalf("combined evidence inflated OS certainty: %+v", got)
+	}
+	c.Add(observe.Observation{Kind: observe.KindService, Target: addr, Transport: "tcp", Port: 445, Service: "smb", Fingerprint: observe.FingerprintMatched, Attributes: map[string]string{"smb.os_version": "10.0"}})
+	got = c.Results()
+	if got[0].Attributes["device.os_family"] != "" || got[0].Attributes["device.os_conflict"] == "" {
+		t.Fatalf("conflicting OS evidence lost: %+v", got)
+	}
+	c = New()
+	c.Add(port)
+	port.Port = 80
+	port.TCPStack = &observe.TCPStack{Status: observe.FingerprintMatched, Candidates: []observe.StackCandidate{{Family: "Windows", Confidence: 65}}}
+	c.Add(port)
+	c.Add(observe.Observation{Kind: observe.KindService, Target: addr, Transport: "tcp", Port: 443, Service: "http", Fingerprint: observe.FingerprintMatched})
+	got = c.Results()
+	if got[0].Attributes["device.os_family"] != "" || got[0].Attributes["device.os_conflict"] == "" {
+		t.Fatalf("cross-port conflict lost: %+v", got)
+	}
+}
+
+func TestAmbiguousBSDFamilyAcceptsApplicationAliases(t *testing.T) {
+	for _, name := range []string{"FreeBSD", "OpenBSD", "Apple Mac OS X", "macOS", "Darwin"} {
+		if !compatibleOS(name, "BSD/macOS") {
+			t.Fatalf("compatible family rejected: %s", name)
+		}
+	}
+	if compatibleOS("Microsoft Windows", "BSD/macOS") {
+		t.Fatal("conflicting family accepted")
+	}
+}

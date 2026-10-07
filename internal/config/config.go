@@ -45,6 +45,9 @@ type Config struct {
 	SourceMAC     net.HardwareAddr
 	NextHopMAC    net.HardwareAddr
 	Research      *ResearchConfig
+
+	StackFingerprint bool // set by the fingerprint stage for raw SYN scans
+
 	// TargetPorts, when set, limits each target to its listed ports
 	// (a known-open rescan).
 	TargetPorts TargetPorts

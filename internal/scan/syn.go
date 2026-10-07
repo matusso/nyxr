@@ -251,22 +251,27 @@ func synToken(h hash.Hash, t task, sourcePort uint16, ordinal uint64) uint32 {
 func receiveSYN(parent context.Context, io packetio.PacketIO, channels []chan packet.Decoded, source netip.Addr, basePort uint16, workerCount int) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
-	queues := make([]chan []byte, workerCount)
+	type receivedFrame struct {
+		data     []byte
+		received time.Time
+	}
+	queues := make([]chan receivedFrame, workerCount)
 	pool := make(chan []byte, 16+workerCount*8)
 	for i := 0; i < cap(pool); i++ {
 		pool <- make([]byte, 65535)
 	}
 	var workers sync.WaitGroup
 	for i := range queues {
-		queues[i] = make(chan []byte, 8)
+		queues[i] = make(chan receivedFrame, 8)
 		workers.Add(1)
-		go func(q <-chan []byte) {
+		go func(q <-chan receivedFrame) {
 			defer workers.Done()
 			decoder := packet.NewDecoder()
 			for {
 				select {
 				case frame := <-q:
-					if p, ok := decoder.Decode(frame); ok {
+					if p, ok := decoder.Decode(frame.data); ok {
+						p.Received = frame.received
 						var port uint16
 						switch {
 						case p.Protocol == "tcp" && p.Destination == source:
@@ -281,7 +286,7 @@ func receiveSYN(parent context.Context, io packetio.PacketIO, channels []chan pa
 							}
 						}
 					}
-					pool <- frame[:cap(frame)]
+					pool <- frame.data[:cap(frame.data)]
 				case <-ctx.Done():
 					return
 				}
@@ -300,6 +305,7 @@ func receiveSYN(parent context.Context, io packetio.PacketIO, channels []chan pa
 			}
 		}
 		n, err := io.ReceiveBatch(ctx, buffers[:])
+		received := time.Now().UTC()
 		for i := 0; i < len(buffers); i++ {
 			frame := buffers[i]
 			if i >= n || !candidateSYNFrame(frame, source) {
@@ -307,7 +313,7 @@ func receiveSYN(parent context.Context, io packetio.PacketIO, channels []chan pa
 				continue
 			}
 			select {
-			case queues[next] <- frame:
+			case queues[next] <- receivedFrame{frame, received}:
 			default:
 				pool <- frame[:cap(frame)]
 			}

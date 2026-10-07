@@ -40,6 +40,36 @@ func TestSYNTemplateRoundTripAndChecksums(t *testing.T) {
 	}
 }
 
+func TestFingerprintSYNOptionsChecksumsAndOwnedDecode(t *testing.T) {
+	tmpl, err := NewSYNTemplate(net.HardwareAddr{2, 1, 2, 3, 4, 5}, net.HardwareAddr{2, 6, 7, 8, 9, 10}, netip.MustParseAddr("192.0.2.10"), 50000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl.EnableFingerprint()
+	f := tmpl.Frame(netip.MustParseAddr("198.51.100.20"), 443, 12345)
+	d := NewDecoder()
+	got, ok := d.Decode(f)
+	if !ok || len(f) != 74 || got.TCPFlags != 0xc2 || got.TCPOptionsLen != 20 || got.TCPWindow != 64240 || !got.DF || got.IPVersion != 4 || got.TTL != 64 || binary.BigEndian.Uint32(got.TCPOptions[8:12]) != 12345 {
+		t.Fatalf("fingerprint SYN: %+v %v", got, ok)
+	}
+	var pseudo [12]byte
+	copy(pseudo[:8], f[26:34])
+	pseudo[9] = 6
+	binary.BigEndian.PutUint16(pseudo[10:], 40)
+	if internetChecksum(f[14:34]) != 0 || foldChecksum(checksumWords(f[34:], checksumWords(pseudo[:], 0))) != 0 {
+		t.Fatal("invalid fingerprint SYN checksum")
+	}
+	_, _ = d.Decode(tmpl.Frame(netip.MustParseAddr("198.51.100.21"), 80, 99999))
+	if binary.BigEndian.Uint32(got.TCPOptions[8:12]) != 12345 {
+		t.Fatal("decode retained reusable bytes")
+	}
+	for n := 54; n < 74; n++ {
+		if _, ok := d.Decode(f[:n]); ok {
+			t.Fatalf("accepted truncated TCP options at %d", n)
+		}
+	}
+}
+
 func TestQuotedTCPRejectsTruncationAndFragments(t *testing.T) {
 	request := make([]byte, 28)
 	request[0], request[9] = 0x45, 6

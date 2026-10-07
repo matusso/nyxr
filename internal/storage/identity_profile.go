@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/netip"
 	"sort"
 	"strings"
@@ -40,6 +41,18 @@ func profileClaims(o observe.Observation) []IdentityClaim {
 	if o.Kind == observe.KindDevice && o.Confidence >= 65 {
 		add("class", o.Attributes["device.class"])
 	}
+	if o.Kind == observe.KindPort && o.Probe == "tcp-syn" && o.TCPStack != nil && o.TCPStack.Status == observe.FingerprintMatched {
+		for _, candidate := range o.TCPStack.Candidates {
+			if candidate.Confidence < 60 || candidate.Family == "" || len(candidate.Family) > 256 {
+				continue
+			}
+			before := len(out)
+			add("os_family", candidate.Family)
+			if len(out) > before {
+				out[len(out)-1].Confidence = candidate.Confidence
+			}
+		}
+	}
 	if o.Kind == observe.KindService && o.State == "open" && o.Confidence >= 85 {
 		if o.Service == "modbus" || o.Service == "ethernetip" {
 			add("model", o.Product)
@@ -64,7 +77,7 @@ func (s *Store) enrichIdentityProfiles(ctx context.Context, graph []IdentityAsse
 	rows, err := s.db.QueryContext(ctx, `SELECT m.identity_id, o.record, o.scan_id, o.observed_at, a.address
 		FROM observations o JOIN identity_members m ON m.asset_id = o.asset_id
 		JOIN assets a ON a.id = o.asset_id
-		WHERE o.kind IN ('service', 'device') AND o.confidence >= 65
+		WHERE (o.kind IN ('service', 'device') OR (o.kind = 'port' AND o.probe = 'tcp-syn')) AND o.confidence >= 65
 		AND o.observed_at >= COALESCE((SELECT MAX(e.observed_at) FROM identity_membership_events e
 			WHERE e.address = a.address AND e.cause LIKE 'signal_changed:%'), '')
 		ORDER BY o.observed_at DESC, o.id DESC`)
@@ -89,6 +102,9 @@ func (s *Store) enrichIdentityProfiles(ctx context.Context, graph []IdentityAsse
 		}
 		for _, claim := range profileClaims(o) {
 			key := graph[i].ID + "|" + address + "|" + claim.Kind
+			if claim.Kind == "os_family" {
+				key += "|" + o.Transport + "|" + fmt.Sprint(o.Port)
+			}
 			if seen[key] {
 				continue
 			}
@@ -123,6 +139,11 @@ func (s *Store) enrichIdentityProfiles(ctx context.Context, graph []IdentityAsse
 				graph[i].Profile.Model = value
 			case "os":
 				graph[i].Profile.OS = value
+			}
+		}
+		if graph[i].Profile.OS == "" && len(values["os_family"]) == 1 && len(values["os"]) == 0 {
+			for family := range values["os_family"] {
+				graph[i].Profile.OS = family
 			}
 		}
 		sort.Slice(graph[i].Profile.Claims, func(a, b int) bool {

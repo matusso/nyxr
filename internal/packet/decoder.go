@@ -3,6 +3,7 @@ package packet
 import (
 	"encoding/binary"
 	"net/netip"
+	"time"
 
 	"github.com/gopacket/gopacket"
 	"github.com/gopacket/gopacket/layers"
@@ -11,18 +12,26 @@ import (
 // Decoded is a compact value copied from the reusable decoder state. It does
 // not retain references into the input frame.
 type Decoded struct {
-	Source      netip.Addr `json:"source"`
-	Destination netip.Addr `json:"destination"`
-	Protocol    string     `json:"protocol"`
-	SourcePort  uint16     `json:"source_port,omitempty"`
-	DestPort    uint16     `json:"dest_port,omitempty"`
-	TCPFlags    uint8      `json:"tcp_flags,omitempty"`
-	TCPSeq      uint32     `json:"tcp_seq,omitempty"`
-	TCPAck      uint32     `json:"tcp_ack,omitempty"`
-	ICMPType    uint8      `json:"icmp_type,omitempty"`
-	ICMPCode    uint8      `json:"icmp_code,omitempty"`
-	Quote       QuotedTCP  `json:"-"`
-	UDPQuote    QuotedUDP  `json:"-"`
+	Source        netip.Addr `json:"source"`
+	Destination   netip.Addr `json:"destination"`
+	Protocol      string     `json:"protocol"`
+	SourcePort    uint16     `json:"source_port,omitempty"`
+	DestPort      uint16     `json:"dest_port,omitempty"`
+	TCPFlags      uint8      `json:"tcp_flags,omitempty"`
+	TCPSeq        uint32     `json:"tcp_seq,omitempty"`
+	TCPAck        uint32     `json:"tcp_ack,omitempty"`
+	TCPWindow     uint16     `json:"tcp_window,omitempty"`
+	TCPOptions    [40]byte   `json:"-"` // owned copy; TCP's maximum option length
+	TCPOptionsLen uint8      `json:"-"`
+	IPVersion     uint8      `json:"ip_version,omitempty"`
+	TTL           uint8      `json:"ttl,omitempty"`
+	DF            bool       `json:"df,omitempty"`
+	IPID          uint16     `json:"ip_id,omitempty"`
+	Received      time.Time  `json:"-"`
+	ICMPType      uint8      `json:"icmp_type,omitempty"`
+	ICMPCode      uint8      `json:"icmp_code,omitempty"`
+	Quote         QuotedTCP  `json:"-"`
+	UDPQuote      QuotedUDP  `json:"-"`
 }
 
 // QuotedTCP holds the original packet header included in an ICMP error.
@@ -79,11 +88,13 @@ func (d *Decoder) Decode(frame []byte) (Decoded, bool) {
 	for _, typ := range d.decoded {
 		switch typ {
 		case layers.LayerTypeIPv4:
+			result.IPVersion, result.TTL, result.DF, result.IPID = 4, d.ip4.TTL, d.ip4.Flags&layers.IPv4DontFragment != 0, d.ip4.Id
 			result.Source, _ = netip.AddrFromSlice(d.ip4.SrcIP)
 			result.Destination, _ = netip.AddrFromSlice(d.ip4.DstIP)
 			hasIP = true
 			fragmented = d.ip4.FragOffset != 0 || d.ip4.Flags&layers.IPv4MoreFragments != 0
 		case layers.LayerTypeIPv6:
+			result.IPVersion, result.TTL = 6, d.ip6.HopLimit
 			result.Source, _ = netip.AddrFromSlice(d.ip6.SrcIP)
 			result.Destination, _ = netip.AddrFromSlice(d.ip6.DstIP)
 			hasIP = true
@@ -91,6 +102,18 @@ func (d *Decoder) Decode(frame []byte) (Decoded, bool) {
 			result.Protocol = "tcp"
 			result.SourcePort, result.DestPort = uint16(d.tcp.SrcPort), uint16(d.tcp.DstPort)
 			result.TCPSeq, result.TCPAck = d.tcp.Seq, d.tcp.Ack
+			result.TCPWindow = d.tcp.Window
+			headerLen := int(d.tcp.DataOffset) * 4
+			if headerLen < 20 || headerLen > 60 || len(d.tcp.Contents) < headerLen {
+				return Decoded{}, false
+			}
+			result.TCPOptionsLen = uint8(copy(result.TCPOptions[:], d.tcp.Contents[20:headerLen]))
+			if d.tcp.ECE {
+				result.TCPFlags |= 64
+			}
+			if d.tcp.CWR {
+				result.TCPFlags |= 128
+			}
 			if d.tcp.FIN {
 				result.TCPFlags |= 1
 			}

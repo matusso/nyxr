@@ -223,6 +223,9 @@ function detail(o) {
   if (attrs["http.title"]) parts.push(`title "${attrs["http.title"]}"`);
   if (o.kind === "script" && o.nse) parts.push((o.nse.output || "").split("\n")[0].slice(0, 160));
   if (o.kind === "device") parts.push(`${attrs["device.class"] || ""} (${(o.signals || []).length} signals)`);
+  if (attrs["device.os_family"]) parts.push(`${attrs["device.os_family"]}-like stack (${attrs["device.os_confidence"]}%)`);
+  if (attrs["device.os_conflict"]) parts.push(attrs["device.os_conflict"]);
+  if (o.tcp_stack) parts.push((o.tcp_stack.candidates || []).map(c => `${c.family}-like stack (${c.confidence}%)`).join(", ") || "unknown TCP stack");
   if (o.mac) parts.push("MAC " + o.mac);
   parts.push(o.reason);
   return parts.filter(Boolean).join(" | ");
@@ -234,6 +237,9 @@ function obsRow(o, fresh) {
     h("td", {}, o.target), h("td", {}, port(o)), h("td", {}, state(label)),
     h("td", {}, o.confidence + "%"), h("td", {}, fmtRTT(o.rtt_ns)),
     h("td", { class: "wrap" }, detail(o),
+      o.tcp_stack ? h("details", {}, h("summary", {}, "TCP/IP stack evidence"),
+        h("p", { class: "muted" }, "OS families are heuristic claims about the responding stack; intermediaries can change headers."),
+        h("pre", {}, JSON.stringify(o.tcp_stack, null, 2))) : null,
       o.nse ? h("details", {}, h("summary", {}, "NSE output"),
         h("pre", {}, o.nse.output || ""),
         (o.nse.fields && o.nse.fields.length) ? h("pre", {}, JSON.stringify(o.nse.fields, null, 2)) : null) : null,

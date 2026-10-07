@@ -94,7 +94,7 @@ Accepted only with the `research` profile. See [Research packets](../guide/resea
 | `nmap_service_probes` | `--nmap-service-probes` | path | Local `nmap-service-probes` file for banner matching |
 | `nse_scripts` | `--nse-scripts` | string | Comma list of installed, individually named NSE scripts in Nmap's `safe` category |
 | `nse_timeout` | `--nse-timeout` | duration | Maximum Nmap time per host (default `30s`, range `1s`–`5m`) |
-| `fingerprint` | `--fingerprint` | boolean | Device fingerprinting |
+| `fingerprint` | `--fingerprint` | boolean | Device fingerprinting and TCP/IP stack evidence in raw SYN mode |
 | `pcapng` | `--pcapng` | path | Capture file |
 | `pcapng_max_mb` | `--pcapng-max-mb` | integer | Capture size budget in MiB (default 1024) |
 
