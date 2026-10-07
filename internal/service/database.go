@@ -126,44 +126,74 @@ func preferredDatabase(port uint16, redisHint bool) string {
 	return ""
 }
 
-// probeDatabase identifies a client-first database on any port, trying the
-// preferred exchange and then the rest, each on its own connection, until
-// one matches. Server-first MySQL is recognized from the banner instead.
-// The HTTP exchange is skipped unless preferred when the HTTP probe is
-// enabled, because that probe already checks its response for a database.
-//
-// The sequence stops when a connection cannot be made, when the Redis or
-// memcached text request meets silence, or at the second silent timeout:
-// each unanswered request spends the full probe budget.
-func (e *Engine) probeDatabase(ctx context.Context, t Target, o *observe.Observation, redisHint bool) bool {
-	preferred := preferredDatabase(t.Port, redisHint)
-	order := make([]databaseRequest, 0, len(databaseRequests))
-	for _, x := range databaseRequests {
-		if x.name == preferred {
-			order = append([]databaseRequest{x}, order...)
-		} else if x.name != "http" || !e.enabled[ProbeHTTP] {
-			order = append(order, x)
-		}
+// newDatabasePlanner expands the database family into individual exchanges.
+// Port hints seed priors, then each response can change the next request.
+func newDatabasePlanner(e *Engine, port uint16, redisHint bool) *probePlanner {
+	p := &probePlanner{
+		transport: "database", candidates: map[string]bool{}, attempted: map[string]bool{},
 	}
+	preferred := preferredDatabase(port, redisHint)
+	for _, x := range databaseRequests {
+		if x.name == "http" && e.enabled[ProbeHTTP] {
+			continue // the outer HTTP probe already parses database identities
+		}
+		name := "database/" + x.name
+		p.families = append(p.families, name)
+		p.candidates[name] = true
+		prior := 1.0
+		if x.name == preferred {
+			prior = 24
+		} else if x.name == "redis" {
+			prior = 2 // inexpensive line-framed liveness discriminator
+		}
+		p.prob = append(p.prob, prior)
+	}
+	p.families = append(p.families, "unknown")
+	p.prob = append(p.prob, 3)
+	p.normalize()
+	return p
+}
+
+func (e *Engine) probeDatabase(ctx context.Context, t Target, o *observe.Observation, redisHint bool) bool {
+	planner := newDatabasePlanner(e, t.Port, redisHint)
 	silent := 0
-	for _, x := range order {
-		if ctx.Err() != nil {
+	for ctx.Err() == nil {
+		name, gain, score := planner.next()
+		if name == "" || gain < 0.0001 || !e.probeBudget(o) {
 			return false
 		}
-		if e.databaseExchange(ctx, t, o, x.request, x.match) {
-			return true
-		}
-		ev := o.Evidence[len(o.Evidence)-1]
-		if len(ev.Response) > 0 {
-			continue
-		}
-		if len(ev.Request) == 0 {
-			return false
-		}
-		if isTimeout(ev.Error) {
-			if silent++; x.line || silent == 2 {
+		before := planner.probabilities()
+		o.ProbeDecisions = append(o.ProbeDecisions, observe.ProbeDecision{
+			Probe: name, InformationGain: gain, Score: score, Hypotheses: before,
+		})
+		for _, x := range databaseRequests {
+			if name != "database/"+x.name {
+				continue
+			}
+			start := len(o.Evidence)
+			matched := e.databaseExchange(ctx, t, o, x.request, x.match)
+			planner.observeExchange(o, name, matched, start, before, e)
+			if matched {
+				return true
+			}
+			ev := o.Evidence[start]
+			if len(ev.Response) > 0 {
+				// Let the outer planner handle transport signals rather than
+				// sending more database payloads to an HTTP/TLS listener.
+				if hint := responseHint(ev.Response); hint == "tls" || hint == "http" {
+					return false
+				}
+				break
+			}
+			if len(ev.Request) == 0 {
 				return false
 			}
+			if isTimeout(ev.Error) {
+				if silent++; x.line || silent == 2 {
+					return false
+				}
+			}
+			break
 		}
 	}
 	return false

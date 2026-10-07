@@ -121,7 +121,7 @@ func TestPlannerRedisOnUnusualPort(t *testing.T) {
 	if want := []string{ProbeBanner, ProbeHTTP, ProbeDatabase}; !reflect.DeepEqual(o.ProbesAttempted, want) {
 		t.Fatalf("probe path %v, want %v", o.ProbesAttempted, want)
 	}
-	if len(o.ProbeDecisions) != 2 || o.ServiceHypotheses[0].Family != ProbeDatabase {
+	if len(o.ProbeDecisions) != 3 || o.ProbeDecisions[2].Probe != "database/redis" || o.ServiceHypotheses[0].Family != ProbeDatabase {
 		t.Fatalf("planner trace missing: %+v", o)
 	}
 	if o.ProbeDecisions[1].Hypotheses[0].Family != ProbeDatabase ||

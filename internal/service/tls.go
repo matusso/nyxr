@@ -67,15 +67,22 @@ func (e *Engine) probeTLS(ctx context.Context, t Target, o *observe.Observation)
 	case state.NegotiatedProtocol == "h2":
 		o.Service = "https"
 		o.Reason = "TLS handshake negotiated ALPN h2"
-		// HTTP/2 framing is out of scope here; ask again for HTTP/1.1 to
-		// read the response head.
-		inner, innerEv, ok := e.handshake(ctx, t, []string{"http/1.1"})
-		if !ok {
-			o.Evidence = append(o.Evidence, innerEv)
+		planner := e.planTLSApplication(o, "http2")
+		if planner == nil {
 			return true
 		}
-		defer inner.Close()
-		e.httpInsideTLS(ctx, t, inner, o)
+		start := len(o.Evidence)
+		innerEv, matched := e.probeHTTP2(ctx, t, tc, o)
+		o.Evidence = append(o.Evidence, innerEv)
+		planner.observeExchange(o, "http2", matched, start, planner.probabilities(), e)
+		if matched {
+			if innerEv.Matched == ProbeDatabase {
+				o.Probe = ProbeTLS + "+" + ProbeDatabase
+			} else {
+				o.Service, o.Probe = "https", ProbeTLS+"+"+ProbeHTTP
+			}
+			o.Reason = "TLS handshake negotiated ALPN h2; " + o.Reason
+		}
 	case e.enabled[ProbeHTTP] && !serverFirstTLS[t.Port]:
 		e.httpInsideTLS(ctx, t, tc, o)
 	default:
@@ -118,8 +125,14 @@ func (e *Engine) directPostgres(ctx context.Context, t Target, o *observe.Observ
 
 func (e *Engine) httpInsideTLS(ctx context.Context, t Target, tc *tls.Conn, o *observe.Observation) {
 	service, reason, tlsInfo := o.Service, o.Reason, o.TLS
+	planner := e.planTLSApplication(o, ProbeHTTP)
+	if planner == nil {
+		return
+	}
+	start := len(o.Evidence)
 	ev, matched := e.probeHTTP(ctx, t, tc, "tls", o)
 	o.Evidence = append(o.Evidence, ev)
+	planner.observeExchange(o, ProbeHTTP, matched, start, planner.probabilities(), e)
 	if matched {
 		if ev.Matched == ProbeDatabase {
 			o.Probe = ProbeTLS + "+" + ProbeDatabase

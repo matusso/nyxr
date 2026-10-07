@@ -25,21 +25,23 @@ var probeModel = map[string]struct {
 	match float64
 	cost  float64
 }{
-	ProbeTLS:        {0.98, 1.30},
-	ProbeHTTP:       {0.97, 1.00},
-	ProbeDNS:        {0.96, 1.15},
-	ProbeSOCKS:      {0.96, 1.15},
-	ProbeModbus:     {0.96, 1.45},
-	ProbeEtherNetIP: {0.96, 1.45},
-	ProbeDatabase:   {0.90, 1.35},
-	ProbeSMB:        {0.97, 1.40},
-	ProbeRDP:        {0.97, 1.30},
-	ProbeMSRPC:      {0.95, 1.30},
-	ProbeLDAP:       {0.96, 1.35},
-	ProbeKerberos:   {0.96, 1.30},
-	ProbeNFS:        {0.95, 1.35},
-	ProbeQUIC:       {0.98, 1.50},
-	ProbeDTLS:       {0.96, 1.40},
+	ProbeTLS:           {0.98, 1.30},
+	ProbeHTTP:          {0.97, 1.00},
+	"http2":            {0.97, 1.00},
+	"envoy-validation": {0.95, 1.30},
+	ProbeDNS:           {0.96, 1.15},
+	ProbeSOCKS:         {0.96, 1.15},
+	ProbeModbus:        {0.96, 1.45},
+	ProbeEtherNetIP:    {0.96, 1.45},
+	ProbeDatabase:      {0.90, 1.35},
+	ProbeSMB:           {0.97, 1.40},
+	ProbeRDP:           {0.97, 1.30},
+	ProbeMSRPC:         {0.95, 1.30},
+	ProbeLDAP:          {0.96, 1.35},
+	ProbeKerberos:      {0.96, 1.30},
+	ProbeNFS:           {0.95, 1.35},
+	ProbeQUIC:          {0.98, 1.50},
+	ProbeDTLS:          {0.96, 1.40},
 }
 
 const incidentalMatch = 0.001
@@ -199,7 +201,7 @@ func entropy(prob []float64) float64 {
 
 func likelihood(probe string, family string) float64 {
 	if probe == family {
-		if strings.HasPrefix(probe, "dsl/") {
+		if strings.HasPrefix(probe, "dsl/") || strings.HasPrefix(probe, "database/") {
 			return 0.95
 		}
 		return probeModel[probe].match
@@ -264,6 +266,10 @@ func (p *probePlanner) update(probe string, matched bool, response []byte, e *En
 				favored := ProbeDatabase
 				if hint == "tls" {
 					favored = ProbeTLS
+				} else if hint == "http" {
+					favored = ProbeHTTP
+				} else if p.transport == "database" {
+					favored = "database/redis"
 				}
 				if family == favored {
 					p.prob[i] *= 0.80
@@ -282,23 +288,32 @@ func (p *probePlanner) update(probe string, matched bool, response []byte, e *En
 		p.add(e, ProbeDatabase)
 	} else if hint == "tls" && !matched {
 		p.add(e, ProbeTLS)
+	} else if hint == "http" && !matched {
+		p.add(e, ProbeHTTP)
 	}
 }
 
 func (p *probePlanner) observeBanner(response []byte, e *Engine) {
-	if responseHint(response) != "redis" {
+	hint := responseHint(response)
+	if hint == "" {
 		return
 	}
+	favored := ProbeDatabase
+	if hint == "tls" {
+		favored = ProbeTLS
+	} else if hint == "http" {
+		favored = ProbeHTTP
+	}
 	for i, family := range p.families {
-		if family == ProbeDatabase {
+		if family == favored {
 			p.prob[i] *= 0.80
 		} else {
 			p.prob[i] *= 0.005
 		}
 	}
 	p.normalize()
-	p.redisHint = true
-	p.add(e, ProbeDatabase)
+	p.redisHint = hint == "redis"
+	p.add(e, favored)
 }
 
 func (p *probePlanner) confirmPassive(family string) {
@@ -328,7 +343,75 @@ func responseHint(response []byte) string {
 	if len(response) >= 7 && bytes.HasPrefix(response, []byte("-ERR ")) && bytes.Contains(response, []byte("\r\n")) {
 		return "redis"
 	}
+	// A framed TLS alert is useful even when the attempted protocol was
+	// plaintext. Reject arbitrary bytes starting with the TLS content type.
+	if len(response) >= 7 && response[0] == 21 && response[1] == 3 && response[2] <= 4 &&
+		response[3] == 0 && response[4] == 2 && (response[5] == 1 || response[5] == 2) {
+		return "tls"
+	}
+	var o observe.Observation
+	if parseHTTP(&o, response) {
+		return "http"
+	}
 	return ""
+}
+
+func (p *probePlanner) recordUpdate(o *observe.Observation, probe, outcome string, start int, before []observe.ServiceHypothesis, signal string) {
+	o.ProbeUpdates = append(o.ProbeUpdates, observe.ProbeUpdate{
+		Probe: probe, Outcome: outcome, Signal: signal, EvidenceStart: start,
+		EvidenceEnd: len(o.Evidence), Before: before, After: p.probabilities(),
+	})
+}
+
+// observeExchange uses validated parser results first. Transport errors and
+// silence cannot disprove a protocol. Search the entire machine's exchanges:
+// an initial refused handshake may be followed by a successful ALPN retry.
+func (p *probePlanner) observeExchange(o *observe.Observation, probe string, matched bool, start int, before []observe.ServiceHypothesis, e *Engine) {
+	outcome, signal := "inconclusive", ""
+	p.attempted[probe] = true
+	if matched {
+		credited := probe
+		if probe == ProbeTLS && o.TLS == nil && o.Service == "http" {
+			credited = ProbeHTTP
+		}
+		p.update(credited, true, nil, e)
+		outcome = "matched"
+	} else {
+		var response []byte
+		for _, ev := range o.Evidence[start:] {
+			if probe == "envoy-validation" && ev.Probe != probe {
+				continue // a TLS handshake cannot reject a product hypothesis
+			}
+			if len(ev.Response) > 0 {
+				response = ev.Response
+				if responseHint(response) != "" {
+					break
+				}
+			}
+		}
+		if len(response) > 0 {
+			p.update(probe, false, response, e)
+			outcome, signal = "unmatched", responseHint(response)
+		}
+	}
+	p.recordUpdate(o, probe, outcome, start, before, signal)
+}
+
+// A negotiated transport supplies a strong prior for its application probe.
+// This is still an inference step: ALPN alone does not identify a product.
+func (e *Engine) planTLSApplication(o *observe.Observation, name string) *probePlanner {
+	if !e.probeBudget(o) {
+		return nil
+	}
+	p := &probePlanner{
+		transport: "tls", families: []string{name, "unknown"}, prob: []float64{0.95, 0.05},
+		candidates: map[string]bool{name: true}, attempted: map[string]bool{},
+	}
+	probe, gain, score := p.next()
+	o.ProbeDecisions = append(o.ProbeDecisions, observe.ProbeDecision{
+		Probe: probe, InformationGain: gain, Score: score, Hypotheses: p.probabilities(),
+	})
+	return p
 }
 
 // Some TLS listeners return a syntactically valid HTTP error when sent a

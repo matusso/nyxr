@@ -63,6 +63,8 @@ type Observation struct {
 	// It is separate from Confidence, which describes the validated claim.
 	ServiceHypotheses []ServiceHypothesis `json:"service_hypotheses,omitempty"`
 	ProbeDecisions    []ProbeDecision     `json:"probe_decisions,omitempty"`
+	ProbeUpdates      []ProbeUpdate       `json:"probe_updates,omitempty"`
+	ProbeStopReason   string              `json:"probe_stop_reason,omitempty"`
 	ResponseHex       string              `json:"response_hex,omitempty"`
 	Fields            map[string]string   `json:"fields,omitempty"`
 	// Attributes holds protocol fields such as http.server or ssh.software.
@@ -88,6 +90,19 @@ type ProbeDecision struct {
 	Score           float64 `json:"score"`
 	// Hypotheses is the posterior available when this probe was chosen.
 	Hypotheses []ServiceHypothesis `json:"hypotheses"`
+}
+
+// ProbeUpdate links an inference step to its retained exchanges. EvidenceEnd
+// is exclusive. Inconclusive I/O leaves the prior unchanged; silence is not a
+// negative protocol signature. Probabilities are engineering estimates.
+type ProbeUpdate struct {
+	Probe         string              `json:"probe"`
+	Outcome       string              `json:"outcome"` // matched, unmatched, inconclusive
+	Signal        string              `json:"signal,omitempty"`
+	EvidenceStart int                 `json:"evidence_start"`
+	EvidenceEnd   int                 `json:"evidence_end"`
+	Before        []ServiceHypothesis `json:"before"`
+	After         []ServiceHypothesis `json:"after"`
 }
 
 // NSEResult preserves both Nmap's readable output and its structured XML.

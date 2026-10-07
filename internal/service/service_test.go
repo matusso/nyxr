@@ -152,8 +152,7 @@ func TestHTTPSWithCertificateAndALPN(t *testing.T) {
 		if o.Service != "https" || o.Product != "Caddy" || o.TLS == nil || o.Fingerprint != observe.FingerprintMatched {
 			t.Fatalf("h2=%v: unexpected HTTPS identity: %+v", h2, o)
 		}
-		// The TLS record describes the first handshake, even when a second
-		// HTTP/1.1-only connection read the response head.
+		// HTTP/2 uses the original negotiated connection for its GET.
 		if want := map[bool]string{false: "http/1.1", true: "h2"}[h2]; o.TLS.ALPN != want {
 			t.Fatalf("h2=%v: ALPN %q, want %q", h2, o.TLS.ALPN, want)
 		}

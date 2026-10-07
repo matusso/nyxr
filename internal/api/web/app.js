@@ -237,6 +237,19 @@ function obsRow(o, fresh) {
       o.nse ? h("details", {}, h("summary", {}, "NSE output"),
         h("pre", {}, o.nse.output || ""),
         (o.nse.fields && o.nse.fields.length) ? h("pre", {}, JSON.stringify(o.nse.fields, null, 2)) : null) : null,
+      o.probe_updates?.length ? h("details", {}, h("summary", {}, "Detection path"),
+        h("p", { class: "muted" }, o.probe_stop_reason || ""),
+        table(["probe", "response", "leading hypothesis", "evidence"], o.probe_updates.map(u => {
+          const leading = u.after?.[0];
+          return h("tr", {}, [u.probe, u.outcome + (u.signal ? " (" + u.signal + ")" : ""),
+            leading ? `${leading.family} ${(100 * leading.probability).toFixed(1)}%` : "",
+            `${u.evidence_start + 1}–${u.evidence_end}`].map(value => h("td", {}, value)));
+        })),
+        h("p", { class: "muted" }, "Hypotheses guide probe selection; their scores are estimates."),
+        o.probe_decisions?.length ? h("details", {}, h("summary", {}, "Probe selection"),
+          table(["probe", "expected gain (bits)", "gain per cost"], o.probe_decisions.map(d =>
+            h("tr", {}, [d.probe, Number(d.information_gain).toFixed(4), Number(d.score).toFixed(4)]
+              .map(value => h("td", {}, value)))))) : null) : null,
       (o.evidence && o.evidence.length) ? h("details", {}, h("summary", {}, `${o.evidence.length} exchanges`),
         o.evidence.map(e => h("pre", {}, `${e.probe} [${e.layer}] ${e.matched || "unmatched"}${e.error ? " error: " + e.error : ""}\n` +
           (e.request ? "> " + printable(e.request) + "\n" : "") + (e.response ? "< " + printable(e.response) : "")))) : null));

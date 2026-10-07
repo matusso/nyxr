@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/matusso/nyxr/internal/observe"
@@ -60,167 +61,109 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 		transport = "tcp"
 	}
 	planner := newProbePlannerFor(e, t.Port, transport)
-	defer func() { o.ServiceHypotheses = planner.probabilities() }()
-	if t.Transport == "udp" {
+	defer func() {
+		o.ServiceHypotheses = planner.probabilities()
+		if ctx.Err() != nil {
+			o.ProbeStopReason = "canceled"
+		}
+	}()
+	if transport == "udp" {
 		o.Transport = "udp"
 		if t.State != "" {
 			o.State = t.State
 		}
-		for ctx.Err() == nil {
-			name, gain, score := planner.next()
-			if name == "" {
-				break
-			}
-			o.ProbeDecisions = append(o.ProbeDecisions, observe.ProbeDecision{Probe: name, InformationGain: gain, Score: score, Hypotheses: planner.probabilities()})
-			o.ProbesAttempted = append(o.ProbesAttempted, name)
-			if name == ProbeQUIC {
-				matched := e.probeQUIC(ctx, t, &o)
-				planner.update(name, matched, nil, e)
-				if matched {
-					o.State = "open"
-					o.Confidence = planner.confidence(name)
-					o.Fingerprint = observe.FingerprintMatched
-					return o
-				}
-				continue
-			}
-			if name == ProbeDTLS {
-				matched := e.probeDTLS(ctx, t, &o)
-				planner.update(name, matched, nil, e)
-				if matched {
-					o.State = "open"
-					o.Confidence = planner.confidence(name)
-					o.Fingerprint = observe.FingerprintMatched
-					return o
-				}
-				continue
-			}
-			for _, d := range e.cfg.Definitions {
-				if name != "dsl/"+d.Name || d.Transport != "udp" {
-					continue
-				}
-				matched := e.probeProtocol(ctx, t, d, &o)
-				planner.update(name, matched, o.Evidence[len(o.Evidence)-1].Response, e)
-				if matched {
-					o.State = "open"
-					o.Confidence = planner.confidence(name)
-					o.Fingerprint = observe.FingerprintMatched
-					return o
-				}
-				break
-			}
-		}
-		o.Reason = "no UDP service probe matched"
-		return o
-	}
-	if e.enabled[ProbeBanner] || e.enabled[ProbeSSH] || e.enabled[ProbeNmap] || e.enabled[ProbeDatabase] {
-		ev, banner := e.probeBanner(ctx, t)
+	} else if e.enabled[ProbeBanner] || e.enabled[ProbeSSH] || e.enabled[ProbeNmap] || e.enabled[ProbeDatabase] {
+		before := planner.probabilities()
+		ev, banner, connected := e.probeBanner(ctx, t)
 		o.Evidence = append(o.Evidence, ev)
 		o.ProbesAttempted = append(o.ProbesAttempted, ProbeBanner)
-		if ev.Error != "" && len(banner) == 0 && !isTimeout(ev.Error) {
+		if !connected {
 			o.State, o.Reason, o.Probe = "error", "banner connection failed: "+ev.Error, ProbeBanner
+			o.ProbeStopReason = "connection failed"
+			planner.recordUpdate(&o, ProbeBanner, "inconclusive", 0, before, "")
 			return o
 		}
 		if len(banner) > 0 {
 			o.Probe = ProbeBanner
-			if matched := e.matchBanner(&o, banner); matched != "" {
-				o.Evidence[len(o.Evidence)-1].Matched = matched
-				if matched == ProbeSSH {
-					o.ProbesAttempted = append(o.ProbesAttempted, probeSSHHostKey)
-					o.Evidence = append(o.Evidence, e.probeSSHHostKey(ctx, t, &o))
-				}
-				if matched == ProbeDatabase || matched == ProbeSSH {
+			matched := e.matchBanner(&o, banner)
+			if matched == "" && e.enabled[ProbeHTTP] && !plaintextToTLSError(banner) && parseHTTP(&o, banner) {
+				matched = ProbeHTTP
+			}
+			if matched != "" {
+				o.Evidence[0].Matched = matched
+				if matched == ProbeDatabase || matched == ProbeSSH || matched == ProbeHTTP {
 					planner.confirmPassive(matched)
 				} else {
 					planner.confirmNamed(o.Service, float64(o.Confidence)/100)
 				}
+				planner.recordUpdate(&o, ProbeBanner, "matched", 0, before, matched)
+				if matched == ProbeSSH && ctx.Err() == nil {
+					o.ProbesAttempted = append(o.ProbesAttempted, probeSSHHostKey)
+					o.Evidence = append(o.Evidence, e.probeSSHHostKey(ctx, t, &o))
+				}
+				o.Fingerprint, o.ProbeStopReason = observe.FingerprintMatched, "identified"
 				return o
 			}
 			o.Attributes = map[string]string{"banner": printable(banner, 256)}
 			o.Reason = "unrecognized banner retained as evidence"
 			planner.observeBanner(banner, e)
+			planner.recordUpdate(&o, ProbeBanner, "unmatched", 0, before, responseHint(banner))
+		} else {
+			planner.recordUpdate(&o, ProbeBanner, "inconclusive", 0, before, "")
 		}
 	}
-	for {
-		if ctx.Err() != nil {
+	for ctx.Err() == nil {
+		name, gain, score := planner.next()
+		if name == "" {
+			o.ProbeStopReason = "candidates exhausted"
 			break
 		}
-		p, gain, score := planner.next()
-		if p == "" {
+		if !e.probeBudget(&o) {
 			break
 		}
+		if gain < 0.0001 {
+			o.ProbeStopReason = "insufficient information gain"
+			break
+		}
+		before := planner.probabilities()
 		o.ProbeDecisions = append(o.ProbeDecisions, observe.ProbeDecision{
-			Probe: p, InformationGain: gain, Score: score, Hypotheses: planner.probabilities(),
+			Probe: name, InformationGain: gain, Score: score, Hypotheses: before,
 		})
-		o.ProbesAttempted = append(o.ProbesAttempted, p)
-		firstEvidence := len(o.Evidence)
-		var matched bool
-		switch p {
-		case ProbeTLS:
-			matched = e.probeTLS(ctx, t, &o)
-		case ProbeHTTP:
-			var ev observe.Evidence
-			ev, matched = e.probeHTTP(ctx, t, nil, "tcp", &o)
-			o.Evidence = append(o.Evidence, ev)
-		case ProbeDNS:
-			matched = e.probeDNS(ctx, t, &o)
-		case ProbeSOCKS:
-			matched = e.probeSOCKS(ctx, t, &o)
-		case ProbeModbus:
-			matched = e.probeModbus(ctx, t, &o)
-		case ProbeEtherNetIP:
-			matched = e.probeEtherNetIP(ctx, t, &o)
-		case ProbeDatabase:
-			matched = e.probeDatabase(ctx, t, &o, planner.redisHint)
-		case ProbeSMB:
-			matched = e.probeSMB(ctx, t, &o)
-		case ProbeRDP:
-			matched = e.probeRDP(ctx, t, &o)
-		case ProbeMSRPC:
-			matched = e.probeMSRPC(ctx, t, &o)
-		case ProbeLDAP:
-			matched = e.probeLDAP(ctx, t, &o)
-		case ProbeKerberos:
-			matched = e.probeKerberos(ctx, t, &o)
-		case ProbeNFS:
-			matched = e.probeNFS(ctx, t, &o)
-		default:
-			for _, d := range e.cfg.Definitions {
-				if p == "dsl/"+d.Name && d.Transport == "tcp" {
-					matched = e.probeProtocol(ctx, t, d, &o)
+		o.ProbesAttempted = append(o.ProbesAttempted, name)
+		start := len(o.Evidence)
+		matched := e.executeProbe(ctx, t, name, planner.redisHint, &o)
+		// A service may speak first on an active connection too. Reuse that
+		// greeting instead of sending an unrelated follow-up to it.
+		if !matched && transport == "tcp" {
+			for i := start; i < len(o.Evidence); i++ {
+				if family := e.matchBanner(&o, o.Evidence[i].Response); family != "" {
+					o.Evidence[i].Matched = family
+					planner.confirmNamed(o.Service, float64(o.Confidence)/100)
+					matched = true
 					break
 				}
 			}
 		}
-		if len(o.Evidence) > firstEvidence {
-			ev := o.Evidence[firstEvidence]
-			if ev.Error != "" && ev.Error != "timeout" && len(ev.Response) == 0 {
-				planner.attempted[p] = true // connection failures say nothing about protocol
-			} else if p == ProbeTLS && ev.Matched == ProbeHTTP {
-				// Plaintext HTTP answered the ClientHello: credit the
-				// HTTP family, not TLS.
-				planner.attempted[p] = true
-				planner.update(ProbeHTTP, true, ev.Response, e)
-			} else {
-				planner.update(p, matched, ev.Response, e)
-			}
-		} else {
-			planner.attempted[p] = true
-		}
+		planner.observeExchange(&o, name, matched, start, before, e)
 		if matched {
-			if strings.HasPrefix(p, "dsl/") {
-				o.Confidence = planner.confidence(p)
+			if strings.HasPrefix(name, "dsl/") || transport == "udp" {
+				o.Confidence = planner.confidence(name)
 			}
-			// A database answering HTTP, or any service other than HTTP
-			// identified inside TLS, is a named result beyond the families.
-			if (p == ProbeHTTP && o.Probe == ProbeDatabase) ||
-				(p == ProbeTLS && strings.HasPrefix(o.Probe, ProbeTLS+"+") && o.Probe != ProbeTLS+"+"+ProbeHTTP) {
+			if (name == ProbeHTTP && o.Probe == ProbeDatabase) ||
+				(name == ProbeTLS && strings.HasPrefix(o.Probe, ProbeTLS+"+") && o.Probe != ProbeTLS+"+"+ProbeHTTP) {
 				planner.confirmNamed(o.Service, float64(o.Confidence)/100)
+				// Include the named inference in this step's after snapshot.
+				o.ProbeUpdates[len(o.ProbeUpdates)-1].After = planner.probabilities()
 			}
-			o.Fingerprint = observe.FingerprintMatched
+			o.State, o.Fingerprint, o.ProbeStopReason = "open", observe.FingerprintMatched, "identified"
+			e.validateProduct(ctx, t, &o)
 			return o
 		}
+		if o.ProbeStopReason == "probe budget exhausted" {
+			break
+		}
 	}
+
 	if o.Reason == "" {
 		o.Reason = "no probe matched"
 		for _, ev := range o.Evidence {
@@ -254,7 +197,7 @@ func (e *Engine) matchBanner(o *observe.Observation, banner []byte) string {
 }
 
 // probeBanner connects and waits for the server to speak first.
-func (e *Engine) probeBanner(ctx context.Context, t Target) (observe.Evidence, []byte) {
+func (e *Engine) probeBanner(ctx context.Context, t Target) (observe.Evidence, []byte, bool) {
 	timeout := e.timeout(ProbeBanner)
 	if e.enabled[ProbeDatabase] && !e.enabled[ProbeSSH] && timeout > 350*time.Millisecond {
 		timeout = 350 * time.Millisecond
@@ -263,7 +206,7 @@ func (e *Engine) probeBanner(ctx context.Context, t Target) (observe.Evidence, [
 	conn, err := e.dial(ctx, t, timeout)
 	if err != nil {
 		ev.Error, ev.Duration = err.Error(), time.Since(ev.Started)
-		return ev, nil
+		return ev, nil, false
 	}
 	defer conn.Close()
 	rc := e.record(conn)
@@ -271,16 +214,37 @@ func (e *Engine) probeBanner(ctx context.Context, t Target) (observe.Evidence, [
 	defer stop()
 	data, err := readSome(rc, e.cfg.MaxEvidence, 200*time.Millisecond)
 	e.finish(&ev, rc, err)
-	return ev, data
+	return ev, data, true
 }
 
 // recordingConn keeps a bounded copy of both directions of an exchange.
 type recordingConn struct {
 	net.Conn
-	max       int
-	sent      []byte
-	recv      []byte
-	truncated bool
+	max        int
+	bufferMu   sync.Mutex
+	sent       []byte
+	recv       []byte
+	truncated  bool
+	deadlineMu sync.Mutex
+	readLimit  time.Time
+}
+
+func (c *recordingConn) SetDeadline(d time.Time) error {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
+	c.readLimit = d
+	return c.Conn.SetDeadline(d)
+}
+
+// Quiet-gap reads must not extend the exchange's original deadline, including
+// a deadline shortened by cancellation from another goroutine.
+func (c *recordingConn) SetReadDeadline(d time.Time) error {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
+	if !c.readLimit.IsZero() && d.After(c.readLimit) {
+		d = c.readLimit
+	}
+	return c.Conn.SetReadDeadline(d)
 }
 
 func (e *Engine) record(c net.Conn) *recordingConn {
@@ -289,13 +253,17 @@ func (e *Engine) record(c net.Conn) *recordingConn {
 
 func (c *recordingConn) Read(p []byte) (int, error) {
 	n, err := c.Conn.Read(p)
+	c.bufferMu.Lock()
 	c.recv, c.truncated = keep(c.recv, p[:n], c.max, c.truncated)
+	c.bufferMu.Unlock()
 	return n, err
 }
 
 func (c *recordingConn) Write(p []byte) (int, error) {
 	n, err := c.Conn.Write(p)
+	c.bufferMu.Lock()
 	c.sent, _ = keep(c.sent, p[:n], c.max, false)
+	c.bufferMu.Unlock()
 	return n, err
 }
 
@@ -314,11 +282,13 @@ func keep(dst, src []byte, max int, truncated bool) ([]byte, bool) {
 // arrived is the normal end of a passive read, not an error.
 func (e *Engine) finish(ev *observe.Evidence, rc *recordingConn, err error) {
 	ev.Duration = time.Since(ev.Started)
+	rc.bufferMu.Lock()
 	ev.Request = append([]byte(nil), rc.sent...)
 	ev.Response = append([]byte(nil), rc.recv...)
 	ev.Truncated = rc.truncated
+	rc.bufferMu.Unlock()
 	ev.Decoded = tlsrecord.Decode(ev.Response)
-	if err != nil && !errors.Is(err, io.EOF) && !(len(rc.recv) > 0 && errors.Is(err, os.ErrDeadlineExceeded)) {
+	if err != nil && !errors.Is(err, io.EOF) && !(len(ev.Response) > 0 && errors.Is(err, os.ErrDeadlineExceeded)) {
 		ev.Error = errorText(err)
 	}
 }

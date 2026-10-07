@@ -22,6 +22,11 @@ var titlePattern = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
 // probeHTTP sends one GET / and parses the response head. conn is an
 // established TLS connection, or nil to dial plain TCP.
 func (e *Engine) probeHTTP(ctx context.Context, t Target, conn net.Conn, layer string, o *observe.Observation) (observe.Evidence, bool) {
+	ev, _, matched := e.probeHTTPExchange(ctx, t, conn, layer, "/", o)
+	return ev, matched
+}
+
+func (e *Engine) probeHTTPExchange(ctx context.Context, t Target, conn net.Conn, layer, path string, o *observe.Observation) (observe.Evidence, []byte, bool) {
 	timeout := e.timeout(ProbeHTTP)
 	ev := observe.Evidence{Probe: ProbeHTTP, Layer: layer, Started: time.Now().UTC()}
 	if conn == nil {
@@ -29,7 +34,7 @@ func (e *Engine) probeHTTP(ctx context.Context, t Target, conn net.Conn, layer s
 		conn, err = e.dial(ctx, t, timeout)
 		if err != nil {
 			ev.Error, ev.Duration = errorText(err), time.Since(ev.Started)
-			return ev, false
+			return ev, nil, false
 		}
 		defer conn.Close()
 	}
@@ -42,19 +47,19 @@ func (e *Engine) probeHTTP(ctx context.Context, t Target, conn net.Conn, layer s
 	} else if t.Addr.Is6() {
 		host = "[" + host + "]"
 	}
-	request := fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\nUser-Agent: %s\r\nAccept: */*\r\nConnection: close\r\n\r\n", host, e.cfg.UserAgent)
+	request := fmt.Sprintf("GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: %s\r\nAccept: */*\r\nConnection: close\r\n\r\n", path, host, e.cfg.UserAgent)
 	if _, err := rc.Write([]byte(request)); err != nil {
 		e.finish(&ev, rc, err)
-		return ev, false
+		return ev, nil, false
 	}
 	// The retained response may be shorter than what is parsed.
-	data, err := readHTTP(rc)
+	data, err := readHTTP(rc, path != "/")
 	e.finish(&ev, rc, err)
 	if plaintextToTLSError(data) {
-		return ev, false
+		return ev, nil, false
 	}
-	if !parseHTTP(o, data) {
-		return ev, false
+	if !parseHTTPReply(o, data, "GET "+path) {
+		return ev, nil, false
 	}
 	ev.Matched = ProbeHTTP
 	// An HTTP response can also carry a stronger database identity. Reuse
@@ -65,12 +70,12 @@ func (e *Engine) probeHTTP(ctx context.Context, t Target, conn net.Conn, layer s
 	if ev.Error == "timeout" {
 		ev.Error = "" // keep-alive servers may ignore Connection: close
 	}
-	return ev, true
+	return ev, data, true
 }
 
 // readHTTP reads until the connection closes, the deadline passes, or the
 // response head plus some body has arrived.
-func readHTTP(c net.Conn) ([]byte, error) {
+func readHTTP(c net.Conn, complete bool) ([]byte, error) {
 	buf := make([]byte, 0, 4096)
 	chunk := make([]byte, 4096)
 	for len(buf) < maxHTTPRead {
@@ -79,7 +84,7 @@ func readHTTP(c net.Conn) ([]byte, error) {
 		if err != nil {
 			return buf, err
 		}
-		if head := bytes.Index(buf, []byte("\r\n\r\n")); head >= 0 && (len(buf)-head > 2048 || bytes.Contains(bytes.ToLower(buf), []byte("</title>"))) {
+		if head := bytes.Index(buf, []byte("\r\n\r\n")); !complete && head >= 0 && (len(buf)-head > 2048 || bytes.Contains(bytes.ToLower(buf), []byte("</title>"))) {
 			return buf, nil
 		}
 	}
@@ -99,9 +104,7 @@ func parseHTTPReply(o *observe.Observation, data []byte, request string) bool {
 	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(data)), nil)
 	attrs := map[string]string{}
 	if err != nil {
-		// A status line without a parsable head is still HTTP.
-		line, _, _ := bytes.Cut(data, []byte("\r\n"))
-		attrs["http.status_line"] = printable(line, 200)
+		return false // a prefix alone is not protocol grammar
 	} else {
 		_ = resp.Body.Close()
 		attrs["http.status"] = strconv.Itoa(resp.StatusCode)

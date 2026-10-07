@@ -63,7 +63,7 @@ raw privileges itself.
 | `internal/pipeline` | Runs one scan: wires discovery, service, device, capture and sinks through bounded queues |
 | `internal/scan` | Discovery engines: TCP connect, raw SYN, UDP, ICMP, ARP/NDP, research probes, rate limiting, route and neighbor resolution |
 | `internal/probe` | UDP probe catalog, native YAML definitions, matchers and field extraction; Nmap UDP payload import |
-| `internal/service` | Deep-probe stage: banner, SSH, TLS, HTTP, DNS, SOCKS, database, Modbus and EtherNet/IP, with evidence |
+| `internal/service` | Adaptive service stage: evidence classifier, information-gain planner, native/DSL protocol machines, shared executor, TLS/HTTP2 and conditional product validation |
 | `internal/nmapdb` | Runtime import of user-supplied `nmap-service-probes` files |
 | `internal/device` | Device classification from independent signals |
 | `internal/observe` | The versioned `nyxr/v1` record types |

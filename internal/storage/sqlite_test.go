@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"net/netip"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -90,7 +91,13 @@ func TestMigrationsAreIdempotentAndVersioned(t *testing.T) {
 
 func TestObservationRoundTripWithEvidence(t *testing.T) {
 	s, _ := openTest(t)
-	storeScan(t, s, "scan-a", t0, portObs(t0, 443, "open"), serviceObs(t0.Add(time.Second), 443, "https", "nginx"),
+	service := serviceObs(t0.Add(time.Second), 443, "https", "nginx")
+	service.ProbeStopReason = "identified"
+	service.ServiceHypotheses = []observe.ServiceHypothesis{{Family: "http", Probability: 0.99}, {Family: "unknown", Probability: 0.01}}
+	service.ProbeDecisions = []observe.ProbeDecision{{Probe: "http", InformationGain: 0.3, Score: 0.3, Hypotheses: service.ServiceHypotheses}}
+	service.ProbeUpdates = []observe.ProbeUpdate{{Probe: "http", Outcome: "matched", EvidenceStart: 1, EvidenceEnd: 2,
+		Before: []observe.ServiceHypothesis{{Family: "http", Probability: 0.6}, {Family: "unknown", Probability: 0.4}}, After: service.ServiceHypotheses}}
+	storeScan(t, s, "scan-a", t0, portObs(t0, 443, "open"), service,
 		observe.Observation{Timestamp: t0, Target: host, Transport: "icmp", State: "responsive"})
 	all, err := s.Observations(ctx, Filter{ScanID: "scan-a"})
 	if err != nil {
@@ -112,6 +119,10 @@ func TestObservationRoundTripWithEvidence(t *testing.T) {
 	}
 	if len(got.Evidence) != 2 || string(got.Evidence[1].Response) != "\x00\x01\x02\xff" || !got.Evidence[1].Truncated || got.Evidence[0].Error != "timeout" {
 		t.Fatalf("evidence lost: %+v", got.Evidence)
+	}
+	if got.ProbeStopReason != service.ProbeStopReason || !reflect.DeepEqual(got.ProbeUpdates, service.ProbeUpdates) ||
+		!reflect.DeepEqual(got.ProbeDecisions, service.ProbeDecisions) || !reflect.DeepEqual(got.ServiceHypotheses, service.ServiceHypotheses) {
+		t.Fatalf("adaptive trace lost during storage: %+v", got)
 	}
 	if hosts, _ := s.Observations(ctx, Filter{Kind: observe.KindHost}); len(hosts) != 1 || hosts[0].Transport != "icmp" {
 		t.Fatalf("host kind: %+v", hosts)

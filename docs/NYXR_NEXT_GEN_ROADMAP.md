@@ -59,6 +59,30 @@ Nyxr should combine the strongest parts of those categories and add capabilities
 
 # 1. Adaptive Probe Engine
 
+## Implementation status (October 2026)
+
+**Implemented:** Discovery feeds the bounded service queue. The classifier
+combines port priors, server-first banners, protocol grammar and transport
+signals; the planner selects each eligible probe by expected entropy reduction
+per execution cost. Native and declarative protocol machines share an executor
+and evidence update loop for TCP and UDP. Database exchanges are planned
+individually; ALPN chooses HTTP/1 or native HTTP/2 on the negotiated TLS
+connection. An observed Envoy header makes a read-only `/server_info` product
+validator eligible. Parser results update hypotheses, while silence and I/O
+failures remain inconclusive. Probe budgets, deadlines, cancellation, bounded
+responses, attempt tracking and a minimum information gain bound the work.
+JSON, stored history, API results and the web UI carry the decisions,
+before/after hypotheses, evidence references and termination reason. Unknown
+services retain observations for future native parsers or protocol definitions.
+See the [service identification guide](guide/service-identification.md).
+
+**Limits:** Likelihoods and costs are engineering estimates, not calibrated
+probabilities. A product validator only strengthens a matching structured
+response; a denied or absent admin endpoint leaves the header claim unchanged.
+The example's SYN/ACK-based Linux identification belongs to section 7; the
+adaptive engine does not infer an OS from TLS or HTTP headers. The existing
+native protocol and DSL bounds still apply within each state machine.
+
 This should become the core of Nyxr.
 
 Traditional service detection often follows:

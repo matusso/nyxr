@@ -23,9 +23,11 @@ import (
 func (e *Engine) probeQUIC(ctx context.Context, t Target, o *observe.Observation) bool {
 	started := time.Now()
 	ev := observe.Evidence{Probe: ProbeQUIC, Layer: "quic", Started: started.UTC()}
+	index := len(o.Evidence)
+	o.Evidence = append(o.Evidence, ev)
 	defer func() {
 		ev.Duration = time.Since(started)
-		o.Evidence = append([]observe.Evidence{ev}, o.Evidence...)
+		o.Evidence[index] = ev
 	}()
 	if err := e.pacer.wait(ctx); err != nil {
 		ev.Error = err.Error()
