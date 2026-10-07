@@ -80,6 +80,11 @@ type Config struct {
 	Rate      int // new connections per second across all workers; 0 = unlimited
 	// MaxEvidence bounds retained bytes per direction per exchange (default 4096).
 	MaxEvidence int
+	// MaxProbes bounds planned active steps per target, including nested
+	// database exchanges (the composite family selection is free). Zero uses
+	// 32; protocol machines also bound their
+	// own handshake steps, response bytes and deadlines.
+	MaxProbes int
 	// Dial is a test hook; nil uses net.Dialer.
 	Dial func(ctx context.Context, network, address string) (net.Conn, error)
 	// UserAgent is sent in HTTP requests.
@@ -103,6 +108,9 @@ func (c Config) Validate() error {
 	}
 	if c.Rate < 0 || c.QueueSize < 0 || c.MaxEvidence < 0 {
 		return errors.New("service rate, queue size and evidence limit must be nonnegative")
+	}
+	if c.MaxProbes < 0 || c.MaxProbes > 256 {
+		return errors.New("service max probes must be 0..256")
 	}
 	if len(c.Probes) == 0 {
 		if len(c.Definitions) == 0 {

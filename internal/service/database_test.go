@@ -98,10 +98,11 @@ func TestDatabaseProfileInterrogatesRedis(t *testing.T) {
 	var calls int
 	dial := func(context.Context, string, string) (net.Conn, error) {
 		calls++
+		call := calls
 		client, server := net.Pipe()
 		go func() {
 			defer server.Close()
-			if calls == 1 { // passive banner read
+			if call == 1 { // passive banner read
 				_, _ = io.Copy(io.Discard, server)
 				return
 			}

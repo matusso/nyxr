@@ -52,6 +52,10 @@ summary is always emitted last.
 | `rtt_ns` | integer | Round-trip time in nanoseconds |
 | `packets_tx`, `packets_rx` | integer | Packets sent and received for this observation |
 | `probes_attempted` | list | Service probes tried, in order |
+| `service_hypotheses` | list | Final protocol-family hypotheses: `family`, `probability` (0–1); planning estimates, separate from service confidence |
+| `probe_decisions` | list | Selected probe, expected `information_gain` in bits, cost-adjusted `score`, and selection-time `hypotheses`; includes nested database/application/product planning |
+| `probe_updates` | list | Probe `outcome` (`matched`, `unmatched`, `inconclusive`), optional response `signal`, `before` and `after` hypotheses, `evidence_start` inclusive and `evidence_end` exclusive zero-based indices |
+| `probe_stop_reason` | string | Identification, exhaustion, insufficient gain, budget limit, cancellation or connection failure |
 | `response_hex` | string | Sample of an unrecognized UDP response |
 | `fields` | map | Extracted protocol fields, such as `dns.rcode` or `bacnet.device_id` |
 | `attributes` | map | Service details, such as `ssh.software` or `nmap.*` provenance |

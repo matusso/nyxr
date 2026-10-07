@@ -66,11 +66,12 @@ from the current evidence:
    `filesystem` and `web`; or `none`.
 
    The `database` probe finds a client-first database on any port. A port
-   number only chooses which exchange goes first (a PostgreSQL SSLRequest on
-   5432, a TDS PRELOGIN on 1433). The probe then tries the rest in turn, each
-   on its own connection: Redis PING, PostgreSQL SSLRequest, TDS PRELOGIN,
+   number supplies a prior (a PostgreSQL SSLRequest on 5432, a TDS PRELOGIN on
+   1433). A nested planner selects each exchange from its current hypotheses,
+   each on its own connection: Redis PING, PostgreSQL SSLRequest, TDS PRELOGIN,
    MongoDB hello, Bolt, CQL, Memcached `version`, ZooKeeper `srvr`, and an HTTP
-   `GET /` when the `http` probe is off. It stops at the first match, when a
+   `GET /` when the `http` probe is off. Database HTTP exchanges are omitted
+   when the outer HTTP probe already parses the same identities. It stops at the first match, when a
    connection fails, when the Redis or Memcached text request is ignored, or
    at the second request that is ignored. With `database` enabled, a MySQL or
    MariaDB greeting is recognized from the banner on any port.
@@ -82,6 +83,19 @@ cost. The highest scoring eligible probe runs next. The likelihoods and costs
 are explicit estimates in the planner, so these probabilities are planning
 signals, not empirically calibrated product or version confidence. A validated
 response still supplies the service identity and its separate confidence.
+Silence, connection failure and cancellation leave the hypotheses unchanged;
+another protocol does not become confirmed merely because probes time out.
+Recognizable server-first greetings on active connections are reused too.
+
+The native and declarative conversations use the same execution boundary.
+Each target has independent planner state, and each probe is attempted at most
+once at its planning level. Work ends on identification, exhausted candidates,
+cancellation, a probe budget, or expected gain below 0.0001 bits. The default
+engine budget is 32 planned active steps, including database exchanges, TLS
+application probes and product validation. The composite database selection
+does not consume a step; protocol-specific handshake steps have their own
+bounds. These limits supplement the existing connection rate, worker queue,
+per-exchange deadline and evidence byte limits.
 
 Response shape can add a safe follow-up that was not in the initial candidate
 set. A RESP error to an HTTP request makes a Redis PING eligible, including on
@@ -120,8 +134,8 @@ TLS is one shared subsystem. For every handshake it records:
   key algorithm and size, signature algorithm, self-signed flag and SHA-256.
 
 Trust is not verified; the chain is recorded as presented. nyxr then identifies
-the service inside TLS: HTTP (reported as `https`, re-asking for HTTP/1.1 when
-ALPN selected h2) or a server-first banner such as IMAPS. On ports not known
+the service inside TLS: HTTP (reported as `https`, using native HTTP/2 on the
+same connection when ALPN selected h2) or a server-first banner such as IMAPS. On ports not known
 to be server-first, a greeting that arrives ahead of the HTTP reply is matched
 with the same banner rules, so IMAPS or SMTPS on an unusual port is still
 named. A PostgreSQL 17+ listener that refuses the HTTP ALPN offer is retried
@@ -135,6 +149,22 @@ implemented yet.
 The HTTP probe sends `GET /` and reports the status, the `Server` header parsed
 into product and version, the page title, content type, `Location` and
 authentication headers.
+
+When ALPN selects `h2`, Nyxr sends one HTTP/2 `GET /` stream and retains the
+binary preface, frames and response as evidence. Frame size/count, total wire
+input, decoded header size, body size and timeout are bounded. The result
+includes `http.version: "HTTP/2"`; the same identity parsers extract the Server
+header, title and HTTP database metadata.
+
+An `envoy` Server token makes a single product validator eligible. It requests
+the documented [Envoy GET /server_info](https://www.envoyproxy.io/docs/envoy/latest/operations/admin#get--server_info)
+over the observed HTTP transport and checks the build-version format, lifecycle
+state, command-line-options object and uptime. A validated response reports
+`Envoy Proxy`, extracts its version, and records `envoy.validation` and
+`envoy.confidence` derived from the product hypothesis update. Generic JSON,
+an HTTP error, a timeout or a missing admin endpoint cannot strengthen the
+header claim. This follow-up requires the HTTP probe to be enabled and fits
+within the same target budget.
 
 ## SOCKS
 
@@ -161,7 +191,14 @@ Every exchange is kept with the observation:
 Service records also include `service_hypotheses` (the final family
 probabilities) and `probe_decisions` (the selected probe, expected information
 gain in bits, cost-adjusted score, and probabilities at selection time). These
-make the adaptive path inspectable in JSON and stored history.
+make the adaptive path inspectable in JSON and stored history. `probe_updates`
+records matched, unmatched or inconclusive outcomes, recognized response
+signals, before/after hypotheses, and zero-based evidence ranges (start
+inclusive, end exclusive). Nested conversations have their own hypothesis
+distributions; parent updates summarize the completed machine rather than
+representing additional independent evidence. `probe_stop_reason` explains why
+the target stopped. The web UI's **Detection path** shows these updates and
+their exchange numbers in the retained evidence list.
 
 The web UI shows these exchanges under each service observation, and
 `nyxr history --scan <id> --json` returns them from the database. `nyxr history
