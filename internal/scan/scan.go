@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/probe"
 )
@@ -36,6 +37,7 @@ type Observation struct {
 	ProbesAttempted []string          `json:"probes_attempted,omitempty"`
 	ResponseHex     string            `json:"response_hex,omitempty"`
 	Fields          map[string]string `json:"fields,omitempty"`
+	TCPStack        *observe.TCPStack `json:"tcp_stack,omitempty"`
 }
 
 type task struct {

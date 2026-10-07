@@ -68,6 +68,7 @@ make fuzz
 | Target | Package |
 | --- | --- |
 | `FuzzDecoder` | `internal/packet` |
+| `FuzzTCPStackOptions` | `internal/stack` (native option parsing and classification) |
 | `FuzzPCAPReader` | `internal/packet` |
 | `FuzzDefinitionAndMatcher` | `internal/probe` |
 | `FuzzResponseParsers` | `internal/service` |

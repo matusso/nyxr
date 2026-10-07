@@ -23,6 +23,8 @@ type fakePacketIO struct {
 	maxBatch     int
 	destinations []net.HardwareAddr
 	arpReplies   map[netip.Addr]net.HardwareAddr
+	mutateReply  func([]byte)
+	repeats      int
 }
 
 func (f *fakePacketIO) ReceiveBatch(ctx context.Context, buffers [][]byte) (int, error) {
@@ -101,12 +103,18 @@ func (f *fakePacketIO) sendFrame(frame []byte) {
 		copy(reply[36:38], request[34:36])
 		binary.BigEndian.PutUint32(reply[42:46], binary.BigEndian.Uint32(request[38:42])+1)
 		reply[47] = f.flags
+		if f.mutateReply != nil {
+			f.mutateReply(reply)
+		}
 		if f.stale {
 			wrong := append([]byte(nil), reply...)
 			binary.BigEndian.PutUint32(wrong[42:46], 0)
 			f.frames <- wrong
 		}
 		f.frames <- reply
+		for i := 0; i < f.repeats; i++ {
+			f.frames <- append([]byte(nil), reply...)
+		}
 	}
 }
 func (f *fakePacketIO) Stats() packetio.Stats { return packetio.Stats{} }
@@ -231,5 +239,69 @@ func TestCandidateSYNFrameFiltersUnrelatedTraffic(t *testing.T) {
 	copy(vlan[18:], frame[14:])
 	if !candidateSYNFrame(vlan, source) {
 		t.Fatal("missed tagged frame")
+	}
+}
+
+func TestSYNFingerprintRetainsOnlyValidatedBoundedSamples(t *testing.T) {
+	for _, flags := range []byte{0x52, 0x14, 0} {
+		fake := &fakePacketIO{frames: make(chan []byte, 32), flags: flags, stale: true, repeats: 12}
+		cfg := config.Config{Targets: []netip.Addr{netip.MustParseAddr("198.51.100.20")}, Ports: []uint16{443}, TCP: true, TCPMode: "syn", StackFingerprint: true,
+			Timeout: 30 * time.Millisecond, Workers: 2, NextHopMAC: net.HardwareAddr{2, 6, 7, 8, 9, 10}}
+		var got []Observation
+		err := runSYNWithIO(context.Background(), cfg, func(o Observation) error { got = append(got, o); return nil }, fake, net.HardwareAddr{2, 1, 2, 3, 4, 5}, netip.MustParseAddr("192.0.2.10"))
+		if err != nil || len(got) != 1 || fake.sent != 1 {
+			t.Fatalf("scan: %+v %v", got, err)
+		}
+		o := got[0]
+		if flags == 0 {
+			if o.TCPStack != nil || o.State != "filtered" {
+				t.Fatalf("silence manufactured evidence: %+v", o)
+			}
+			continue
+		}
+		if o.TCPStack == nil || len(o.TCPStack.Samples) != 8 || !o.TCPStack.Truncated || o.PacketsRX != 13 {
+			t.Fatalf("bounded replies: %+v", o)
+		}
+		if flags == 0x52 && (o.State != "open" || len(o.TCPStack.Candidates) != 0 || o.TCPStack.RetransmissionBehavior != "duplicate-or-retransmitted-syn-ack") {
+			t.Fatalf("SYN/ACK: %+v", o)
+		}
+		if flags == 0x14 && (o.State != "closed" || o.TCPStack.RSTBehavior == "not-observed" || len(o.TCPStack.Candidates) != 0) {
+			t.Fatalf("RST: %+v", o)
+		}
+	}
+}
+
+func TestSYNFingerprintNormalAndCancelledCollection(t *testing.T) {
+	for _, cancelEarly := range []bool{false, true} {
+		fake := &fakePacketIO{frames: make(chan []byte, 8), flags: 0x52, stale: true, repeats: 1}
+		cfg := config.Config{Targets: []netip.Addr{netip.MustParseAddr("198.51.100.20")}, Ports: []uint16{443}, TCP: true, TCPMode: "syn", StackFingerprint: true,
+			Timeout: 30 * time.Millisecond, Workers: 1, NextHopMAC: net.HardwareAddr{2, 6, 7, 8, 9, 10}}
+		ctx := context.Background()
+		cancel := func() {}
+		if cancelEarly {
+			ctx, cancel = context.WithTimeout(ctx, 20*time.Millisecond)
+			cfg.Timeout = time.Second
+		}
+		defer cancel()
+		var got []Observation
+		err := runSYNWithIO(ctx, cfg, func(o Observation) error { got = append(got, o); return nil }, fake, net.HardwareAddr{2, 1, 2, 3, 4, 5}, netip.MustParseAddr("192.0.2.10"))
+		if (!cancelEarly && err != nil) || (cancelEarly && err != context.DeadlineExceeded) || len(got) != 1 {
+			t.Fatalf("collection: %+v %v", got, err)
+		}
+		f := got[0].TCPStack
+		if f == nil || f.CollectionComplete == cancelEarly || f.ObservationWindow != cfg.Timeout || len(f.Candidates) != 1 || f.Candidates[0].Family != "Linux" || got[0].PacketsRX != 2 {
+			t.Fatalf("validated reply lost: %+v", got)
+		}
+	}
+}
+
+func TestSYNFingerprintRejectsWrongTuple(t *testing.T) {
+	fake := &fakePacketIO{frames: make(chan []byte, 4), flags: 0x12, mutateReply: func(b []byte) { b[26] = 203 }}
+	cfg := config.Config{Targets: []netip.Addr{netip.MustParseAddr("198.51.100.20")}, Ports: []uint16{443}, TCP: true, TCPMode: "syn", StackFingerprint: true,
+		Timeout: 15 * time.Millisecond, Workers: 1, NextHopMAC: net.HardwareAddr{2, 6, 7, 8, 9, 10}}
+	var got Observation
+	err := runSYNWithIO(context.Background(), cfg, func(o Observation) error { got = o; return nil }, fake, net.HardwareAddr{2, 1, 2, 3, 4, 5}, netip.MustParseAddr("192.0.2.10"))
+	if err != nil || got.State != "filtered" || got.TCPStack != nil {
+		t.Fatalf("uncorrelated stack accepted: %+v %v", got, err)
 	}
 }

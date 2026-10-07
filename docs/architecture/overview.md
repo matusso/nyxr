@@ -59,6 +59,7 @@ raw privileges itself.
 | --- | --- |
 | `cmd/nyxr` | CLI entry point, subcommands and shell completion |
 | `cmd/nyxr-packetd` | Privileged packet relay entry point |
+| `internal/stack` | Native TCP/IP samples, normalized signatures, bounded behavior analysis and cautious OS-family rules |
 | `internal/config` | `config.Request`, profile catalog, port sets, target parsing, resolution, validation and dry-run plans |
 | `internal/pipeline` | Runs one scan: wires discovery, service, device, capture and sinks through bounded queues |
 | `internal/scan` | Discovery engines: TCP connect, raw SYN, UDP, ICMP, ARP/NDP, research probes, rate limiting, route and neighbor resolution |

@@ -59,6 +59,12 @@ func (s *TextSink) Observation(o observe.Observation) error {
 	}
 	if o.Kind == observe.KindDevice {
 		line := s.style.Device(o.Target.String(), o.Attributes["device.class"], o.Confidence, len(o.Signals))
+		if family := o.Attributes["device.os_family"]; family != "" {
+			line += fmt.Sprintf(" (%s-like stack, %s%%)", family, o.Attributes["device.os_confidence"])
+		}
+		if conflict := o.Attributes["device.os_conflict"]; conflict != "" {
+			line += " (" + conflict + ")"
+		}
 		_, err := fmt.Fprintln(s.w, line)
 		return err
 	}
@@ -66,6 +72,14 @@ func (s *TextSink) Observation(o observe.Observation) error {
 		reason := o.Reason
 		if o.MAC != "" {
 			reason += " (MAC " + o.MAC + ")"
+		}
+		if f := o.TCPStack; f != nil {
+			if len(f.Candidates) > 0 {
+				c := f.Candidates[0]
+				reason += fmt.Sprintf(" (%s-like stack, %d%%)", c.Family, c.Confidence)
+			} else {
+				reason += " (unknown TCP stack: " + f.Signature + ")"
+			}
 		}
 		line := s.style.Discovery(o.Target.String(), o.Port, o.Transport, o.State, o.Confidence, reason)
 		_, err := fmt.Fprintln(s.w, line)

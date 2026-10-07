@@ -96,6 +96,7 @@ Signals it can combine:
 - UDP identities: BACnet, SNMP, mDNS, SSDP and CoAP
 - MAC OUI prefixes from ARP or NDP discovery
 - Open port patterns
+- Native TCP/IP stack hypotheses from [raw SYN fingerprinting](tcp-stack-fingerprinting.md)
 
 A device record is emitted only when **at least two independent signals**
 support the claim. The record carries the class, the confidence and the

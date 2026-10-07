@@ -15,8 +15,10 @@ import (
 	"time"
 
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/packet"
 	"github.com/matusso/nyxr/internal/packetio"
+	"github.com/matusso/nyxr/internal/stack"
 )
 
 const synBatchSize = 32
@@ -62,7 +64,7 @@ func (q *synDeadlines) Pop() any {
 	return p
 }
 
-func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observation) error, io packetio.PacketIO, srcMAC net.HardwareAddr, source netip.Addr, neighbors map[netip.Addr]net.HardwareAddr, limiter *probeLimiter, resolve func(context.Context, []netip.Addr) (map[netip.Addr]net.HardwareAddr, error)) error {
+func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observation) error, io packetio.PacketIO, srcMAC net.HardwareAddr, source netip.Addr, neighbors map[netip.Addr]net.HardwareAddr, limiter *probeLimiter, resolve func(context.Context, []netip.Addr) (map[netip.Addr]net.HardwareAddr, error)) (runErr error) {
 	var secret [32]byte
 	if _, err := rand.Read(secret[:]); err != nil {
 		return err
@@ -93,6 +95,9 @@ func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observatio
 	tmpl, err := packet.NewSYNTemplate(srcMAC, destination, source, port)
 	if err != nil {
 		return err
+	}
+	if cfg.StackFingerprint {
+		tmpl.EnableFingerprint()
 	}
 	if limiter == nil {
 		limiter = newScopedProbeLimiter(cfg)
@@ -160,6 +165,23 @@ func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observatio
 	}
 	pending := make(map[synKey]*synPending)
 	deadlines := make(synDeadlines, 0, min(maxSYNInFlight, cfg.Workers*256))
+	// Every exit caused by caller cancellation retains validated replies,
+	// including cancellation during a rate-limit wait or the RX error path.
+	defer func() {
+		if parent.Err() == nil {
+			return
+		}
+		for _, entry := range pending {
+			if entry.obs.PacketsRX == 0 {
+				continue
+			}
+			stack.Analyze(entry.obs.TCPStack)
+			if err := emit(entry.obs); err != nil {
+				runErr = err
+				return
+			}
+		}
+	}()
 	var ordinal uint64
 	timer := time.NewTimer(time.Hour)
 	defer timer.Stop()
@@ -185,6 +207,9 @@ func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observatio
 		if entry == nil {
 			return nil
 		}
+		if !p.Received.IsZero() && p.Received.After(entry.deadline) {
+			return nil
+		}
 		o := entry.obs
 		if p.Protocol == "tcp" && p.DestPort == port {
 			switch {
@@ -200,6 +225,24 @@ func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observatio
 		} else {
 			return nil
 		}
+		if cfg.StackFingerprint && p.Protocol == "tcp" {
+			if entry.obs.PacketsRX == 0 {
+				entry.obs = o
+				entry.obs.RTT = time.Since(entry.sent)
+				entry.obs.TCPStack = &observe.TCPStack{ObservationWindow: cfg.Timeout}
+			}
+			entry.obs.PacketsRX++
+			f := entry.obs.TCPStack
+			if len(f.Samples) < stack.MaxSamples {
+				f.Samples = append(f.Samples, stack.Sample(p))
+			} else {
+				f.Truncated = true
+			}
+			return nil // retain until the original deadline to observe repeats
+		}
+		if entry.obs.PacketsRX > 0 {
+			return nil
+		} // ICMP cannot replace a TCP reply
 		delete(pending, key)
 		heap.Remove(&deadlines, entry.index)
 		o.PacketsRX = 1
@@ -225,8 +268,13 @@ func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observatio
 			entry := heap.Pop(&deadlines).(*synPending)
 			delete(pending, entry.key)
 			o := entry.obs
-			o.State, o.Confidence, o.Reason = "filtered", 60, "TCP SYN timed out"
-			o.RTT = now.Sub(entry.sent)
+			if o.PacketsRX == 0 {
+				o.State, o.Confidence, o.Reason = "filtered", 60, "TCP SYN timed out"
+				o.RTT = now.Sub(entry.sent)
+			} else {
+				o.TCPStack.CollectionComplete = true
+				stack.Analyze(o.TCPStack)
+			}
 			if err := emit(o); err != nil {
 				cancel()
 				<-rxErr
@@ -261,7 +309,7 @@ func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observatio
 				continue
 			}
 			var batch [synBatchSize][]byte
-			var storage [synBatchSize][54]byte
+			var storage [synBatchSize][74]byte
 			var entries [synBatchSize]*synPending
 			count := 0
 			add := func(work synWork) error {
@@ -288,8 +336,9 @@ func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observatio
 					limiter.PruneExpired(time.Now())
 				}
 				seq := synToken(h, t, port, ordinal)
-				copy(storage[count][:], tmpl.Frame(t.target, t.port, seq))
-				batch[count] = storage[count][:]
+				frame := tmpl.Frame(t.target, t.port, seq)
+				copy(storage[count][:], frame)
+				batch[count] = storage[count][:len(frame)]
 				entries[count] = &synPending{key: synKey{t.target, t.port, seq}, obs: base(t, "tcp-syn")}
 				count++
 				return nil

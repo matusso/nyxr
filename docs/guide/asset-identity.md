@@ -36,7 +36,11 @@ SNMP, SMB, SSH, or scoped inventory ID. Conflicting stable IDs prevent a new
 automatic join. A manual separation also blocks a later automatic join.
 
 Shared certificates, hostnames, MAC OUIs, HTTP headers, and software banners
-never merge assets automatically. The graph stores safe hostname and leaf
+never merge assets automatically. Shared TCP signatures also never join
+addresses. [Stack fingerprints](tcp-stack-fingerprinting.md) contribute
+`os_family` claims at their own confidence; one consistent family supplies the
+profile OS only when no application OS claim exists. Conflicting families
+remain in the claims list. The graph stores safe hostname and leaf
 certificate clues, plus UPnP UUIDs extracted from SSDP, and reports shared
 clues as relationships. Clues shared by more than 16 identities are omitted
 from candidate generation because they are too broad. Candidate scores are

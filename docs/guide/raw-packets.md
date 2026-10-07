@@ -50,6 +50,10 @@ route and `arp -n GATEWAY_IP` for its cached MAC.
 connect mode. `--dry-run` shows the chosen mode and link details; route and
 neighbor discovery only happen when the scan runs.
 
+Add `--fingerprint` to offer TCP options and retain SYN/ACK and RST/ACK
+header evidence with native OS-family hypotheses. Results wait until the
+original probe deadline. See [TCP/IP stack fingerprinting](tcp-stack-fingerprinting.md).
+
 **Performance.** Up to 16,384 probes can be outstanding. Silent probes expire
 from a bounded deadline queue, and transmit calls are batched when the rate
 allows. A single packet reader feeds bounded queues and reusable decoder

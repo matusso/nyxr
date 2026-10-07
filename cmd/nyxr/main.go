@@ -157,7 +157,7 @@ Flags:
   --bad-checksum      deliberately corrupt transport checksum
   --ip-length n       override IP payload/total length field
   --forge-payload-hex hex  raw research payload bytes
-  --fingerprint         classify devices from independent observations
+  --fingerprint         classify devices; collect TCP/IP stack evidence in SYN mode
   --packetd socket      raw packet I/O through nyxr-packetd instead of local privilege
   --known-open          rescan only the ports --db last saw open (service probes on by
                         default); targets, if given, narrow it by IP, CIDR or range

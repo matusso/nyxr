@@ -79,8 +79,9 @@ See the [service identification guide](guide/service-identification.md).
 **Limits:** Likelihoods and costs are engineering estimates, not calibrated
 probabilities. A product validator only strengthens a matching structured
 response; a denied or absent admin endpoint leaves the header claim unchanged.
-The example's SYN/ACK-based Linux identification belongs to section 7; the
-adaptive engine does not infer an OS from TLS or HTTP headers. The existing
+The example's SYN/ACK-based Linux identification is available through section 7
+as a separate heuristic stack claim; the adaptive engine does not infer an OS
+from TLS or HTTP headers. The existing
 native protocol and DSL bounds still apply within each state machine.
 
 This should become the core of Nyxr.
@@ -520,6 +521,26 @@ QUIC:
 ---
 
 # 7. TCP/IP Stack Fingerprinting
+
+## Implementation status (October 2026)
+
+**Implemented:** `--fingerprint` with raw IPv4 SYN mode uses a fixed native
+option/ECN probe and retains bounded, token-correlated SYN/ACK and RST/ACK
+samples within the existing timeout. Evidence covers window, MSS, scale,
+TTL/initial-TTL estimate, DF, option bytes/order, SACK, timestamps, ECN,
+sampled IP ID behavior, repeat timing and reset behavior. Native rules emit
+cautious Linux, Windows and BSD/macOS hypotheses; unknown, conflicting and
+truncated collections retain evidence. Stable signatures normalize counters.
+JSON, history, API, text and web UI expose the results. Device synthesis
+combines network/application evidence with separate OS confidence and conflict
+reporting; asset profiles retain family claims without merging on signatures.
+See the [TCP/IP stack fingerprinting guide](guide/tcp-stack-fingerprinting.md).
+
+**Remaining:** Live calibration, IPv6 raw SYN collection, kernel/version and
+specific embedded-stack rules, verified intermediary/device roles, cross-flow
+IP ID analysis and longer controlled retransmission experiments. Connect scans
+do not expose headers. Receive times are batch estimates; duplicates cannot
+prove retransmission. Confidence is heuristic and describes the responder.
 
 Do not rely only on service banners.
 

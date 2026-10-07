@@ -74,6 +74,7 @@ type Observation struct {
 	// Evidence lists every deep-probe exchange, matched or not.
 	Evidence []Evidence     `json:"evidence,omitempty"`
 	Signals  []DeviceSignal `json:"signals,omitempty"`
+	TCPStack *TCPStack      `json:"tcp_stack,omitempty"`
 }
 
 // ServiceHypothesis records a posterior probability after the last response.

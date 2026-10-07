@@ -34,6 +34,67 @@ type fakeNSERunner struct {
 	ports     []nse.Port
 }
 
+func TestFingerprintPipelinePassesStackEvidenceToSinks(t *testing.T) {
+	for _, mode := range []string{"syn", "connect"} {
+		off := false
+		r, err := (config.Request{Targets: []string{"192.0.2.7"}, Ports: "443", Protocols: "tcp", TCPMode: mode, Interface: "fixture", Fingerprint: true, Service: &off}).Resolve(config.ResolveOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var output bytes.Buffer
+		opts := FromResolved(r)
+		opts.Sinks = []Sink{NewJSONSink(&output)}
+		opts.Discover = func(_ context.Context, cfg config.Config, emit func(scan.Observation) error) error {
+			if cfg.StackFingerprint != (mode == "syn") {
+				t.Errorf("fingerprint not tied to raw SYN: %+v", cfg)
+			}
+			o := scan.Observation{Target: r.Config.Targets[0], Transport: "tcp", Port: 443, State: "open", Confidence: 100, Probe: "tcp-syn"}
+			if cfg.StackFingerprint {
+				o.TCPStack = &observe.TCPStack{Signature: "native", Status: observe.FingerprintUnknown}
+			}
+			return emit(o)
+		}
+		_, err = Run(context.Background(), r.Config, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, records := decodeKinds(t, output.Bytes())
+		if (records[0]["tcp_stack"] != nil) != (mode == "syn") {
+			t.Fatalf("stack lost or fabricated: %+v", records)
+		}
+	}
+}
+
+func TestCancelledDiscoveryRetainsStackRepliesWithoutNewServiceWork(t *testing.T) {
+	on := true
+	r, err := (config.Request{Targets: []string{"192.0.2.7"}, Ports: "80,443", Protocols: "tcp", TCPMode: "syn", Interface: "fixture", Fingerprint: true, Service: &on, ServiceProbes: "banner"}).Resolve(config.ResolveOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var output bytes.Buffer
+	opts := FromResolved(r)
+	opts.Sinks = []Sink{NewJSONSink(&output)}
+	opts.ServiceDial = func(context.Context, string, string) (net.Conn, error) {
+		t.Error("service work started after cancellation")
+		return nil, errors.New("cancelled")
+	}
+	opts.Discover = func(_ context.Context, _ config.Config, emit func(scan.Observation) error) error {
+		cancel()
+		for _, port := range []uint16{80, 443} {
+			if err := emit(scan.Observation{Target: r.Config.Targets[0], Transport: "tcp", Port: port, State: "open", Confidence: 100, Probe: "tcp-syn", TCPStack: &observe.TCPStack{Status: observe.FingerprintUnknown, Signature: "native"}}); err != nil {
+				return err
+			}
+		}
+		return context.Canceled
+	}
+	summary, err := Run(ctx, r.Config, opts)
+	if err != context.Canceled || summary.Observations != 2 {
+		t.Fatalf("cancelled replies lost: %+v %v", summary, err)
+	}
+}
+
 func (f *fakeNSERunner) Validate(_ context.Context, cfg config.NSE) error {
 	f.validated = cfg.Enabled()
 	return nil
