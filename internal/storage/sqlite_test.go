@@ -171,13 +171,13 @@ func TestAssetsShowLatestStateAcrossScans(t *testing.T) {
 func TestPacketEvidenceRoundTrip(t *testing.T) {
 	s, _ := openTest(t)
 	storeScan(t, s, "scan-p", t0, portObs(t0, 443, "open"))
-	pe := observe.PacketEvidence{ScanID: "scan-p", Target: host, Transport: "tcp", Port: 443, Capture: "scan.pcapng", Truncated: true,
+	pe := observe.PacketEvidence{ScanID: "scan-p", Target: host, Transport: "tcp", Port: 443, Capture: "scan.pcapng", CaptureArtifactID: observe.ArtifactID([]byte("capture-container")), Truncated: true,
 		Packets: []observe.Packet{{ID: 1, Timestamp: t0, Direction: "tx", Length: 54, Summary: "syn"}, {ID: 2, Timestamp: t0, Direction: "rx", Length: 60, Summary: "syn-ack"}}}
 	if err := s.AddPacketEvidence(ctx, []observe.PacketEvidence{pe}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := s.PacketEvidence(ctx, "scan-p", host)
-	if err != nil || len(got) != 1 || len(got[0].Packets) != 2 || got[0].Packets[1].Summary != "syn-ack" || !got[0].Truncated || got[0].Port != 443 {
+	if err != nil || len(got) != 1 || got[0].CaptureArtifactID != pe.CaptureArtifactID || len(got[0].Packets) != 2 || got[0].Packets[1].Summary != "syn-ack" || !got[0].Truncated || got[0].Port != 443 {
 		t.Fatalf("packet evidence: %+v %v", got, err)
 	}
 	if err := s.AddPacketEvidence(ctx, []observe.PacketEvidence{pe}); err == nil {

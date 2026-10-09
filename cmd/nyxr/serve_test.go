@@ -65,8 +65,10 @@ func normalize(t *testing.T, obs []observe.Observation) []string {
 	var out []string
 	for _, o := range obs {
 		o.ScanID, o.Timestamp, o.RTT = "", time.Time{}, 0
+		o.ID, o.Source = "", nil
 		for i := range o.Evidence {
 			o.Evidence[i].Started, o.Evidence[i].Duration = time.Time{}, 0
+			o.Evidence[i].Source = nil
 			if o.Evidence[i].Probe == "ssh-host-key" {
 				// SSH key exchange includes a fresh client nonce on every run.
 				o.Evidence[i].Request = nil

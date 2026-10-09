@@ -356,6 +356,16 @@ This makes results much more valuable for:
 
 # 4. Evidence and Transcript Engine
 
+**Implemented foundation (#76):** All discovery and service scans share the
+`nyxr/v1` record pipeline, including CLI `--no-db`. Observation/exchange source
+references map to exact retained JSON with parser/claim/completeness metadata;
+unknown UDP responses are bounded and retained. History/API preserve the same
+source mapping, migration preserves existing asset lineage, and retention returns
+explicit unavailable sources. HORIZON's offline report adapter reuses replay and
+references the original envelope without a second capture store or graph. These
+unit, loopback and replay checks do not establish privileged/live HORIZON gates.
+See [output records](reference/output-records.md#source-references).
+
 Every service identification should carry evidence.
 
 Instead of:

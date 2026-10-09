@@ -19,13 +19,14 @@ const SchemaVersion = "nyxr/v1"
 // Record kinds. A JSON stream may interleave all of them; readers switch on
 // the "kind" field.
 const (
-	KindHost           = "host"            // ICMP/ARP/NDP reachability of one address
-	KindPort           = "port"            // discovery state of one transport port
-	KindService        = "service"         // deep-probe identity of an open port
-	KindScript         = "script"          // Nmap NSE result for an open port or host
-	KindDevice         = "device"          // multi-source device classification
-	KindPacketEvidence = "packet-evidence" // captured frames belonging to one flow
-	KindScan           = "scan"            // scan summary, emitted last
+	KindHost                = "host"                 // ICMP/ARP/NDP reachability of one address
+	KindPort                = "port"                 // discovery state of one transport port
+	KindService             = "service"              // deep-probe identity of an open port
+	KindScript              = "script"               // Nmap NSE result for an open port or host
+	KindDevice              = "device"               // multi-source device classification
+	KindPacketEvidence      = "packet-evidence"      // captured frames belonging to one flow
+	KindExperimentReference = "experiment-reference" // offline HORIZON source adapter
+	KindScan                = "scan"                 // scan summary, emitted last
 )
 
 // Fingerprint values. Unknown responses are never discarded: they keep their
@@ -39,6 +40,9 @@ const (
 // that justify it. The discovery fields keep their original JSON names so
 // existing consumers of nyxr output continue to work.
 type Observation struct {
+	ID              string        `json:"observation_id,omitempty"`
+	Source          *SourceRef    `json:"source,omitempty"`
+	ClaimStatus     string        `json:"claim_status,omitempty"`
 	Schema          string        `json:"schema,omitempty"`
 	Kind            string        `json:"kind,omitempty"`
 	ScanID          string        `json:"scan_id,omitempty"`
@@ -72,9 +76,10 @@ type Observation struct {
 	TLS        *TLS              `json:"tls,omitempty"`
 	NSE        *NSEResult        `json:"nse,omitempty"`
 	// Evidence lists every deep-probe exchange, matched or not.
-	Evidence []Evidence     `json:"evidence,omitempty"`
-	Signals  []DeviceSignal `json:"signals,omitempty"`
-	TCPStack *TCPStack      `json:"tcp_stack,omitempty"`
+	Evidence          []Evidence     `json:"evidence,omitempty"`
+	EvidenceTruncated bool           `json:"evidence_truncated,omitempty"`
+	Signals           []DeviceSignal `json:"signals,omitempty"`
+	TCPStack          *TCPStack      `json:"tcp_stack,omitempty"`
 }
 
 // ServiceHypothesis records a posterior probability after the last response.
@@ -142,15 +147,19 @@ func (o *Observation) Stamp(scanID string) {
 // Evidence is one probe execution: what was sent, what came back, and which
 // matcher (if any) recognized the response. Byte fields are base64 in JSON.
 type Evidence struct {
-	Probe     string        `json:"probe"`
-	Layer     string        `json:"layer"` // tcp or tls (payload carried inside TLS)
-	Started   time.Time     `json:"started"`
-	Duration  time.Duration `json:"duration_ns"`
-	Request   []byte        `json:"request,omitempty"`
-	Response  []byte        `json:"response,omitempty"`
-	Truncated bool          `json:"truncated,omitempty"` // response exceeded the retention limit
-	Matched   string        `json:"matched,omitempty"`   // matcher name; empty when unrecognized
-	Error     string        `json:"error,omitempty"`
+	Source        *SourceRef    `json:"source,omitempty"`
+	ParserVersion string        `json:"parser_version,omitempty"`
+	ClaimStatus   string        `json:"claim_status,omitempty"`
+	Completeness  string        `json:"completeness,omitempty"`
+	Probe         string        `json:"probe"`
+	Layer         string        `json:"layer"` // tcp or tls (payload carried inside TLS)
+	Started       time.Time     `json:"started"`
+	Duration      time.Duration `json:"duration_ns"`
+	Request       []byte        `json:"request,omitempty"`
+	Response      []byte        `json:"response,omitempty"`
+	Truncated     bool          `json:"truncated,omitempty"` // a direction exceeded the retention limit
+	Matched       string        `json:"matched,omitempty"`   // matcher name; empty when unrecognized
+	Error         string        `json:"error,omitempty"`
 	// Decoded breaks the response down byte by byte when its format is known.
 	Decoded []ByteField `json:"decoded,omitempty"`
 }
@@ -196,14 +205,15 @@ type Certificate struct {
 // PacketEvidence references the frames a capture recorded for one flow. The
 // packet IDs are the pcapng epb_packetid values in Capture.
 type PacketEvidence struct {
-	Schema    string     `json:"schema"`
-	Kind      string     `json:"kind"`
-	ScanID    string     `json:"scan_id"`
-	Target    netip.Addr `json:"target"`
-	Transport string     `json:"transport"`
-	Port      uint16     `json:"port,omitempty"`
-	Capture   string     `json:"capture"`
-	Packets   []Packet   `json:"packets"`
+	CaptureArtifactID string     `json:"capture_artifact_id,omitempty"`
+	Schema            string     `json:"schema"`
+	Kind              string     `json:"kind"`
+	ScanID            string     `json:"scan_id"`
+	Target            netip.Addr `json:"target"`
+	Transport         string     `json:"transport"`
+	Port              uint16     `json:"port,omitempty"`
+	Capture           string     `json:"capture"`
+	Packets           []Packet   `json:"packets"`
 	// Truncated means more frames matched this flow than the index retains.
 	Truncated bool `json:"truncated,omitempty"`
 }
@@ -236,6 +246,7 @@ type Scan struct {
 // CaptureStats reports how complete the packet evidence is. Dropped frames are
 // counted rather than silently lost.
 type CaptureStats struct {
+	ArtifactID    string `json:"artifact_id,omitempty"`
 	Path          string `json:"path"`
 	Interface     string `json:"interface"`
 	Written       uint64 `json:"written"`

@@ -78,7 +78,7 @@ _nyxr() {
                 --allow-targets|--allow-ports|--target|--ports|--interface|--source-ip|--source-mac|--next-hop-mac) return 0 ;;
             esac
             if [[ -z "$sub" ]]; then
-                COMPREPLY=($(compgen -W "resolve replay explain" -- "$cur"))
+                COMPREPLY=($(compgen -W "resolve replay explain references" -- "$cur"))
             elif [[ "$sub" == "resolve" ]]; then
                 COMPREPLY=($(compgen -W "--experiment --allow-targets --allow-ports --target --ports --dry-run --simulate --interface --source-ip --source-mac --next-hop-mac --packetd --output --help" -- "$cur"))
             else

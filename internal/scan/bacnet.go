@@ -19,7 +19,7 @@ func enrichBACnet(ctx context.Context, conn *net.UDPConn, target *net.UDPAddr,
 	if probeTimeout > 750*time.Millisecond {
 		probeTimeout = 750 * time.Millisecond
 	}
-	var buf [4096]byte
+	var buf [65507]byte
 	query := func(name string, request []byte, parse func([]byte) (map[string]string, bool)) map[string]string {
 		if err := limiter.WaitFor(ctx, addr); err != nil {
 			return nil
@@ -31,6 +31,7 @@ func enrichBACnet(ctx context.Context, conn *net.UDPConn, target *net.UDPAddr,
 		if err := conn.SetWriteDeadline(deadline); err != nil {
 			return nil
 		}
+		started := time.Now()
 		if _, err := conn.WriteToUDP(request, target); err != nil {
 			return nil
 		}
@@ -48,7 +49,13 @@ func enrichBACnet(ctx context.Context, conn *net.UDPConn, target *net.UDPAddr,
 				continue
 			}
 			o.PacketsRX++
-			if fields, done := parse(buf[:n]); done {
+			fields, done := parse(buf[:n])
+			matcher := ""
+			if done {
+				matcher = name
+			}
+			retainUDPExchange(o, sentProbe{probe: probe.Probe{Name: name}, request: request, sent: started}, buf[:n], matcher)
+			if done {
 				return fields
 			}
 		}

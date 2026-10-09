@@ -9,8 +9,10 @@ package api
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
 	"crypto/subtle"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -87,6 +89,7 @@ func Handler(cfg ServerConfig) http.Handler {
 	api.HandleFunc("POST /api/v1/assets/identity-reviews", s.reviewIdentity)
 	api.HandleFunc("GET /api/v1/assets/topology", s.topology)
 	api.HandleFunc("GET /api/v1/observations", s.observations)
+	api.HandleFunc("POST /api/v1/evidence/resolve", s.resolveSource)
 	api.HandleFunc("GET /api/v1/packets/watch", s.watchPackets)
 	api.HandleFunc("POST /api/v1/packets/send", s.sendPacket)
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
@@ -355,6 +358,33 @@ func (s *server) writeObservations(w http.ResponseWriter, r *http.Request, f sto
 	writeJSON(w, http.StatusOK, obs)
 }
 
+// resolveSource reads an immutable container through the existing authenticated
+// API guard. The request carries a reference, never a filesystem path.
+func (s *server) resolveSource(w http.ResponseWriter, r *http.Request) {
+	var ref observe.SourceRef
+	d := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+	d.DisallowUnknownFields()
+	if err := d.Decode(&ref); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	var trailing any
+	if err := d.Decode(&trailing); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "trailing source reference data")
+		return
+	}
+	if err := ref.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	result, err := s.cfg.Store.ResolveSource(r.Context(), ref)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (s *server) scanEvidence(w http.ResponseWriter, r *http.Request) {
 	var addr netip.Addr
 	if a := r.URL.Query().Get("address"); a != "" {
@@ -410,6 +440,23 @@ func (s *server) scanPCAPNG(w http.ResponseWriter, r *http.Request) {
 	if err != nil || !fi.Mode().IsRegular() {
 		writeError(w, http.StatusNotFound, "capture file is missing")
 		return
+	}
+	if sc.Capture.ArtifactID != "" {
+		// Verify the retained container outside packet RX. Use the same opened
+		// file for download so path replacement cannot select different bytes.
+		digest := sha256.New()
+		if fi.Size() != sc.Capture.Bytes {
+			writeError(w, http.StatusNotFound, "capture artifact is unavailable: size changed")
+			return
+		}
+		if _, err := io.Copy(digest, io.LimitReader(f, sc.Capture.Bytes+1)); err != nil || "sha256:"+hex.EncodeToString(digest.Sum(nil)) != sc.Capture.ArtifactID {
+			writeError(w, http.StatusNotFound, "capture artifact is unavailable: hash mismatch")
+			return
+		}
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			writeError(w, http.StatusInternalServerError, "cannot read capture")
+			return
+		}
 	}
 	w.Header().Set("Content-Type", "application/vnd.tcpdump.pcap")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+filepath.Base(path)+`"`)

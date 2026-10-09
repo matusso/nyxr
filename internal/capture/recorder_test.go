@@ -15,6 +15,7 @@ import (
 	"github.com/gopacket/gopacket"
 	"github.com/gopacket/gopacket/layers"
 	"github.com/gopacket/gopacket/pcapgo"
+	"github.com/matusso/nyxr/internal/observe"
 
 	"github.com/matusso/nyxr/internal/packet"
 	"github.com/matusso/nyxr/internal/packetio"
@@ -115,6 +116,10 @@ func TestRecorderWritesFilteredIndexedPCAPNG(t *testing.T) {
 	result, err := r.Stop()
 	if err != nil {
 		t.Fatal(err)
+	}
+	artifact, err := os.ReadFile(result.Stats.Path)
+	if err != nil || result.Stats.ArtifactID != observe.ArtifactID(artifact) {
+		t.Fatalf("capture identity: %+v %v", result.Stats, err)
 	}
 	if !src.closed {
 		t.Fatal("recorder must close its capture handle")

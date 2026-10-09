@@ -21,23 +21,25 @@ import (
 )
 
 type Observation struct {
-	Timestamp       time.Time         `json:"timestamp"`
-	Target          netip.Addr        `json:"target"`
-	Transport       string            `json:"transport"`
-	Port            uint16            `json:"port,omitempty"`
-	State           string            `json:"state"`
-	Confidence      int               `json:"confidence"`
-	Reason          string            `json:"reason"`
-	Probe           string            `json:"probe"`
-	Service         string            `json:"service,omitempty"`
-	MAC             string            `json:"mac,omitempty"`
-	RTT             time.Duration     `json:"rtt_ns"`
-	PacketsTX       int               `json:"packets_tx"`
-	PacketsRX       int               `json:"packets_rx"`
-	ProbesAttempted []string          `json:"probes_attempted,omitempty"`
-	ResponseHex     string            `json:"response_hex,omitempty"`
-	Fields          map[string]string `json:"fields,omitempty"`
-	TCPStack        *observe.TCPStack `json:"tcp_stack,omitempty"`
+	Evidence          []observe.Evidence `json:"evidence,omitempty"`
+	EvidenceTruncated bool               `json:"evidence_truncated,omitempty"`
+	Timestamp         time.Time          `json:"timestamp"`
+	Target            netip.Addr         `json:"target"`
+	Transport         string             `json:"transport"`
+	Port              uint16             `json:"port,omitempty"`
+	State             string             `json:"state"`
+	Confidence        int                `json:"confidence"`
+	Reason            string             `json:"reason"`
+	Probe             string             `json:"probe"`
+	Service           string             `json:"service,omitempty"`
+	MAC               string             `json:"mac,omitempty"`
+	RTT               time.Duration      `json:"rtt_ns"`
+	PacketsTX         int                `json:"packets_tx"`
+	PacketsRX         int                `json:"packets_rx"`
+	ProbesAttempted   []string           `json:"probes_attempted,omitempty"`
+	ResponseHex       string             `json:"response_hex,omitempty"`
+	Fields            map[string]string  `json:"fields,omitempty"`
+	TCPStack          *observe.TCPStack  `json:"tcp_stack,omitempty"`
 }
 
 type task struct {
@@ -118,11 +120,9 @@ func RunWithIO(parent context.Context, cfg config.Config, emit func(Observation)
 					}
 					result = probeICMP(ctx, t, cfg.Timeout)
 				}
-				select {
-				case results <- result:
-				case <-ctx.Done():
-					return
-				}
+				// The consumer drains this bounded queue even after cancellation.
+				// Preserve an in-flight response before the worker exits.
+				results <- result
 			}
 		}()
 	}

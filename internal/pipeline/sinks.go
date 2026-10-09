@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -27,7 +28,7 @@ func (s *JSONSink) Finish(sc observe.Scan) error                  { return s.enc
 
 // TextSink writes one line per record for terminals. When its Styler is
 // enabled it colors and aligns output; otherwise it emits nyxr's original
-// plain layout, so piped and stored output is byte-for-byte unchanged.
+// plain discovery layout. Every scan also prints its versioned summary.
 type TextSink struct {
 	w     io.Writer
 	style *ui.Styler
@@ -247,16 +248,24 @@ func (s *StoreSink) Observation(o observe.Observation) error {
 func (s *StoreSink) PacketEvidence(p observe.PacketEvidence) error {
 	s.packets = append(s.packets, p)
 	if len(s.packets) >= s.size {
-		err := s.store.AddPacketEvidence(s.ctx, s.packets)
-		s.packets = s.packets[:0]
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), 30*time.Second)
+		defer cancel()
+		err := s.store.AddPacketEvidence(ctx, s.packets)
+		if err == nil {
+			s.packets = s.packets[:0]
+		}
 		return err
 	}
 	return nil
 }
 
 func (s *StoreSink) flush() error {
-	err := s.store.AddObservations(s.ctx, s.batch)
-	s.batch = s.batch[:0]
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), 30*time.Second)
+	defer cancel()
+	err := s.store.AddObservations(ctx, s.batch)
+	if err == nil {
+		s.batch = s.batch[:0]
+	}
 	return err
 }
 
@@ -264,7 +273,9 @@ func (s *StoreSink) flush() error {
 // results and the failure reason are both kept.
 func (s *StoreSink) Finish(sc observe.Scan) error {
 	// A canceled scan context must not prevent recording what happened.
-	s.ctx = context.WithoutCancel(s.ctx)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), 30*time.Second)
+	defer cancel()
+	s.ctx = ctx
 	if err := s.flush(); err != nil {
 		return err
 	}

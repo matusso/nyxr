@@ -20,8 +20,6 @@ import (
 	"github.com/matusso/nyxr/internal/packet"
 	"github.com/matusso/nyxr/internal/packetd"
 	"github.com/matusso/nyxr/internal/packetio"
-	"github.com/matusso/nyxr/internal/pipeline"
-	"github.com/matusso/nyxr/internal/scan"
 	"github.com/matusso/nyxr/internal/ui"
 )
 
@@ -103,7 +101,7 @@ Usage:
   nyxr history [--db file] [flags]       list or query stored scans, assets and evidence
   nyxr probe import file [--json]        import and summarize an nmap-service-probes file
   nyxr probe validate file [--json]      validate a Nyxr Protocol DSL file
-  nyxr horizon resolve|replay|explain    run bounded HZ-001 trials or inspect evidence
+  nyxr horizon resolve|replay|explain|references    run bounded HZ-001 trials or inspect evidence
   nyxr serve [--db file] [flags]         serve the REST API and web UI (unprivileged)
   nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
   nyxr version                           print the version
@@ -480,26 +478,7 @@ func knownOpen(db string) ([]config.KnownPort, error) {
 }
 
 func runResolved(out io.Writer, resolved config.Resolved, db string, open packetio.Opener, asJSON, openOnly bool, style *ui.Styler, tally *scanTally) error {
-	if resolved.UsesPipeline() || db != "" {
-		return runPipeline(out, resolved, db, open, asJSON, openOnly, style, tally)
-	}
-
-	encoder := json.NewEncoder(out)
-	return scan.RunWithIO(context.Background(), resolved.Config, func(o scan.Observation) error {
-		tally.Step(o.State == "open" || o.State == "responsive")
-		if openOnly && !pipeline.IsOpen(o.State) {
-			return nil
-		}
-		if asJSON {
-			return encoder.Encode(o)
-		}
-		reason := o.Reason
-		if o.MAC != "" {
-			reason += " (MAC " + o.MAC + ")"
-		}
-		_, err := fmt.Fprintln(out, style.Discovery(o.Target.String(), o.Port, o.Transport, o.State, o.Confidence, reason))
-		return err
-	}, open)
+	return runPipeline(out, resolved, db, open, asJSON, openOnly, style, tally)
 }
 
 func emitPlan(out io.Writer, plan config.Plan, asJSON bool, style *ui.Styler) error {

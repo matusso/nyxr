@@ -27,6 +27,7 @@ nyxr is refused rather than modified.
 | Identity graph | Local and namespaced IDs, current membership, validated signals, weak clues, review decisions, and durable membership events |
 | Observations | Every record with its full JSON |
 | Evidence | Request and response bytes, in their own table |
+| Observation sources | Exact immutable JSON containers and SHA-256 mappings, including exchange provenance, parser version, claim status and completeness |
 | Packet index | Links from flows to pcapng packet IDs |
 
 Writes are batched per transaction. `--open` changes only what is printed; the
@@ -81,3 +82,27 @@ removes assets and identity graph nodes that no longer have any records. pcapng 
 in place.
 
 See [Asset identity graph](asset-identity.md) for correlation rules and limits.
+
+## Source migration and cancellation
+
+Migration 7 adds immutable observation sources and capture artifact IDs without
+changing existing address/identity IDs, database lineage, reviews or membership
+history. It reconstructs each historical observation from the released record and
+evidence columns in batches of 256. Historical parser versions are `unknown`,
+missing bytes stay missing, and old captures receive no guessed hash. Existing
+probe-update ranges and unknown responses retain their order. Reopening the
+upgraded database preserves its references. Back up the database before upgrading;
+older binaries refuse the newer schema. A migration failure rolls back its changes.
+
+A canceled scan drains in-flight discovery results and records its partial failed
+summary. Store batches remain bounded at 256 records and finish pending writes
+with cancellation removed and a 30-second write deadline. Packet RX never performs
+source serialization, hashing or database writes. Ordinary capture hashing runs on
+the recorder's existing writer; capture download checks container size/hash.
+
+Pruning cascades to observation sources along with exchanges. A previously saved
+reference remains useful provenance, but resolving it returns `unavailable` with a
+reason after its container is removed. pcapng files remain operator-managed;
+rewriting a capture does not silently change its saved artifact identity.
+See [Output records](../reference/output-records.md#source-references) for the
+source resolver and CLI/JSON compatibility changes.

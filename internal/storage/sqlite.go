@@ -184,6 +184,13 @@ var migrations = []string{
 		management_address TEXT NOT NULL DEFAULT ''
 	);
 	CREATE INDEX passive_links_chassis ON passive_links(chassis_id, observed_at);`,
+	`CREATE TABLE observation_sources (
+		observation_id INTEGER PRIMARY KEY REFERENCES observations(id) ON DELETE CASCADE,
+		artifact_id TEXT NOT NULL,
+		source BLOB NOT NULL
+	);
+	CREATE INDEX observation_sources_artifact ON observation_sources(artifact_id);
+	ALTER TABLE packet_flows ADD COLUMN capture_artifact_id TEXT NOT NULL DEFAULT '';`,
 }
 
 // Store is safe for concurrent use.
@@ -252,6 +259,12 @@ func (s *Store) migrate(ctx context.Context) error {
 				return fmt.Errorf("migration %d clue backfill: %w", v, err)
 			}
 		}
+		if v == 7 {
+			if err := backfillSources(ctx, tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("migration %d sources: %w", v, err)
+			}
+		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)`, v, ts(time.Now())); err != nil {
 			_ = tx.Rollback()
 			return err
@@ -318,6 +331,7 @@ func (s *Store) AddObservations(ctx context.Context, batch []observe.Observation
 		if o.ScanID == "" {
 			return errors.New("observation has no scan ID")
 		}
+		o.Stamp(o.ScanID)
 		assetID, err := upsertAsset(ctx, tx, o.Target, o.Timestamp)
 		if err != nil {
 			return err
@@ -335,6 +349,18 @@ func (s *Store) AddObservations(ctx context.Context, batch []observe.Observation
 		}
 		id, err := res.LastInsertId()
 		if err != nil {
+			return err
+		}
+		if o.ID == "" {
+			if err := setStoredObservationID(ctx, tx, id, &o); err != nil {
+				return err
+			}
+		}
+		source, err := o.Seal()
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO observation_sources(observation_id, artifact_id, source) VALUES (?, ?, ?)`, id, o.Source.ArtifactID, source); err != nil {
 			return err
 		}
 		if err := resolveIdentity(ctx, tx, id, assetID, o); err != nil {
@@ -403,8 +429,8 @@ func (s *Store) AddPacketEvidence(ctx context.Context, batch []observe.PacketEvi
 			return err
 		}
 		var flowID int64
-		if err := tx.QueryRowContext(ctx, `INSERT INTO packet_flows(scan_id, asset_id, transport, port, capture, truncated) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-			pe.ScanID, assetID, pe.Transport, pe.Port, pe.Capture, pe.Truncated).Scan(&flowID); err != nil {
+		if err := tx.QueryRowContext(ctx, `INSERT INTO packet_flows(scan_id, asset_id, transport, port, capture, truncated, capture_artifact_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+			pe.ScanID, assetID, pe.Transport, pe.Port, pe.Capture, pe.Truncated, pe.CaptureArtifactID).Scan(&flowID); err != nil {
 			return err
 		}
 		for _, p := range pe.Packets {
@@ -511,7 +537,8 @@ func (s *Store) Observations(ctx context.Context, f Filter) ([]observe.Observati
 	if f.Unknown {
 		add("o.fingerprint = ?", observe.FingerprintUnknown)
 	}
-	query := `SELECT o.id, o.record FROM observations o JOIN assets a ON a.id = o.asset_id`
+	query := `SELECT o.id, COALESCE(src.source, o.record), COALESCE(src.artifact_id, '') FROM observations o JOIN assets a ON a.id = o.asset_id
+		LEFT JOIN observation_sources src ON src.observation_id = o.id`
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
@@ -526,19 +553,26 @@ func (s *Store) Observations(ctx context.Context, f Filter) ([]observe.Observati
 		return nil, err
 	}
 	var ids []int64
+	var sourced []bool
 	var out []observe.Observation
 	for rows.Next() {
 		var id int64
-		var body string
-		if err := rows.Scan(&id, &body); err != nil {
+		var body, artifactID string
+		if err := rows.Scan(&id, &body, &artifactID); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		var o observe.Observation
-		if err := json.Unmarshal([]byte(body), &o); err != nil {
+		if artifactID != "" {
+			o, err = observe.ReadSource([]byte(body), artifactID)
+		} else {
+			err = json.Unmarshal([]byte(body), &o)
+		}
+		if err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("observation %d: %w", id, err)
 		}
+		sourced = append(sourced, artifactID != "")
 		ids = append(ids, id)
 		out = append(out, o)
 	}
@@ -547,6 +581,9 @@ func (s *Store) Observations(ctx context.Context, f Filter) ([]observe.Observati
 		return nil, err
 	}
 	for i, id := range ids {
+		if sourced[i] {
+			continue
+		}
 		ev, err := s.evidence(ctx, id)
 		if err != nil {
 			return nil, err
@@ -581,7 +618,7 @@ func (s *Store) evidence(ctx context.Context, observationID int64) ([]observe.Ev
 // PacketEvidence returns the capture index for one scan, optionally narrowed
 // to one address.
 func (s *Store) PacketEvidence(ctx context.Context, scanID string, addr netip.Addr) ([]observe.PacketEvidence, error) {
-	query := `SELECT f.id, a.address, f.transport, f.port, f.capture, f.truncated FROM packet_flows f JOIN assets a ON a.id = f.asset_id WHERE f.scan_id = ?`
+	query := `SELECT f.id, a.address, f.transport, f.port, f.capture, f.truncated, f.capture_artifact_id FROM packet_flows f JOIN assets a ON a.id = f.asset_id WHERE f.scan_id = ?`
 	args := []any{scanID}
 	if addr.IsValid() {
 		query += " AND a.address = ?"
@@ -598,7 +635,7 @@ func (s *Store) PacketEvidence(ctx context.Context, scanID string, addr netip.Ad
 		var id int64
 		var address string
 		pe := observe.PacketEvidence{Schema: observe.SchemaVersion, Kind: observe.KindPacketEvidence, ScanID: scanID}
-		if err := rows.Scan(&id, &address, &pe.Transport, &pe.Port, &pe.Capture, &pe.Truncated); err != nil {
+		if err := rows.Scan(&id, &address, &pe.Transport, &pe.Port, &pe.Capture, &pe.Truncated, &pe.CaptureArtifactID); err != nil {
 			rows.Close()
 			return nil, err
 		}

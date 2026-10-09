@@ -128,6 +128,7 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 
 	var mu sync.Mutex
 	var sinkErr error
+	var sequence uint64
 	var devices *device.Collector
 	if opts.Fingerprint {
 		devices = device.New()
@@ -139,6 +140,13 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 			return
 		}
 		o.Stamp(summary.ID)
+		sequence++
+		o.ID = fmt.Sprintf("%s/%d", summary.ID, sequence)
+		if _, err := o.Seal(); err != nil {
+			sinkErr = err
+			cancel()
+			return
+		}
 		if devices != nil {
 			devices.Add(o)
 		}
@@ -235,7 +243,7 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 			}
 			if eligible && ctx.Err() == nil {
 				t := service.Target{Addr: o.Target, Port: o.Port, Transport: o.Transport, State: o.State}
-				if cfg.Profile == "ot-safe" {
+				if cfg.Profile == "ot-safe" && opts.Service.Enabled {
 					otOpen = append(otOpen, t)
 				} else if engine != nil {
 					if err := engine.Submit(ctx, t); err != nil {
@@ -248,7 +256,7 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 			return sinkErr
 		})
 	}
-	if runErr == nil && cfg.Profile == "ot-safe" {
+	if runErr == nil && cfg.Profile == "ot-safe" && opts.Service.Enabled {
 		startService()
 		for _, t := range otOpen {
 			if runErr != nil {
@@ -288,7 +296,7 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 			pe := observe.PacketEvidence{
 				Schema: observe.SchemaVersion, Kind: observe.KindPacketEvidence, ScanID: summary.ID,
 				Target: f.Key.Target, Transport: f.Key.Transport, Port: f.Key.Port,
-				Capture: opts.Capture.Path, Packets: f.Packets, Truncated: f.Truncated,
+				CaptureArtifactID: stats.ArtifactID, Capture: opts.Capture.Path, Packets: f.Packets, Truncated: f.Truncated,
 			}
 			mu.Lock()
 			for _, s := range opts.Sinks {
@@ -416,6 +424,6 @@ func fromScan(s scan.Observation) observe.Observation {
 		Timestamp: s.Timestamp, Target: s.Target, Transport: s.Transport, Port: s.Port, State: s.State,
 		Confidence: s.Confidence, Reason: s.Reason, Probe: s.Probe, Service: s.Service, MAC: s.MAC, RTT: s.RTT,
 		PacketsTX: s.PacketsTX, PacketsRX: s.PacketsRX, ProbesAttempted: s.ProbesAttempted, ResponseHex: s.ResponseHex, Fields: s.Fields,
-		TCPStack: s.TCPStack,
+		TCPStack: s.TCPStack, Evidence: s.Evidence, EvidenceTruncated: s.EvidenceTruncated,
 	}
 }

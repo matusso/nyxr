@@ -25,8 +25,8 @@ complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a versio
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a help -d 'Show help'
 
 # horizon
-complete -c nyxr -n '__fish_seen_subcommand_from horizon; and not __fish_seen_subcommand_from resolve replay explain' -a 'resolve replay explain'
-complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from replay explain' -F
+complete -c nyxr -n '__fish_seen_subcommand_from horizon; and not __fish_seen_subcommand_from resolve replay explain references' -a 'resolve replay explain references'
+complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from replay explain references' -F
 complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from resolve' -l experiment -r -F
 complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from resolve' -l output -r -F
 complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from resolve' -l packetd -r -F
