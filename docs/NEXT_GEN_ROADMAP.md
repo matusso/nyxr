@@ -1,5 +1,17 @@
 # Nyxr Next-Generation Network Scanner Roadmap
 
+## Delivery ownership and baseline
+
+The [NEXT GEN / HORIZON ownership contract](architecture/next-gen-horizon-contracts.md)
+maps every section to local implementation, remaining owner, canonical issue and
+validation gate. It governs shared-interface extensions; sketches, phases, commands
+and example scores below remain vision. Reuse the existing scanner, service planner,
+DSL, evidence and asset store. HORIZON owns controlled experiments and transport-state
+inference. Local implementation does not imply publication or live validation.
+
+Delivery: [NYXR NEXT GEN](https://github.com/users/matusso/projects/3),
+foundation [#75](https://github.com/matusso/nyxr/issues/75).
+
 ## Vision
 
 Nyxr should evolve beyond being a fast port scanner.

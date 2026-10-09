@@ -9,6 +9,7 @@ nyxr sniff --interface eth0 [flags]    capture and decode live frames
 nyxr history [--db file] [flags]       list or query stored scans, assets and evidence
 nyxr probe import file [--json]        import and summarize an nmap-service-probes file
 nyxr probe validate file [--json]      validate a Nyxr Protocol DSL file
+nyxr horizon resolve|replay|explain    bounded HZ-001 experiments and offline evidence
 nyxr serve [--db file] [flags]         serve the REST API and web UI (unprivileged)
 nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
 nyxr version                           print the version
@@ -20,6 +21,20 @@ nyxr help                              show this help
 when output is not a terminal.
 
 Run `nyxr <command> -h` for the built-in help of any command.
+
+## nyxr horizon
+
+`resolve --experiment FILE --allow-targets LIST --allow-ports LIST` compiles
+and executes one scoped HZ-001 experiment. `--dry-run` prints the plan without
+opening packet I/O; `--simulate sack|stable|loss|noise` selects a synthetic
+transport. `--output FILE` writes private evidence and refuses overwrites.
+Live mode requires `--interface`, `--source-ip`, `--next-hop-mac` and existing
+raw privileges or `--packetd SOCKET`. Unmapped adapters also need `--source-mac`.
+Optional `--target`/`--ports` assert the file's scope.
+
+`replay REPORT` checks integrity, validates raw evidence and recomputes the
+JSON report. `explain REPORT` shows the comparison and limitations.
+See the [HORIZON operator guide](../horizon/README.md) for examples and bounds.
 
 ## nyxr scan
 

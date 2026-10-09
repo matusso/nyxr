@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nyxr.io/horizon/experiment-v1alpha1.schema.json",
+  "title": "HORIZON HZ-001 PoC Experiment",
+  "description": "Structural schema for the supported PoC subset. The compiler additionally validates authorization, arm equivalence, port equality and resource bounds.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {"const": "horizon.nyxr.io/v1alpha1"},
+    "kind": {"const": "Experiment"},
+    "metadata": {
+      "type": "object", "additionalProperties": false, "required": ["name"],
+      "properties": {"name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"}}
+    },
+    "spec": {
+      "type": "object", "additionalProperties": false,
+      "required": ["scope", "changedVariable", "control", "treatment", "execution", "limits", "capture"],
+      "properties": {
+        "scope": {
+          "type": "object", "additionalProperties": false, "required": ["targets", "tcpPorts"],
+          "properties": {
+            "targets": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"type": "string"}},
+            "tcpPorts": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"type": "integer", "minimum": 1, "maximum": 65535}}
+          }
+        },
+        "changedVariable": {"const": "sackPermitted"},
+        "control": {"$ref": "#/$defs/sequence"},
+        "treatment": {"$ref": "#/$defs/sequence"},
+        "execution": {
+          "type": "object", "additionalProperties": false, "required": ["replicates", "randomizedOrder"],
+          "properties": {
+            "replicates": {"type": "integer", "minimum": 2, "maximum": 50},
+            "randomizedOrder": {"const": true},
+            "seed": {"type": "integer", "minimum": -9223372036854775808, "maximum": 9223372036854775807, "default": 0},
+            "washoutMs": {"type": "integer", "minimum": 0, "maximum": 5000, "default": 0}
+          }
+        },
+        "limits": {
+          "type": "object", "additionalProperties": false,
+          "required": ["maxPackets", "maxDurationSeconds", "packetsPerSecond", "maxConcurrentFlows"],
+          "properties": {
+            "maxPackets": {"type": "integer", "minimum": 8, "maximum": 200},
+            "maxDurationSeconds": {"type": "integer", "minimum": 1, "maximum": 1800},
+            "packetsPerSecond": {"type": "integer", "minimum": 1, "maximum": 10},
+            "maxConcurrentFlows": {"const": 1}
+          }
+        },
+        "capture": {
+          "type": "object", "additionalProperties": false, "required": ["maxBytes"],
+          "properties": {"maxBytes": {"type": "integer", "minimum": 4096, "maximum": 8388608}}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sequence": {
+      "type": "object", "additionalProperties": false, "required": ["steps"],
+      "properties": {
+        "steps": {
+          "type": "array", "minItems": 2, "maxItems": 2, "items": false,
+          "prefixItems": [
+            {
+              "type": "object", "additionalProperties": false, "required": ["send"],
+              "properties": {
+                "send": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["protocol", "flags", "dstPort", "optionsProfile"],
+                  "properties": {
+                    "protocol": {"const": "tcp"},
+                    "flags": {"const": ["SYN"]},
+                    "dstPort": {"type": "integer", "minimum": 1, "maximum": 65535},
+                    "optionsProfile": {"enum": ["baseline", "sack-permitted"]}
+                  }
+                }
+              }
+            },
+            {
+              "type": "object", "additionalProperties": false, "required": ["observe"],
+              "properties": {
+                "observe": {
+                  "type": "object", "additionalProperties": false, "required": ["windowMs"],
+                  "properties": {"windowMs": {"type": "integer", "minimum": 10, "maximum": 5000}}
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

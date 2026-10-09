@@ -4,6 +4,9 @@ This page describes nyxr as it is built today. The long-term target
 architecture and its rationale are in the [Design brief](design.md); delivery
 status is in the [Roadmap](../roadmap.md).
 
+Shared extensions follow the [NEXT GEN / HORIZON ownership and integration contract](next-gen-horizon-contracts.md),
+which maps the implemented baseline, future adapters and independent research gates.
+
 ## Principles
 
 - **Scan fast first; interrogate intelligently second.** Fast discovery and

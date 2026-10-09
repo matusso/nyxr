@@ -32,7 +32,7 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
     }
 
     if (-not $cmd) {
-        & $emit @('scan', 'profiles', 'decode', 'sniff', 'history', 'probe', 'serve', 'completion', 'version', 'help') 'Command'
+        & $emit @('scan', 'profiles', 'decode', 'sniff', 'history', 'probe', 'horizon', 'serve', 'completion', 'version', 'help') 'Command'
         return
     }
 
@@ -62,6 +62,13 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
                     '--service', '--service-probes', '--service-fallback', '--service-timeout', '--service-workers', '--service-rate', '--nmap-service-probes', '--protocol-definitions', '--nse-scripts', '--nse-timeout', '--pcapng', '--pcapng-max-mb', '--no-last-pcapng', '--db', '--no-db', '--allow-targets',
                     '--fingerprint', '--packetd', '--known-open', '--json', '--dry-run', '--help') 'ParameterName'
             }
+        }
+        'horizon' {
+            if ($prev -match '^--?simulate$') { & $emit @('sack', 'stable', 'loss', 'noise'); return }
+            if ($prev -match '^--?(experiment|output|packetd|allow-targets|allow-ports|target|ports|interface|source-ip|source-mac|next-hop-mac)$') { return }
+            if ($wordToComplete.StartsWith('-')) {
+                & $emit @('--experiment', '--allow-targets', '--allow-ports', '--target', '--ports', '--dry-run', '--simulate', '--interface', '--source-ip', '--source-mac', '--next-hop-mac', '--packetd', '--output', '--help') 'ParameterName'
+            } elseif ($prev -eq 'horizon') { & $emit @('resolve', 'replay', 'explain') }
         }
         'probe' {
             if ($prev -match '^import$') { return }

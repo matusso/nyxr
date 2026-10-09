@@ -81,6 +81,7 @@ nyxr scan --dry-run --profile tcp-full 10.0.0.0/24  # show the plan, send nothin
 nyxr history --assets --open                        # what is open right now, per host
 nyxr history --identities                           # correlated addresses and asset IDs
 nyxr serve                                          # web UI at http://127.0.0.1:8484
+nyxr horizon resolve --experiment lab/horizon/hz-001.yaml --allow-targets 192.0.2.0/24 --allow-ports 443 --simulate sack
 ```
 
 ```text
@@ -180,6 +181,7 @@ NYXR_API_TOKEN=$(openssl rand -hex 16) \
 | [REST API](docs/guide/web-ui-and-api.md#rest-api) | Endpoints and live events |
 | [Architecture](docs/architecture/overview.md) | How nyxr is built |
 | [Roadmap](docs/roadmap.md) | What is done and what is next |
+| [HORIZON PoC](docs/horizon/README.md) | Bounded TCP option A/B experiments and offline evidence replay |
 
 Full index: [docs/](docs/README.md).
 
