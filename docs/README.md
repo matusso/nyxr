@@ -19,6 +19,7 @@ New to nyxr? Start with **[Getting started](getting-started.md)**.
 | [TCP/IP stack fingerprinting](guide/tcp-stack-fingerprinting.md) | Native SYN/ACK/reset evidence, OS-family hypotheses, confidence and limits |
 | [Raw packet scanning](guide/raw-packets.md) | Raw SYN, ARP/NDP, ICMP, platform requirements |
 | [Research packets](guide/research-packets.md) | Crafted TCP flags, SCTP, raw IP protocols, fragmentation |
+| [HORIZON PoC](horizon/README.md) | Scoped paired TCP-option trials, synthetic lab and evidence replay |
 | [Packet capture and analysis](guide/packet-capture.md) | pcapng evidence, `decode`, the terminal packet browser, `sniff` |
 | [Storage and history](guide/storage-and-history.md) | The SQLite database, `nyxr history`, retention |
 | [Asset identity graph](guide/asset-identity.md) | Correlation, confidence, reviews, membership history, passive topology and limits |
