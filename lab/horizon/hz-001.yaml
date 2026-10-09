@@ -4,7 +4,7 @@ metadata:
   name: hz-001-sack-permission
 spec:
   scope:
-    targets: ["192.168.1.1"]
+    targets: ["192.0.2.10"]
     tcpPorts: [443]
   changedVariable: sackPermitted
   control:
