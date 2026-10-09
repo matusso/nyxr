@@ -33,7 +33,7 @@ _nyxr() {
     done
 
     if [[ -z "$cmd" ]]; then
-        COMPREPLY=($(compgen -W "scan profiles decode sniff history probe serve completion version help" -- "$cur"))
+        COMPREPLY=($(compgen -W "scan profiles decode sniff history probe horizon serve completion version help" -- "$cur"))
         return 0
     fi
 
@@ -69,6 +69,20 @@ _nyxr() {
             esac
             if [[ "$cur" == -* ]]; then
                 COMPREPLY=($(compgen -W "--profile --ports --protocols --timeout --rate --workers --udp-retries --tcp-mode --interface --source-ip --source-mac --next-hop-mac --allow-targets --payload --send-hex --send-base64 --payload-file --nmap-udp-probes --config --service --service-probes --service-fallback --service-timeout --service-workers --service-rate --nmap-service-probes --protocol-definitions --nse-scripts --nse-timeout --pcapng --pcapng-max-mb --no-last-pcapng --db --no-db --fingerprint --packetd --known-open --json --dry-run --help" -- "$cur"))
+            fi
+            ;;
+        horizon)
+            case "$prev" in
+                --simulate) COMPREPLY=($(compgen -W "sack stable loss noise" -- "$cur")); return 0 ;;
+                --experiment|--output|--packetd) COMPREPLY=($(compgen -f -- "$cur")); return 0 ;;
+                --allow-targets|--allow-ports|--target|--ports|--interface|--source-ip|--source-mac|--next-hop-mac) return 0 ;;
+            esac
+            if [[ -z "$sub" ]]; then
+                COMPREPLY=($(compgen -W "resolve replay explain" -- "$cur"))
+            elif [[ "$sub" == "resolve" ]]; then
+                COMPREPLY=($(compgen -W "--experiment --allow-targets --allow-ports --target --ports --dry-run --simulate --interface --source-ip --source-mac --next-hop-mac --packetd --output --help" -- "$cur"))
+            else
+                COMPREPLY=($(compgen -f -- "$cur"))
             fi
             ;;
         probe)

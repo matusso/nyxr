@@ -36,6 +36,7 @@ _nyxr() {
                 'sniff:capture and decode live frames'
                 'history:list or query stored scans, assets and evidence'
                 'probe:import and summarize an nmap-service-probes file'
+                'horizon:bounded HZ-001 experiments and offline evidence replay'
                 'serve:serve the REST API and web UI'
                 'completion:print a shell completion script'
                 'version:print the version'
@@ -142,6 +143,24 @@ _nyxr() {
                         '--max-scans=[concurrent scans]:count:' \
                         '--allow-privileged[run even with root or raw-socket capabilities]' \
                         '(- *)--help[show serve help]' && ret=0
+                    ;;
+                horizon)
+                    _arguments \
+                        '1:subcommand:(resolve replay explain)' \
+                        '--experiment=[versioned experiment]:file:_files' \
+                        '--allow-targets=[authorized IP/CIDR scope]:scope:' \
+                        '--allow-ports=[authorized TCP ports]:ports:' \
+                        '--target=[assert experiment target]:IP:' \
+                        '--ports=[assert experiment port]:port:' \
+                        '--dry-run[compile without packet I/O]' \
+                        '--simulate=[synthetic scenario]:scenario:(sack stable loss noise)' \
+                        '--interface=[live Ethernet interface]:interface:_net_interfaces' \
+                        '--source-ip=[assigned source IP]:IP:' \
+                        '--source-mac=[source Ethernet MAC]:MAC:' \
+                        '--next-hop-mac=[target or gateway MAC]:MAC:' \
+                        '--packetd=[packet daemon socket]:socket:_files' \
+                        '--output=[new private evidence file]:file:_files' \
+                        '*:report file:_files' && ret=0
                     ;;
                 probe)
                     _arguments \

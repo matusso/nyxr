@@ -1,0 +1,37 @@
+apiVersion: horizon.nyxr.io/v1alpha1
+kind: Experiment
+metadata:
+  name: hz-001-sack-permission
+spec:
+  scope:
+    targets: ["192.0.2.10"]
+    tcpPorts: [443]
+  changedVariable: sackPermitted
+  control:
+    steps:
+      - send:
+          protocol: tcp
+          flags: [SYN]
+          dstPort: 443
+          optionsProfile: baseline
+      - observe: {windowMs: 100}
+  treatment:
+    steps:
+      - send:
+          protocol: tcp
+          flags: [SYN]
+          dstPort: 443
+          optionsProfile: sack-permitted
+      - observe: {windowMs: 100}
+  execution:
+    replicates: 12
+    randomizedOrder: true
+    seed: 42
+    washoutMs: 50
+  limits:
+    maxPackets: 48
+    maxDurationSeconds: 30
+    packetsPerSecond: 3
+    maxConcurrentFlows: 1
+  capture:
+    maxBytes: 1048576
