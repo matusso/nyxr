@@ -4,6 +4,12 @@
 `matusso/nyxr`. Source: `docs/HORIZON_ROADMAP.md`. Initial local branch:
 `codex/horizon-poc`. HZ-001 is the first slice; deeper tomography remains gated.
 
+NEXT GEN [#75](https://github.com/matusso/nyxr/issues/75) defines the shared
+[ownership and versioned adapter contract](../architecture/next-gen-horizon-contracts.md).
+It reuses #61/#67/#68/#71/#72/#73 rather than duplicating their deliverables.
+A coordination link blocks only its related integration or live-validation slice;
+ordinary NEXT GEN delivery remains independent of HORIZON's research go/no-go result.
+
 | Issue | Deliverable | Dependencies |
 |---|---|---|
 | [#61](https://github.com/matusso/nyxr/issues/61) | PoC integration map and inference assumptions | — |

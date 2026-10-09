@@ -39,6 +39,7 @@ New to nyxr? Start with **[Getting started](getting-started.md)**.
 | Document | Content |
 | --- | --- |
 | [Architecture overview](architecture/overview.md) | How nyxr is built today: process model, packages, hot path |
+| [NEXT GEN / HORIZON contracts](architecture/next-gen-horizon-contracts.md) | Roadmap ownership, versioned adapters, compatibility and research gates |
 | [Design brief](architecture/design.md) | The long-term product and architecture target |
 | [Roadmap](roadmap.md) | Delivery status by phase and what comes next |
 | [Security policy](SECURITY.md) | Supported versions and how to report a vulnerability |

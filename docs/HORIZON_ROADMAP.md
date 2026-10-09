@@ -6,6 +6,12 @@
 **Status:** Research and implementation proposal — not a demonstrated invention or a patentability opinion  
 **Scope:** Authorized TCP/IP network measurement, active service characterization, and inference of shared network state
 
+**Integration contract:** [NEXT GEN / HORIZON ownership and adapters](architecture/next-gen-horizon-contracts.md).
+It maps phases to the local baseline/canonical issues, preserves both DSL namespaces
+and separates inventory from experimental graphs. Layouts, signed-report ambitions
+and API examples below are proposals; the [PoC guide](horizon/README.md) describes
+implemented behavior/limits. Independent HORIZON research go/no-go gates remain intact.
+
 ## 1. Executive Summary
 
 NYXR HORIZON extends Nyxr from a high-performance port scanner into a **controlled network experimentation and transport-state inference engine**. Instead of treating each probe as an independent request, HORIZON compiles **paired, randomized, repeatable packet sequences** into experiments, measures responses, tests competing explanations, and constructs an evidence-backed graph of observed transport behavior.

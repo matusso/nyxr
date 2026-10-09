@@ -1,5 +1,9 @@
 # Integration assessment and inference assumptions
 
+Shared changes follow the [NEXT GEN / HORIZON ownership and integration contract](../architecture/next-gen-horizon-contracts.md).
+Inventory ownership remains NEXT GEN; experimental inference, graph, planner and
+profiles remain HORIZON. This assessment is the canonical #61 integration baseline.
+
 | Component | Existing implementation | PoC integration |
 |---|---|---|
 | Construction | `internal/packet/forge.go`, `ForgeFrames` | SYN and RST, existing checksums |
