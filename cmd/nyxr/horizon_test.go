@@ -82,13 +82,17 @@ func TestHorizonCLISyntheticExportAndReplay(t *testing.T) {
 	text = strings.ReplaceAll(text, "washoutMs: 50", "washoutMs: 0")
 	definition := filepath.Join(dir, "experiment.yaml")
 	report := filepath.Join(dir, "report.json")
+	captureFile := filepath.Join(dir, "evidence.pcapng")
 	if err := os.WriteFile(definition, []byte(text), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	args := []string{"horizon", "resolve", "--experiment", definition, "--allow-targets", "192.0.2.0/24", "--allow-ports", "443", "--simulate", "sack", "--output", report}
+	args := []string{"horizon", "resolve", "--experiment", definition, "--allow-targets", "192.0.2.0/24", "--allow-ports", "443", "--simulate", "sack", "--output", report, "--pcapng", captureFile, "--pcapng-minimize"}
 	var out bytes.Buffer
 	if err := run(args, &out); err != nil {
 		t.Fatal(err)
+	}
+	if info, err := os.Stat(captureFile); err != nil || info.Mode().Perm()&0o077 != 0 {
+		t.Fatalf("capture permissions: %v", err)
 	}
 	saved, err := os.ReadFile(report)
 	if err != nil {
@@ -112,6 +116,10 @@ func TestHorizonCLISyntheticExportAndReplay(t *testing.T) {
 		t.Fatal("CLI replay is not deterministic")
 	}
 	out.Reset()
+	if err := run([]string{"horizon", "verify-capture", report, captureFile}, &out); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
 	if err := run([]string{"horizon", "explain", report}, &out); err != nil || !strings.Contains(out.String(), "unresolved") {
 		t.Fatalf("explain failed: %v", err)
 	}
@@ -120,7 +128,7 @@ func TestHorizonCLISyntheticExportAndReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	var refs horizon.ReportReferences
-	if err := json.Unmarshal(out.Bytes(), &refs); err != nil || refs.Source.ArtifactID != observe.ArtifactID(saved) || refs.Kind != "experiment-reference" || len(refs.Trials) != 4 {
+	if err := json.Unmarshal(out.Bytes(), &refs); err != nil || refs.Source.ArtifactID != observe.ArtifactID(saved) || refs.Kind != "experiment-reference" || len(refs.Trials) != 4 || refs.CaptureArtifact == nil || len(refs.Trials[0].Packets) != 3 {
 		t.Fatalf("reference adapter: %+v %v", refs, err)
 	}
 	out.Reset()

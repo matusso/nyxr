@@ -66,10 +66,10 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
         'horizon' {
             if ($prev -match '^--?policy$') { & $emit @('lab', 'enterprise', 'fragile', 'ot-restricted'); return }
             if ($prev -match '^--?simulate$') { & $emit @('sack', 'stable', 'loss', 'noise'); return }
-            if ($prev -match '^--?(experiment|output|packetd|permit|allow-targets|allow-ports|target|ports|interface|source-ip|source-mac|next-hop-mac)$') { return }
+            if ($prev -match '^--?(experiment|output|pcapng|pcapng-max-bytes|packetd|permit|allow-targets|allow-ports|target|ports|interface|source-ip|source-mac|next-hop-mac)$') { return }
             if ($wordToComplete.StartsWith('-')) {
-                & $emit @('--experiment', '--policy', '--permit', '--allow-targets', '--allow-ports', '--target', '--ports', '--dry-run', '--simulate', '--interface', '--source-ip', '--source-mac', '--next-hop-mac', '--packetd', '--output', '--help') 'ParameterName'
-            } elseif ($prev -eq 'horizon') { & $emit @('resolve', 'replay', 'explain', 'references') }
+                & $emit @('--experiment', '--policy', '--permit', '--allow-targets', '--allow-ports', '--target', '--ports', '--dry-run', '--simulate', '--interface', '--source-ip', '--source-mac', '--next-hop-mac', '--packetd', '--output', '--pcapng', '--pcapng-max-bytes', '--pcapng-minimize', '--help') 'ParameterName'
+            } elseif ($prev -eq 'horizon') { & $emit @('resolve', 'replay', 'explain', 'references', 'verify-capture') }
         }
         'probe' {
             if ($prev -match '^import$') { return }

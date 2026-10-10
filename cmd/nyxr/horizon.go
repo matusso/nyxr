@@ -32,13 +32,39 @@ func runHorizon(args []string, out io.Writer) error {
   nyxr horizon replay report.json
   nyxr horizon explain report.json
   nyxr horizon references report.json
+  nyxr horizon verify-capture report.json evidence.pcapng
 
 v1alpha1 HZ-001 and v1alpha2 bounded send/observe/wait/repeat sequences.
 v1alpha2 requires --policy; cross-port requires --permit cross-port.
 resolve emits versioned JSON; --output writes evidence to a new private file.
+--pcapng exports bounded evidence; --pcapng-minimize strips application payload.
 Simulations (sack, stable, loss, noise) send no network traffic.
 Live mode requires an explicit interface source and unicast next-hop MAC.
 Ctrl-C cancels execution and emits partial evidence. No active mode is a default.`)
+		return err
+	}
+	if args[0] == "verify-capture" {
+		if len(args) != 3 {
+			return errors.New("horizon verify-capture requires report.json and evidence.pcapng")
+		}
+		report, err := os.Open(args[1])
+		if err != nil {
+			return err
+		}
+		defer report.Close()
+		envelope, err := horizon.Replay(report)
+		if err != nil {
+			return err
+		}
+		artifact, err := os.Open(args[2])
+		if err != nil {
+			return err
+		}
+		defer artifact.Close()
+		if err := horizon.VerifyPCAPNG(envelope.Report, artifact); err != nil {
+			return err
+		}
+		_, err = fmt.Fprintln(out, "PCAPNG artifact and packet references verified")
 		return err
 	}
 	if args[0] == "replay" || args[0] == "explain" || args[0] == "references" {
@@ -95,6 +121,9 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 	sourceMAC := fs.String("source-mac", "", "source MAC for unmapped Npcap adapter names")
 	nextHop := fs.String("next-hop-mac", "", "target/gateway unicast MAC")
 	socket := fs.String("packetd", "", "existing packet daemon socket")
+	pcapPath := fs.String("pcapng", "", "new private bounded PCAPNG evidence file")
+	pcapMax := fs.Int64("pcapng-max-bytes", 8<<20, "encoded PCAPNG file cap, 256 bytes..8 MiB")
+	pcapMinimize := fs.Bool("pcapng-minimize", false, "omit application payload in PCAPNG; raw JSON remains authoritative")
 	output := fs.String("output", "", "new private evidence file (refuses overwrites)")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
@@ -137,6 +166,12 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 		if !slices.Equal(requested, declared) {
 			return errors.New("--ports does not match experiment scope")
 		}
+	}
+	if *pcapMax < 256 || *pcapMax > 8<<20 {
+		return errors.New("PCAPNG cap must be 256 bytes..8 MiB")
+	}
+	if *pcapPath == "" && (*pcapMinimize || *pcapMax != 8<<20) {
+		return errors.New("PCAPNG options require --pcapng")
 	}
 	if *dry {
 		return horizonJSON(out, p)
@@ -227,9 +262,33 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 		}
 		defer destination.Close()
 	}
+	var pcapFile *os.File
+	if *pcapPath != "" {
+		pcapFile, err = os.OpenFile(*pcapPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err != nil {
+			return err
+		}
+		defer pcapFile.Close()
+	}
 	report, runErr := horizon.Run(ctx, e, policy, link, transport)
 	if report.APIVersion == "" {
 		return runErr
+	}
+	if pcapFile != nil {
+		captureErr := horizon.WritePCAPNG(pcapFile, &report, *pcapMax, *pcapMinimize)
+		closeErr := pcapFile.Close()
+		if captureErr != nil || closeErr != nil {
+			report.CaptureArtifact = nil
+			for i := range report.Trials {
+				for j := range report.Trials[i].Evidence {
+					report.Trials[i].Evidence[j].PacketID = 0
+				}
+			}
+			report.Completed = false
+			report.StopReason = "PCAPNG export failed"
+			report.Comparison = horizon.Compare(report)
+		}
+		runErr = errors.Join(runErr, captureErr, closeErr)
 	}
 	envelope, err := horizon.Seal(report)
 	if err != nil {

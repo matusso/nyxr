@@ -290,7 +290,7 @@ func FuzzCorrelation(f *testing.F) {
 		if len(frame) > 65535 {
 			return
 		}
-		features, ok := correlate(frame, sent, packet.NewDecoder())
+		features, ok := correlateRich(frame, sent)
 		if ok && !validOptions(features.TCPOptions) {
 			t.Fatal("invalid options accepted")
 		}

@@ -3,10 +3,10 @@
 The [bounded sequence DSL and policy profiles](general-dsl.md) extend this PoC
 with v1alpha2 send/observe/wait/repeat sequences, explicit cross-port permission,
 exact dry-run probes and API/executor kill switches. v1alpha1 remains compatible.
-The guide below describes the original HZ-001 experiment.
+The guide below describes HZ-001. [Phase 2 correlation and evidence](correlation-evidence.md) documents IPv6/ICMP, delayed replies, timestamp provenance and bounded PCAPNG export.
 
 HORIZON is an opt-in experiment runner. Both SYN arms offer MSS 1460;
-**only treatment adds SACK permission**. It retains direct TCP replies and
+**only treatment adds SACK permission**. It retains TCP replies, ICMP errors and ambiguous path candidates and
 compares whether those replies offer SACK permission. It does not identify
 an OS, firewall, NAT, proxy or shared state.
 
@@ -65,8 +65,7 @@ sudo ./nyxr-packetd --socket /tmp/nyxr-horizon.sock --interface hz-host
 
 Direct raw I/O uses the same platform backend; omit `--packetd` when the CLI
 has the required privileges. The source must be assigned to the interface.
-Unmapped Npcap adapters require `--source-mac`. Ethernet IPv4/IPv6 direct
-TCP replies are supported; loopback is not a raw Ethernet lab.
+Unmapped Npcap adapters require `--source-mac`. Ethernet IPv4/IPv6 TCP replies and ICMP errors are supported; loopback is not a raw Ethernet lab.
 macOS/Windows live behavior depends on existing BPF/Npcap capabilities.
 **No privileged live lab was validated on the macOS development host.**
 
@@ -103,7 +102,7 @@ time. Execution re-admits and enforces all bounds. Received work is capped at
 after preserving the triggering packet. Frames larger than 2048 bytes stop
 capture. Serialized JSON is larger than the raw-byte capture budget.
 
-Ctrl-C, caller cancellation and deadlines stop new transmissions. Errors
+Ctrl-C, caller cancellation and deadlines stop new transmissions. A receive-only drain retains queued replies for at most 20 ms within the same budgets. Errors
 return nonzero and export partial evidence when available. There are no
 retries. Cleanup follows the receive window and shares the rate gate.
 Capture backend failures carry `receive-failed` and stop execution even when
@@ -124,9 +123,7 @@ difference means lack of evidence, not stack equivalence or absence of coupling.
 
 The test assumes independent stationary pairs; those assumptions are not
 established by this PoC. Associations do not establish a causal mechanism.
-RTT includes userspace/backend queues; timestamp precision and transport
-checksums are not calibrated. ICMP, NAT/path shifts and topology probabilities
-are not implemented. No broad false-positive or causal-validity claim is made.
+RTT includes userspace/backend queues; unknown precision and queue delay are explicit null metadata. TCP/ICMP checksums are checked. ICMP errors and token-only NAT/path candidates are retained with quality flags and remain unresolved. Topology probabilities are not implemented. No broad false-positive or causal-validity claim is made.
 
 The seed reproduces arm ordering and the compiled hash, not live frames or
 timestamps. Run IDs and flow tokens use fresh randomness. Arms in a pair use

@@ -2,6 +2,7 @@
 package horizon
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/binary"
@@ -39,6 +40,7 @@ type runner struct {
 	plan     model.Plan
 	report   *model.Report
 	nextSend time.Time
+	sent     []packet.ForgeSpec
 }
 
 // Run recompiles at the execution boundary with independent authorization.
@@ -59,15 +61,19 @@ func Run(ctx context.Context, e model.Experiment, policy model.Policy, link Link
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return report, err
 	}
-	report = model.Report{APIVersion: p.APIVersion, Kind: "EvidenceReport", Experiment: p.Experiment, ExperimentHash: p.Hash,
+	report = model.Report{CorrelationVersion: correlationVersion, APIVersion: p.APIVersion, Kind: "EvidenceReport", Experiment: p.Experiment, ExperimentHash: p.Hash,
 		RunID: hex.EncodeToString(nonce[:]), Build: link.Build, Backend: link.Backend, StartedAt: time.Now().UTC(),
-		Limitations: []string{"Synthetic backends validate software only; live ground truth remains unvalidated.", "SACK is the sole pre-registered metric; RTT/TTL/options and response classes are descriptive.", "Paired sign test assumes independent, stationary pairs; it does not establish causality or topology.", "User-space send/receive timestamps include queueing; clock precision and transport checksums are not calibrated.", "Fresh TCP sequence and IP ID tokens differ between probes; ambient load, routing and reused flow state may confound results.", "Only direct TCP replies are classified; ICMP/NAT/path-shift replies remain unresolved.", "SHA-256 detects corruption, not forgery; this report is not digitally signed.", "RST cleanup is best effort; cancellation/error may leave remote SYN state to expire."}}
+		Limitations: []string{"Synthetic backends validate software only; live ground truth remains unvalidated.", "SACK is the sole pre-registered metric; RTT/TTL/options and response classes are descriptive.", "Paired sign test assumes independent, stationary pairs; it does not establish causality or topology.", "Software timestamps include backend queueing; unknown clock precision/queue delay are reported as null. RTT is descriptive.", "Fresh TCP sequence and IP ID tokens differ between probes; ambient load, routing and reused flow state may confound results.", "ICMP errors and token-only NAT/path shifts are preserved but remain unresolved; fragmented traffic is not reassembled.", "SHA-256 detects corruption, not forgery; this report is not digitally signed.", "RST cleanup is best effort; cancellation/error may leave remote SYN state to expire."}}
 	before := io.Stats().Dropped
 	defer func() {
 		report.FinishedAt = time.Now().UTC()
 		after := io.Stats().Dropped
 		if after >= before {
 			report.BackendDrops = after - before
+		} else {
+			for i := range report.Trials {
+				report.Trials[i].QualityFlags = appendUnique(report.Trials[i].QualityFlags, "capture-stats-reset")
+			}
 		}
 		if runErr != nil {
 			report.StopReason = runErr.Error()
@@ -144,7 +150,7 @@ func (r *runner) evidence(t *model.Trial, direction string, ts time.Time, frame 
 		return errors.New("evidence capture budget exhausted")
 	}
 	r.report.CaptureBytes += len(frame)
-	t.Evidence = append(t.Evidence, model.Evidence{Direction: direction, Timestamp: ts.UTC(), Frame: append([]byte(nil), frame...)})
+	t.Evidence = append(t.Evidence, model.Evidence{Direction: direction, Timestamp: ts.UTC(), Frame: append([]byte(nil), frame...), Timing: &model.Timing{ClockSource: "userspace/time.Now", ResolutionNS: 1, BackendDrops: r.io.Stats().Dropped}})
 	return nil
 }
 
@@ -175,6 +181,7 @@ func (r *runner) send(ctx context.Context, s packet.ForgeSpec, t *model.Trial, d
 		if captureErr := r.evidence(t, direction, ts, frame); captureErr != nil {
 			return captureErr
 		}
+		t.Evidence[len(t.Evidence)-1].Timing.OperationNS = time.Since(ts).Nanoseconds()
 	}
 	r.nextSend = time.Now().Add(time.Second / time.Duration(r.plan.Experiment.Spec.Limits.PacketsPerSecond))
 	if err != nil || n != 1 {
@@ -190,9 +197,9 @@ func (r *runner) trial(ctx context.Context, sent packet.ForgeSpec, t *model.Tria
 	if err := r.send(ctx, sent, t, "tx"); err != nil {
 		return err
 	}
+	defer func() { r.sent = append(r.sent, sent) }()
 	window, cancel := context.WithTimeout(ctx, time.Duration(windowMS)*time.Millisecond)
 	defer cancel()
-	decoder := packet.NewDecoder()
 	buffer := make([]byte, 65535)
 	matched, received := 0, 0
 	receiveLimit := 4096
@@ -200,9 +207,78 @@ func (r *runner) trial(ctx context.Context, sent packet.ForgeSpec, t *model.Tria
 		receiveLimit = limit
 	}
 	var cleanup *packet.ForgeSpec
+	record := func(frame []byte, now time.Time, timing *model.Timing, late bool) error {
+		decoded, valid := packet.DecodeResearch(frame)
+		if !valid || !decoded.ValidChecksum() {
+			return nil
+		}
+		features, ok := correlateDecoded(decoded, sent)
+		related := ""
+		if ok && late {
+			related = t.FlowID
+		}
+		if !ok {
+			for i, previous := range r.sent {
+				if f, match := correlateDecoded(decoded, previous); match {
+					features, ok, related = f, true, flowID(previous)
+					r.report.Trials[i].QualityFlags = appendUnique(r.report.Trials[i].QualityFlags, "delayed-response")
+					break
+				}
+			}
+		}
+		if ok {
+			direction := "rx"
+			if related != "" {
+				direction = "late-rx"
+			}
+			if err := r.evidence(t, direction, now, frame); err != nil {
+				return err
+			}
+			ev := &t.Evidence[len(t.Evidence)-1]
+			ev.Timing, ev.RelatedFlowID = timing, related
+			if !validTiming(timing) {
+				timing = &model.Timing{ClockSource: "userspace/time.Now", ResolutionNS: 1, BackendDrops: r.io.Stats().Dropped}
+				now = time.Now()
+				ev.Timestamp, ev.Timing = now.UTC(), timing
+				t.QualityFlags = appendUnique(t.QualityFlags, "invalid-backend-timing")
+			}
+			if now.After(time.Now()) || now.Before(t.SentAt) || (len(t.Evidence) > 1 && now.Before(t.Evidence[len(t.Evidence)-2].Timestamp)) {
+				t.QualityFlags = appendUnique(t.QualityFlags, "clock-instability")
+			}
+			t.QualityFlags = receiveFlags(t.QualityFlags, features)
+			matched++
+			if matched > 16 {
+				t.QualityFlags = appendUnique(t.QualityFlags, "duplicate-limit")
+				return errors.New("correlated receive budget exhausted")
+			}
+			if related != "" {
+				t.QualityFlags = appendUnique(t.QualityFlags, "delayed-response")
+			} else if t.Features.ResponseClass == "no-response" {
+				features.RTTNS = now.Sub(t.SentAt).Nanoseconds()
+				t.Features = features
+				if features.ResponseClass == "syn-ack" && features.Correlation == "exact" {
+					s := sent
+					s.TCPFlags, s.Sequence, s.TCPOptions = 4, sent.Sequence+1, nil
+					cleanup = &s
+				}
+			} else {
+				t.QualityFlags = appendUnique(t.QualityFlags, "duplicate-response")
+				for _, previous := range t.Evidence[:len(t.Evidence)-1] {
+					if previous.Direction == "rx" && bytes.Equal(previous.Frame, frame) {
+						t.QualityFlags = appendUnique(t.QualityFlags, "retransmission")
+						break
+					}
+				}
+				if features.TTL != t.Features.TTL || features.ResponseSource != t.Features.ResponseSource || features.ResponseClass != t.Features.ResponseClass || !bytes.Equal(features.TCPOptions, t.Features.TCPOptions) {
+					t.QualityFlags = appendUnique(t.QualityFlags, "path-change")
+				}
+			}
+		}
+		return nil
+	}
 	for window.Err() == nil {
 		batch := [][]byte{buffer}
-		n, err := r.io.ReceiveBatch(window, batch)
+		n, err, now, timing := receiveTimed(window, r.io, batch)
 		if n < 0 || n > 1 {
 			return errors.New("invalid receive batch count")
 		}
@@ -212,31 +288,8 @@ func (r *runner) trial(ctx context.Context, sent packet.ForgeSpec, t *model.Tria
 				t.QualityFlags = append(t.QualityFlags, "receive-limit")
 				return errors.New("receive work budget exhausted")
 			}
-			if window.Err() == nil {
-				features, ok := correlate(batch[0], sent, decoder)
-				if ok {
-					now := time.Now()
-					if err := r.evidence(t, "rx", now, batch[0]); err != nil {
-						return err
-					}
-					matched++
-					if matched > 16 {
-						t.QualityFlags = append(t.QualityFlags, "duplicate-limit")
-						return errors.New("correlated receive budget exhausted")
-					}
-					if matched == 1 {
-						features.RTTNS = now.Sub(t.SentAt).Nanoseconds()
-						t.Features = features
-						if features.ResponseClass == "syn-ack" {
-							s := sent
-							s.TCPFlags, s.Sequence, s.TCPOptions = 4, sent.Sequence+1, nil
-							cleanup = &s
-							// Cleanup spacing must not shorten the receive window.
-						}
-					} else {
-						t.QualityFlags = appendUnique(t.QualityFlags, "duplicate-response")
-					}
-				}
+			if captureErr := record(batch[0], now, timing, window.Err() != nil); captureErr != nil {
+				return captureErr
 			}
 		}
 		if err != nil {
@@ -246,10 +299,41 @@ func (r *runner) trial(ctx context.Context, sent packet.ForgeSpec, t *model.Tria
 				break
 			}
 			t.QualityFlags = appendUnique(t.QualityFlags, "receive-failed")
+			if cleanup != nil {
+				t.QualityFlags = appendUnique(t.QualityFlags, "cleanup-skipped")
+			}
 			return fmt.Errorf("receive packet: %w", err)
 		}
 	}
+	if ctx.Err() != nil && received < receiveLimit && matched < 16 {
+		drain, stop := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Millisecond)
+		defer stop()
+		for drain.Err() == nil && received < receiveLimit && matched < 16 {
+			batch := [][]byte{buffer}
+			n, err, now, timing := receiveTimed(drain, r.io, batch)
+			if n < 0 || n > 1 {
+				t.QualityFlags = appendUnique(t.QualityFlags, "drain-failed")
+				break
+			}
+			if n == 1 {
+				received++
+				if captureErr := record(batch[0], now, timing, true); captureErr != nil {
+					t.QualityFlags = appendUnique(t.QualityFlags, "drain-failed")
+					break
+				}
+			}
+			if err != nil {
+				if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+					t.QualityFlags = appendUnique(t.QualityFlags, "drain-failed")
+				}
+				break
+			}
+		}
+	}
 	if err := ctx.Err(); err != nil {
+		if cleanup != nil {
+			t.QualityFlags = appendUnique(t.QualityFlags, "cleanup-skipped")
+		}
 		t.QualityFlags = append(t.QualityFlags, "cancelled")
 		return err
 	}
@@ -259,7 +343,7 @@ func (r *runner) trial(ctx context.Context, sent packet.ForgeSpec, t *model.Tria
 			return err
 		}
 	}
-	if matched == 0 {
+	if t.Features.ResponseClass == "no-response" {
 		t.QualityFlags = append(t.QualityFlags, "timeout")
 	}
 	return nil

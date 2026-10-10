@@ -76,13 +76,13 @@ _nyxr() {
                 --policy) COMPREPLY=($(compgen -W "lab enterprise fragile ot-restricted" -- "$cur")); return 0 ;;
                 --permit) COMPREPLY=($(compgen -W "cross-port" -- "$cur")); return 0 ;;
                 --simulate) COMPREPLY=($(compgen -W "sack stable loss noise" -- "$cur")); return 0 ;;
-                --experiment|--output|--packetd) COMPREPLY=($(compgen -f -- "$cur")); return 0 ;;
-                --allow-targets|--allow-ports|--target|--ports|--interface|--source-ip|--source-mac|--next-hop-mac) return 0 ;;
+                --experiment|--output|--packetd|--pcapng) COMPREPLY=($(compgen -f -- "$cur")); return 0 ;;
+                --allow-targets|--allow-ports|--target|--ports|--interface|--source-ip|--source-mac|--next-hop-mac|--pcapng-max-bytes) return 0 ;;
             esac
             if [[ -z "$sub" ]]; then
-                COMPREPLY=($(compgen -W "resolve replay explain references" -- "$cur"))
+                COMPREPLY=($(compgen -W "resolve replay explain references verify-capture" -- "$cur"))
             elif [[ "$sub" == "resolve" ]]; then
-                COMPREPLY=($(compgen -W "--experiment --policy --permit --allow-targets --allow-ports --target --ports --dry-run --simulate --interface --source-ip --source-mac --next-hop-mac --packetd --output --help" -- "$cur"))
+                COMPREPLY=($(compgen -W "--experiment --policy --permit --allow-targets --allow-ports --target --ports --dry-run --simulate --interface --source-ip --source-mac --next-hop-mac --packetd --output --pcapng --pcapng-max-bytes --pcapng-minimize --help" -- "$cur"))
             else
                 COMPREPLY=($(compgen -f -- "$cur"))
             fi

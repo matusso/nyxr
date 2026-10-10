@@ -12,7 +12,7 @@ profiles remain HORIZON. This assessment is the canonical #61 integration baseli
 | Transport | `internal/packetio`, `PacketIO` | Existing AF_PACKET/BPF/Npcap, no new driver |
 | Privilege separation | `internal/packetd`, `Opener` | Existing daemon transport |
 | Scheduler | `internal/scan/research.go`, `syn.go`, `syn_async.go` | Unchanged; opt-in bounded experiment runner |
-| Capture | `internal/capture`, PCAPNG recorder | Unchanged; inline evidence initially, #68 integration |
+| Capture | `internal/capture`, PCAPNG recorder | Bounded per-run PCAPNG export with packet/hash references; raw JSON remains authoritative |
 | CLI | `cmd/nyxr/main.go` | Additive resolve/replay/explain |
 | Storage/API/UI | `internal/storage`, `internal/api`, UI | Unchanged; private file export, #73 production workflow |
 
@@ -30,15 +30,15 @@ There is no multiple-feature screening, causal diagnosis or novelty claim.
 
 | Risk/failure | Current behavior | Remaining gate |
 |---|---|---|
-| Loss, ICMP errors, NAT/path shift | No direct matched reply; unresolved | #66, #68 |
-| Stale/delayed replies | Tuple and ACK token must match current trial | #68 |
-| Duplicate replies | Preserve raw evidence; flag and gate comparison | #68 |
-| Transport checksum | Unverified; limitation disclosed | #68 hostile input checks |
-| Capture drops/caps | Zero-drop comparison gate; cap stops run | #68 independent captures |
-| Queues, timestamp precision, clock drift | RTT descriptive, no timing inference | #68, #69 |
+| Loss, ICMP errors, NAT/path shift | ICMP and token-only path candidates retained; ambiguous candidates unresolved | #66 live ground truth |
+| Stale/delayed replies | Fresh token checks; late evidence retains original flow ID | #66 live calibration |
+| Duplicate replies | Preserve raw evidence; duplicate/retransmission/path-change quality gates | #66 live calibration |
+| Transport checksum | TCP/ICMP checksums verified; offload artifacts can look like loss | #66 independent captures |
+| Capture drops/caps | Drop metadata and encoded PCAPNG retention cap; incomplete capture gates inference | #66 independent captures |
+| Queues, timestamp precision, clock drift | RTT descriptive; unknown precision/queue delay explicit, optional backend metadata | #69 clock calibration |
 | Ambient load/throttling | Cause cannot be identified uniquely | #69 controls |
 | Reused source-port state | Washout, cleanup, fresh ACK token; not proven independent | #69 cooldown/orthogonal controls |
-| Cleanup failure/cancellation | Stop sends; incomplete evidence; state may expire later | #68 drain policy |
+| Cleanup failure/cancellation | Stop sends; bounded receive-only drain and cleanup outcome flags; state may expire later | #66 live backend validation |
 | Kernel/target-generated traffic | Not included in runner send count | #66 independent capture |
 | Fragile devices | Explicit scope still does not imply a universally safe rate | #67 policy profiles |
 | Tampering | Integrity and structural replay, no signer/authentication | #73 |
