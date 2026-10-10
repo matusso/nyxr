@@ -19,6 +19,8 @@ jobs:
         with:
           go-version-file: go.mod
       - run: make check
+      - name: Test HORIZON live baseline accounting (no network traffic)
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s lab/horizon/live
       - run: make fuzz
       - run: make package
       - name: Smoke test deb and rpm packages

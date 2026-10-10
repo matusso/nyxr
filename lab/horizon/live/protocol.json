@@ -1,0 +1,38 @@
+{
+  "version": "horizon-live-baseline/v1",
+  "primary_metric": "correlated SYN/ACK SACK permission",
+  "alpha": 0.05,
+  "null_runs_per_stratum": 60,
+  "maximum_false_positive_rate": 0.05,
+  "confidence": 0.95,
+  "clean_effect_minimum_accuracy_all_planned": 0.9,
+  "clean_effect_minimum_runs": 12,
+  "replicates": 12,
+  "window_ms": 800,
+  "washout_ms": 300,
+  "packets_per_second": 3,
+  "max_packets": 48,
+  "max_duration_seconds": 90,
+  "seed_start": 66000,
+  "impairments": {
+    "clean": [],
+    "loss-jitter": ["delay", "20ms", "5ms", "loss", "5%"]
+  },
+  "cases": {
+    "linux": {"sack": 1, "expected": "difference", "scan_state": "open"},
+    "null": {"sack": 0, "expected": "no-difference", "scan_state": "open"},
+    "proxy": {"sack": 0, "expected": "no-difference", "scan_state": "open"},
+    "nat": {"sack": 1, "expected": "difference", "scan_state": "open"},
+    "firewall": {"sack": 1, "expected": "unresolved", "scan_state": "filtered"}
+  },
+  "required_external_platforms": ["Windows", "BSD"],
+  "limitations": [
+    "This tests SACK negotiation, not OS or topology identification.",
+    "The proxy terminates TCP on its Linux frontend; HZ-001 does not handshake with its backend.",
+    "NAT is IPv4 only; IPv6 uses an explicitly routed path.",
+    "Netem randomness is not reproduced by the experiment ordering seed.",
+    "The one-port existing scanner baseline uses IPv4 raw SYN and IPv6 connect; it solves a different task and no speedup ratio is valid.",
+    "Runs may be dependent; the binomial bound is descriptive until stationarity and independence are established.",
+    "Unresolved, failed, missing and capture-dropped runs are retained and never counted as successful null trials."
+  ]
+}
