@@ -101,6 +101,10 @@ capture. Serialized JSON is larger than the raw-byte capture budget.
 Ctrl-C, caller cancellation and deadlines stop new transmissions. Errors
 return nonzero and export partial evidence when available. There are no
 retries. Cleanup follows the receive window and shares the rate gate.
+Capture backend failures carry `receive-failed` and stop execution even when
+they arrive as the receive window expires; only the window's own cancellation
+is treated as a normal timeout. Correlated replies returned with a capture
+error are retained before stopping.
 Cancellation/errors can prevent cleanup; remote SYN state then expires later.
 
 ## Interpretation and reproducibility
@@ -140,6 +144,11 @@ Coverage includes deterministic compilation, unsafe admission, stable/effect/
 loss/duplicate fixtures, replay/tampering, capture caps, failed sends,
 cancellation, deadlines and stale correlation. Synthetic acceptance is not
 live topology validation; that remains issue #66.
+
+Executor regression checks also cover capture errors racing the receive deadline,
+replies returned with errors, unrelated-frame and duplicate caps, cleanup send
+accounting, cancellation after a reply, per-run drop deltas and fresh tokens
+with repeatable arm order. Each failure report is checked through offline replay.
 
 ## Reference adapter
 
