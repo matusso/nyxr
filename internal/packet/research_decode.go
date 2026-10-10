@@ -13,20 +13,27 @@ type ResearchDecoded struct {
 	SourcePort, DestPort uint16
 	TCPFlags             uint8
 	TCPAck               uint32
+	TCPSeq               uint32
+	TTL                  uint8
+	TCPOptions           []byte
+	HeaderLength         int // Ethernet/IP/transport headers; excludes application payload
 	SCTPChunk            uint8
 	SCTPTag              uint32
 	ICMPType, ICMPCode   uint8
 	ICMPID, ICMPSeq      uint16
 	Quote                ResearchQuote
+	body                 []byte
 }
 
 type ResearchQuote struct {
+	HeaderLength         int
 	Source, Destination  netip.Addr
 	Protocol             uint8
 	ID                   uint16
 	FlowLabel            uint32
 	SourcePort, DestPort uint16
 	Sequence             uint32
+	SequencePresent      bool
 	Valid                bool
 }
 
@@ -52,6 +59,9 @@ func DecodeResearch(frame []byte) (ResearchDecoded, bool) {
 		if !p.Source.IsValid() {
 			return p, false
 		}
+		p.TTL = frame[at+8]
+		// Ignore Ethernet padding when locating the transport header.
+		p.HeaderLength = at + int(frame[at]&15)*4
 		return parseResearchBody(p, body)
 	}
 	if eth == 0x86dd {
@@ -60,6 +70,8 @@ func DecodeResearch(frame []byte) (ResearchDecoded, bool) {
 		if !p.Source.IsValid() {
 			return p, false
 		}
+		p.TTL = frame[at+7]
+		p.HeaderLength = at + 40 + int(binary.BigEndian.Uint16(frame[at+4:at+6])) - len(body)
 		return parseResearchBody(p, body)
 	}
 	return p, false
@@ -120,6 +132,7 @@ func parseResearchIP6(b []byte) (src, dst netip.Addr, proto uint8, body []byte) 
 }
 
 func parseResearchBody(p ResearchDecoded, b []byte) (ResearchDecoded, bool) {
+	p.body = b
 	switch p.Protocol {
 	case 6:
 		if len(b) < 20 || b[12]>>4 < 5 || int(b[12]>>4)*4 > len(b) {
@@ -127,11 +140,15 @@ func parseResearchBody(p ResearchDecoded, b []byte) (ResearchDecoded, bool) {
 		}
 		p.SourcePort, p.DestPort = binary.BigEndian.Uint16(b[0:2]), binary.BigEndian.Uint16(b[2:4])
 		p.TCPAck, p.TCPFlags = binary.BigEndian.Uint32(b[8:12]), b[13]
+		p.TCPSeq = binary.BigEndian.Uint32(b[4:8])
+		p.TCPOptions = b[20 : int(b[12]>>4)*4]
+		p.HeaderLength += int(b[12]>>4) * 4
 	case 17:
 		if len(b) < 8 || binary.BigEndian.Uint16(b[4:6]) < 8 || int(binary.BigEndian.Uint16(b[4:6])) > len(b) {
 			return p, false
 		}
 		p.SourcePort, p.DestPort = binary.BigEndian.Uint16(b[0:2]), binary.BigEndian.Uint16(b[2:4])
+		p.HeaderLength += 8
 	case 132:
 		if len(b) < 16 || !validSCTPCRC(b) {
 			return p, false
@@ -146,12 +163,41 @@ func parseResearchBody(p ResearchDecoded, b []byte) (ResearchDecoded, bool) {
 			return p, false
 		}
 		p.ICMPType, p.ICMPCode = b[0], b[1]
+		p.HeaderLength += 8
 		p.ICMPID, p.ICMPSeq = binary.BigEndian.Uint16(b[4:6]), binary.BigEndian.Uint16(b[6:8])
-		if (p.Protocol == 1 && p.ICMPType == 3) || (p.Protocol == 58 && (p.ICMPType == 1 || p.ICMPType == 4)) {
+		if (p.Protocol == 1 && (p.ICMPType == 3 || p.ICMPType == 11 || p.ICMPType == 12)) || (p.Protocol == 58 && p.ICMPType >= 1 && p.ICMPType <= 4) {
 			p.Quote = parseResearchQuote(b[8:])
+			// Retain quoted headers/tokens, excluding quoted application data.
+			p.HeaderLength += min(len(b)-8, p.Quote.HeaderLength)
 		}
 	}
 	return p, true
+}
+
+// ValidChecksum verifies TCP and ICMP over the original IP payload. It is
+// opt-in: capture paths with checksum offload may still use DecodeResearch.
+func (p ResearchDecoded) ValidChecksum() bool {
+	if p.Protocol == 1 {
+		return internetChecksum(p.body) == 0
+	}
+	if p.Protocol != 6 && p.Protocol != 58 {
+		return false
+	}
+	var pseudo []byte
+	if p.Source.Is4() {
+		pseudo = make([]byte, 12)
+		copy(pseudo[:4], p.Source.AsSlice())
+		copy(pseudo[4:8], p.Destination.AsSlice())
+		pseudo[9] = p.Protocol
+		binary.BigEndian.PutUint16(pseudo[10:12], uint16(len(p.body)))
+	} else {
+		pseudo = make([]byte, 40)
+		copy(pseudo[:16], p.Source.AsSlice())
+		copy(pseudo[16:32], p.Destination.AsSlice())
+		binary.BigEndian.PutUint32(pseudo[32:36], uint32(len(p.body)))
+		pseudo[39] = p.Protocol
+	}
+	return foldChecksum(checksumWords(p.body, checksumWords(pseudo, 0))) == 0
 }
 
 func parseResearchQuote(b []byte) ResearchQuote {
@@ -167,12 +213,13 @@ func parseResearchQuote(b []byte) ResearchQuote {
 			return q
 		}
 		hlen := int(b[0]&15) * 4
-		if hlen < 20 || len(b) < hlen || binary.BigEndian.Uint16(b[6:8])&0x3fff != 0 {
+		if hlen < 20 || len(b) < hlen || int(binary.BigEndian.Uint16(b[2:4])) < hlen || internetChecksum(b[:hlen]) != 0 || binary.BigEndian.Uint16(b[6:8])&0x3fff != 0 {
 			return q
 		}
 		q.Source, q.Destination = netip.AddrFrom4([4]byte(b[12:16])), netip.AddrFrom4([4]byte(b[16:20]))
 		q.Protocol, q.ID = b[9], binary.BigEndian.Uint16(b[4:6])
-		body = b[hlen:]
+		body = b[hlen:min(len(b), int(binary.BigEndian.Uint16(b[2:4])))]
+		q.HeaderLength = hlen
 	} else if b[0]>>4 == 6 {
 		var src, dst netip.Addr
 		// Quotes can be shorter than the original IPv6 payload, so walk the
@@ -181,10 +228,12 @@ func parseResearchQuote(b []byte) ResearchQuote {
 			return q
 		}
 		q.FlowLabel = uint32(b[1]&0x0f)<<16 | uint32(b[2])<<8 | uint32(b[3])
-		copyB := append([]byte(nil), b...)
+		available := min(len(b)-40, int(binary.BigEndian.Uint16(b[4:6])))
+		copyB := append([]byte(nil), b[:40+available]...)
 		binary.BigEndian.PutUint16(copyB[4:6], uint16(len(copyB)-40))
 		src, dst, q.Protocol, body = parseResearchIP6(copyB)
 		q.Source, q.Destination = src, dst
+		q.HeaderLength = len(copyB) - len(body)
 	} else {
 		return q
 	}
@@ -196,6 +245,12 @@ func parseResearchQuote(b []byte) ResearchQuote {
 	}
 	if q.Protocol == 6 && len(body) >= 8 {
 		q.Sequence = binary.BigEndian.Uint32(body[4:8])
+		q.SequencePresent = true
+		header := 8 // RFC minimum quote includes ports and sequence.
+		if len(body) >= 20 && body[12]>>4 >= 5 && int(body[12]>>4)*4 <= len(body) {
+			header = int(body[12]>>4) * 4
+		}
+		q.HeaderLength += header
 	}
 	q.Valid = true
 	return q

@@ -79,7 +79,7 @@ func Compare(r model.Report) model.Comparison {
 		}
 		c.PValue = math.Min(1, 2*sum)
 	}
-	if !r.Completed || r.BackendDrops > 0 || c.CompletePairs < 8 || c.CompletePairs != r.Experiment.Spec.Execution.Replicates {
+	if !r.Completed || r.BackendDrops > 0 || (r.CaptureArtifact != nil && r.CaptureArtifact.Dropped > 0) || c.CompletePairs < 8 || c.CompletePairs != r.Experiment.Spec.Execution.Replicates {
 		return c
 	}
 	c.Status = "inferred"

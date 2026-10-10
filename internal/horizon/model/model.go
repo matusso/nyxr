@@ -119,15 +119,41 @@ type WireTemplate struct {
 	CleanupSequence string `json:"cleanupSequence"`
 }
 type Evidence struct {
-	Direction string    `json:"direction"`
-	Timestamp time.Time `json:"timestamp"`
-	Frame     []byte    `json:"frame"` // base64 Ethernet packet, bounded by Capture
+	Timing        *Timing   `json:"timing,omitempty"`
+	RelatedFlowID string    `json:"relatedFlowId,omitempty"`
+	PacketID      uint64    `json:"packetId,omitempty"`
+	Direction     string    `json:"direction"`
+	Timestamp     time.Time `json:"timestamp"`
+	Frame         []byte    `json:"frame"` // base64 Ethernet packet, bounded by Capture
+}
+
+// Timing distinguishes encoding resolution from measured clock precision.
+// Nil precision/queue delay means unavailable, never zero delay or calibrated.
+type Timing struct {
+	ClockSource  string `json:"clockSource"`
+	ResolutionNS int64  `json:"resolutionNs"`
+	PrecisionNS  *int64 `json:"precisionNs"`
+	QueueDelayNS *int64 `json:"queueDelayNs"`
+	OperationNS  int64  `json:"operationNs"`
+	BackendDrops uint64 `json:"backendDrops"`
+}
+type CaptureArtifact struct {
+	ArtifactID      string `json:"artifactId"`
+	Bytes           int64  `json:"bytes"`
+	MaxBytes        int64  `json:"maxBytes"`
+	Packets         int    `json:"packets"`
+	Dropped         int    `json:"dropped"`
+	MinimizePayload bool   `json:"minimizePayload"`
 }
 type Features struct {
-	ResponseClass string `json:"responseClass"`
-	TTL           uint8  `json:"ttl,omitempty"`
-	TCPOptions    []byte `json:"tcpOptions,omitempty"`
-	RTTNS         int64  `json:"rttNs,omitempty"`
+	ResponseSource string `json:"responseSource,omitempty"`
+	Correlation    string `json:"correlation,omitempty"`
+	ICMPType       uint8  `json:"icmpType,omitempty"`
+	ICMPCode       uint8  `json:"icmpCode,omitempty"`
+	ResponseClass  string `json:"responseClass"`
+	TTL            uint8  `json:"ttl,omitempty"`
+	TCPOptions     []byte `json:"tcpOptions,omitempty"`
+	RTTNS          int64  `json:"rttNs,omitempty"`
 }
 type Trial struct {
 	Probe        int        `json:"probe,omitempty"`
@@ -149,23 +175,25 @@ type Comparison struct {
 	PValue            float64 `json:"pValue"`
 }
 type Report struct {
-	APIVersion     string     `json:"apiVersion"`
-	Kind           string     `json:"kind"`
-	Experiment     Experiment `json:"experiment"`
-	ExperimentHash string     `json:"experimentHash"`
-	RunID          string     `json:"runId"`
-	Build          string     `json:"build"`
-	Backend        string     `json:"backend"`
-	StartedAt      time.Time  `json:"startedAt"`
-	FinishedAt     time.Time  `json:"finishedAt"`
-	Completed      bool       `json:"completed"`
-	StopReason     string     `json:"stopReason,omitempty"`
-	PacketsTX      int        `json:"packetsTx"`
-	CaptureBytes   int        `json:"captureBytes"`
-	BackendDrops   uint64     `json:"backendDrops"`
-	Trials         []Trial    `json:"trials"`
-	Comparison     Comparison `json:"comparison"`
-	Limitations    []string   `json:"limitations"`
+	CorrelationVersion string           `json:"correlationVersion,omitempty"`
+	CaptureArtifact    *CaptureArtifact `json:"captureArtifact,omitempty"`
+	APIVersion         string           `json:"apiVersion"`
+	Kind               string           `json:"kind"`
+	Experiment         Experiment       `json:"experiment"`
+	ExperimentHash     string           `json:"experimentHash"`
+	RunID              string           `json:"runId"`
+	Build              string           `json:"build"`
+	Backend            string           `json:"backend"`
+	StartedAt          time.Time        `json:"startedAt"`
+	FinishedAt         time.Time        `json:"finishedAt"`
+	Completed          bool             `json:"completed"`
+	StopReason         string           `json:"stopReason,omitempty"`
+	PacketsTX          int              `json:"packetsTx"`
+	CaptureBytes       int              `json:"captureBytes"`
+	BackendDrops       uint64           `json:"backendDrops"`
+	Trials             []Trial          `json:"trials"`
+	Comparison         Comparison       `json:"comparison"`
+	Limitations        []string         `json:"limitations"`
 }
 
 // Envelope provides corruption detection, not authentication or a signature.

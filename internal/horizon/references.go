@@ -13,17 +13,19 @@ import (
 // ReportReferences is a reference-only adapter. It does not copy captures,
 // recalculate a graph or promote experiment hypotheses into inventory claims.
 type ReportReferences struct {
-	Schema         string            `json:"schema"`
-	Kind           string            `json:"kind"`
-	Source         observe.SourceRef `json:"source"`
-	Experiment     observe.SourceRef `json:"experiment"`
-	ExperimentHash string            `json:"experiment_hash"`
-	ClaimStatus    string            `json:"claim_status"`
-	Completed      bool              `json:"completed"`
-	Trials         []TrialReferences `json:"trials"`
+	CaptureArtifact *model.CaptureArtifact `json:"capture_artifact,omitempty"`
+	Schema          string                 `json:"schema"`
+	Kind            string                 `json:"kind"`
+	Source          observe.SourceRef      `json:"source"`
+	Experiment      observe.SourceRef      `json:"experiment"`
+	ExperimentHash  string                 `json:"experiment_hash"`
+	ClaimStatus     string                 `json:"claim_status"`
+	Completed       bool                   `json:"completed"`
+	Trials          []TrialReferences      `json:"trials"`
 }
 
 type TrialReferences struct {
+	Packets      []PacketReference   `json:"packets,omitempty"`
 	Probe        int                 `json:"probe,omitempty"`
 	Source       observe.SourceRef   `json:"source"`
 	Pair         int                 `json:"pair"`
@@ -32,6 +34,12 @@ type TrialReferences struct {
 	ClaimStatus  string              `json:"claim_status"`
 	QualityFlags []string            `json:"quality_flags,omitempty"`
 	Evidence     []observe.SourceRef `json:"evidence"`
+}
+
+type PacketReference struct {
+	ArtifactID string            `json:"artifact_id"`
+	PacketID   uint64            `json:"packet_id"`
+	Source     observe.SourceRef `json:"source"`
 }
 
 // ImportReferences validates the existing sealed report with Replay, then
@@ -56,7 +64,8 @@ func ImportReferences(reader io.Reader) (ReportReferences, error) {
 	}
 	ref := observe.SourceRef{Owner: "horizon", SourceSchema: r.APIVersion, ArtifactID: observe.ArtifactID(b), Pointer: "/report", RunID: r.RunID}
 	result := ReportReferences{Schema: observe.SchemaVersion, Kind: observe.KindExperimentReference, Source: ref, Experiment: ref,
-		ExperimentHash: r.ExperimentHash, ClaimStatus: r.Comparison.Status, Completed: r.Completed,
+		CaptureArtifact: r.CaptureArtifact,
+		ExperimentHash:  r.ExperimentHash, ClaimStatus: r.Comparison.Status, Completed: r.Completed,
 		Trials: make([]TrialReferences, 0, len(r.Trials))}
 	if result.ClaimStatus != "inferred" {
 		result.ClaimStatus = "unknown"
@@ -76,6 +85,9 @@ func ImportReferences(reader io.Reader) (ReportReferences, error) {
 			e := ref
 			e.Pointer = fmt.Sprintf("/report/trials/%d/evidence/%d", i, j)
 			t.Evidence = append(t.Evidence, e)
+			if trial.Evidence[j].PacketID != 0 && r.CaptureArtifact != nil {
+				t.Packets = append(t.Packets, PacketReference{ArtifactID: r.CaptureArtifact.ArtifactID, PacketID: trial.Evidence[j].PacketID, Source: e})
+			}
 		}
 		result.Trials = append(result.Trials, t)
 	}

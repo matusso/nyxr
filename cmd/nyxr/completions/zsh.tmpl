@@ -151,7 +151,7 @@ _nyxr() {
                     ;;
                 horizon)
                     _arguments \
-                        '1:subcommand:(resolve replay explain references)' \
+                        '1:subcommand:(resolve replay explain references verify-capture)' \
                         '--experiment=[versioned experiment]:file:_files' \
                         '--policy=[operator policy]:profile:(lab enterprise fragile ot-restricted)' \
                         '--permit=[independent permission]:permission:(cross-port)' \
@@ -167,6 +167,9 @@ _nyxr() {
                         '--next-hop-mac=[target or gateway MAC]:MAC:' \
                         '--packetd=[packet daemon socket]:socket:_files' \
                         '--output=[new private evidence file]:file:_files' \
+                        '--pcapng=[new private PCAPNG file]:file:_files' \
+                        '--pcapng-max-bytes=[PCAPNG byte cap]:bytes:' \
+                        '--pcapng-minimize[omit application payload in PCAPNG]' \
                         '*:report file:_files' && ret=0
                     ;;
                 probe)

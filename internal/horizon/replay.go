@@ -63,7 +63,11 @@ func Replay(reader io.Reader) (model.Envelope, error) {
 	if r.Completed && r.StopReason != "" {
 		return envelope, errors.New("completed report has a stop reason")
 	}
+	if r.CorrelationVersion != "" && r.CorrelationVersion != correlationVersion {
+		return envelope, errors.New("unsupported correlation version")
+	}
 	decoder := packet.NewDecoder()
+	sentFlows := make(map[string]packet.ForgeSpec)
 	bytesCount, txCount := 0, 0
 	seen := make(map[string]bool)
 	var firstSent *packet.ForgeSpec
@@ -98,6 +102,7 @@ func Replay(reader io.Reader) (model.Envelope, error) {
 			return envelope, errors.New("transmit profile, flow ID or token mismatch")
 		}
 		seen[t.FlowID] = true
+		sentFlows[t.FlowID] = sent
 		if firstSent == nil {
 			firstSent = &sent
 		} else if sent.SourceIP != firstSent.SourceIP || !bytes.Equal(sent.SourceMAC, firstSent.SourceMAC) || !bytes.Equal(sent.DestinationMAC, firstSent.DestinationMAC) {
@@ -114,10 +119,16 @@ func Replay(reader io.Reader) (model.Envelope, error) {
 		rxCount, cleanupCount := 0, 0
 		previous := e.Timestamp
 		for j, e := range t.Evidence {
-			if len(e.Frame) > 2048 || len(e.Frame) == 0 || e.Timestamp.Before(previous) {
+			if len(e.Frame) > 2048 || len(e.Frame) == 0 || (e.Timestamp.Before(previous) && !hasFlag(t.QualityFlags, "clock-instability")) {
 				return envelope, errors.New("invalid frame size or evidence timestamp")
 			}
 			previous = e.Timestamp
+			if r.CorrelationVersion != "" && (e.Timing == nil || !validTiming(e.Timing)) {
+				return envelope, errors.New("invalid timestamp provenance")
+			}
+			if e.Direction != "late-rx" && e.RelatedFlowID != "" {
+				return envelope, errors.New("unexpected related flow")
+			}
 			bytesCount += len(e.Frame)
 			if bytesCount > r.Experiment.Spec.Capture.MaxBytes {
 				return envelope, errors.New("capture budget exceeded")
@@ -133,16 +144,52 @@ func Replay(reader io.Reader) (model.Envelope, error) {
 					return envelope, errors.New("receive evidence after cleanup")
 				}
 				f, ok := correlate(e.Frame, sent, decoder)
+				if r.CorrelationVersion != "" {
+					f, ok = correlateRich(e.Frame, sent)
+				}
 				if !ok {
 					return envelope, errors.New("receive evidence does not correlate to trial")
+				}
+				for _, flag := range receiveFlags(nil, f) {
+					if !hasFlag(t.QualityFlags, flag) {
+						return envelope, errors.New("correlation quality flag missing")
+					}
+				}
+				if rxCount > 0 && r.CorrelationVersion != "" {
+					if f.TTL != features.TTL || f.ResponseSource != features.ResponseSource || f.ResponseClass != features.ResponseClass || !bytes.Equal(f.TCPOptions, features.TCPOptions) {
+						if !hasFlag(t.QualityFlags, "path-change") {
+							return envelope, errors.New("path-change quality flag missing")
+						}
+					}
+					for _, prior := range t.Evidence[:j] {
+						if prior.Direction == "rx" && bytes.Equal(prior.Frame, e.Frame) && !hasFlag(t.QualityFlags, "retransmission") {
+							return envelope, errors.New("retransmission quality flag missing")
+						}
+					}
 				}
 				rxCount++
 				if rxCount == 1 {
 					f.RTTNS = e.Timestamp.Sub(t.SentAt).Nanoseconds()
 					features = f
 				}
+			case "late-rx":
+				related, exists := sentFlows[e.RelatedFlowID]
+				f, ok := correlateRich(e.Frame, related)
+				if r.CorrelationVersion == "" || !exists || !ok || cleanupCount > 0 || !hasFlag(t.QualityFlags, "delayed-response") {
+					return envelope, errors.New("invalid delayed receive evidence")
+				}
+				for _, flag := range receiveFlags(nil, f) {
+					if !hasFlag(t.QualityFlags, flag) {
+						return envelope, errors.New("delayed correlation quality flag missing")
+					}
+				}
+				for _, prior := range r.Trials[:i] {
+					if prior.FlowID == e.RelatedFlowID && !hasFlag(prior.QualityFlags, "delayed-response") {
+						return envelope, errors.New("related delayed quality flag missing")
+					}
+				}
 			case "cleanup":
-				if features.ResponseClass != "syn-ack" || cleanupCount != 0 {
+				if features.ResponseClass != "syn-ack" || features.Correlation == "ambiguous-path" || cleanupCount != 0 {
 					return envelope, errors.New("invalid cleanup evidence")
 				}
 				reset := sent
@@ -166,12 +213,15 @@ func Replay(reader io.Reader) (model.Envelope, error) {
 		if rxCount == 0 && r.Completed && !hasFlag(t.QualityFlags, "timeout") {
 			return envelope, errors.New("timeout quality flag missing")
 		}
-		if features.ResponseClass == "syn-ack" && r.Completed && cleanupCount != 1 {
+		if features.ResponseClass == "syn-ack" && features.Correlation != "ambiguous-path" && r.Completed && cleanupCount != 1 {
 			return envelope, errors.New("SYN/ACK cleanup missing")
 		}
 	}
 	if bytesCount != r.CaptureBytes || txCount != r.PacketsTX || txCount > p.MaxPackets {
 		return envelope, errors.New("traffic or capture accounting mismatch")
+	}
+	if err := validateCaptureReferences(*r); err != nil {
+		return envelope, err
 	}
 	c := Compare(*r)
 	if !reflect.DeepEqual(c, r.Comparison) {

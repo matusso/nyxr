@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/netip"
 	"os"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -128,10 +129,15 @@ func TestGeneralReceiveAndCaptureBounds(t *testing.T) {
 func TestControllerKillSwitchConcurrencyAndPolicy(t *testing.T) {
 	var opened atomic.Int32
 	received := make(chan struct{})
+	var receiveStarted sync.Once
 	sim, _ := NewSimulator("loss")
 	controller := NewController(sequencePolicy(), testLink(), func() (packetio.PacketIO, error) {
 		opened.Add(1)
-		return executorIO{PacketIO: sim, receive: func(ctx context.Context, b [][]byte) (int, error) { close(received); <-ctx.Done(); return 0, ctx.Err() }}, nil
+		return executorIO{PacketIO: sim, receive: func(ctx context.Context, b [][]byte) (int, error) {
+			receiveStarted.Do(func() { close(received) })
+			<-ctx.Done()
+			return 0, ctx.Err()
+		}}, nil
 	})
 	defer controller.Close()
 	e := sequenceExperiment(t)
