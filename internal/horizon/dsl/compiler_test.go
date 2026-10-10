@@ -254,17 +254,26 @@ func FuzzAdmission(f *testing.F) {
 		f.Fatal(err)
 	}
 	f.Add(b)
+	general, err := os.ReadFile("../../../lab/horizon/sequence-v1alpha2.yaml")
+	if err != nil {
+		f.Fatal(err)
+	}
+	f.Add(general)
 	f.Add([]byte("spec: {limits: {maxPackets: -1}}"))
 	f.Fuzz(func(t *testing.T, b []byte) {
 		e, err := Parse(bytes.NewReader(b))
 		if err != nil {
 			return
 		}
-		p, err := Compile(e, policy())
+		pol := policy()
+		if e.APIVersion == model.GeneralVersion {
+			pol = generalPolicy()
+		}
+		p, err := Compile(e, pol)
 		if err != nil {
 			return
 		}
-		if p.MaxPackets > e.Spec.Limits.MaxPackets || len(p.Trials) != 2*e.Spec.Execution.Replicates || p.MaxDurationMS > int64(e.Spec.Limits.MaxDurationSeconds)*1000 {
+		if p.MaxPackets > e.Spec.Limits.MaxPackets || len(p.Trials)*2 != p.MaxPackets || p.MaxDurationMS > int64(e.Spec.Limits.MaxDurationSeconds)*1000 {
 			t.Fatal("admitted plan bypassed budgets")
 		}
 	})

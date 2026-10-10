@@ -85,14 +85,14 @@ their independent research/product gates.
 | 1–2 Vision/constraints | Opt-in runner preserves fast scanning; no causal/topology claim | HORIZON-owned research; full coverage, authorization, bounds and uncertainty remain mandatory |
 | 3 Modes | Restricted `resolve`, `replay`, `explain` CLI | HORIZON-owned `recognize`/`reconstruct` #72/#73, deferred until their gates |
 | 4 Architecture; 6 Phase 0 | Integration map/assumptions #61 and synthetic PacketIO lab | Shared packet/packetio/packetd/capture/store; HORIZON-owned live topology corpus/baselines #66, not demonstrated by fixtures |
-| 5 DSL; 6 Phase 1 | Restricted versioned HZ-001 compiler, independent authorization, dry-run/bounds #62 | HORIZON-owned general sequences, policy profiles and resource properties #67 |
+| 5 DSL; 6 Phase 1 | HZ-001 #62 plus v1alpha2 bounded sequences, policy profiles, cross-port permission, resource properties and kill switches #67 | HORIZON-owned richer experiment grammar and live inference remain gated; [implemented policy contract](../horizon/general-dsl.md) |
 | 6 Phase 2 | Paired executor, direct TCP tuple/token correlation, inline raw frames and cancellation #63 | HORIZON-owned richer correlation, ICMP/NAT, clocks, drain and bounded PCAPNG #68; shared primitives |
 | 6 Phase 3; 7 HZ-001/002; 8 Statistics | Randomized SACK pairs, quality-gated exact sign comparison/replay #64/#65; HZ-001 synthetic effect/null/loss/noise | HORIZON-owned environmental controls, HZ-002/live calibration #69; screening/correction deferred; SACK association is not causal diagnosis |
 | 6 Phase 4; 7 HZ-003/004/005 | Cross-port/washout inference unestablished | HORIZON-owned #70 after #69; go/no-go against matched isolated controls; HZ-005 needs validated cooldown/confounder controls |
 | 7 HZ-006 | Direct IPv6 TCP execution/replay fixtures, no path-consistency inference | HORIZON-owned path/vantage experiments #66/#68/#69; deferred until comparable routing/clock evidence |
 | 6 Phase 5; 11 Graph | Provenance and inferred/unresolved SACK comparison | HORIZON-owned hypotheses, contradiction/decay and transport graph #71; shared references, never inventory ownership |
 | 6 Phase 6; 8 Adaptive criterion | No experimental adaptive planner/profile compression | HORIZON-owned #72 after #71/#66; tested/profile-inferred/not-tested coverage stays distinct |
-| 6 Phase 7; 10 CLI/API; 13 Security | CLI/private evidence export, integrity/replay and bounded PoC | HORIZON-owned API/UI, access, retention, observability/hardening #73; shared components; proposed endpoints unavailable |
+| 6 Phase 7; 10 CLI/API; 13 Security | CLI/private evidence export, integrity/replay; opt-in synthetic plan/resolve/stop API #67 | HORIZON-owned live API/UI, access, retention, observability/hardening #73; other proposed endpoints remain unavailable |
 | 9 Evaluation; 12 Priorities | Synthetic tests and existing scanner benchmark foundations | Shared lab #66; HORIZON-owned false-positive/ablation/efficiency gates #69/#70/#72; provisional targets are not results |
 | 14 Risks; 15 Patent; 6 Phase 8 | Assumptions/confounders documented; no novelty claim | HORIZON-owned prior-art/disclosure #74, deferred to evidence/counsel gate |
 | 16 Immediate sprint | Thin HZ-001 local slice #61–#65 | Publication/review separate; signed-report ambition unimplemented: SHA-256 detects corruption, not forgery |
@@ -106,7 +106,8 @@ ignored where a reader explicitly permits them. Incompatible changes need a new
 revision, old/new fixtures and an explicit migration.
 
 Preserve `nyxr/v1`, `nyxr/protocol/v1` and `horizon.nyxr.io/v1alpha1`
-independently. Never route an Experiment to the application DSL parser or silently
+independently. HORIZON explicitly selects `horizon.nyxr.io/v1alpha2` for
+[bounded sequences](../horizon/general-dsl.md), retaining v1alpha1 inputs/reports. Never route an Experiment to the application DSL parser or silently
 upgrade a namespace. Both strict DSL readers and HORIZON replay retain unknown-field
 rejection. Do not insert adapter metadata into sealed reports: the exact report is
 hashed. The envelope-less `--no-db` fast-path exception remains legacy input until
@@ -194,7 +195,8 @@ counters alone are not a global experimental budget ledger: implement shared par
 accounting before combined execution, under the owning delivery issue.
 
 HORIZON recompiles/re-admits at execution after dry-run. Current reservation includes
-four possible packets per pair (two SYNs/two RSTs). Runner counts exclude kernel/target
+four possible packets per HZ-001 pair (two SYNs/two RSTs); v1alpha2 reserves
+a SYN and possible RST for every expanded probe. Runner counts exclude kernel/target
 traffic; disclose this and use independent capture for live assessment. Profiles and
 results cannot expand authorization, bypass OT policy or substitute inferred coverage
 for requested full-port measurement.
@@ -253,7 +255,8 @@ readable, raw evidence immutable and new integrations opt-in until owning gates 
 Storage extensions use existing forward-only migrations, access and retention rules.
 Rollback disables the adapter without discarding evidence or opening an unsupported
 database schema. Reuse existing API authentication/bounded fan-out. Future HORIZON
-routes and telemetry remain #73, not part of this design task.
+live routes and telemetry remain #73. The bounded synthetic plan/resolve/stop
+routes are implemented by #67; they do not integrate experiments into inventory.
 
 ### Verification of this assessment
 

@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/horizon"
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/storage"
 )
@@ -41,6 +42,8 @@ const maxBody = 1 << 20
 
 // ServerConfig configures the HTTP layer.
 type ServerConfig struct {
+	// Horizon is opt-in and owns independent server policy and its kill switch.
+	Horizon *horizon.Controller
 	Manager *Manager
 	Store   *storage.Store
 	// Token, when set, is required as "Authorization: Bearer <token>" on
@@ -68,6 +71,9 @@ func Handler(cfg ServerConfig) http.Handler {
 		s.hosts[strings.ToLower(h)] = true
 	}
 	api := http.NewServeMux()
+	api.HandleFunc("POST /api/v1/horizon/plan", s.horizonPlan)
+	api.HandleFunc("POST /api/v1/horizon/resolve", s.horizonRun)
+	api.HandleFunc("POST /api/v1/horizon/stop", s.horizonStop)
 	api.HandleFunc("GET /api/v1/version", s.version)
 	api.HandleFunc("GET /api/v1/stats", s.stats)
 	api.HandleFunc("GET /api/v1/profiles", s.profiles)

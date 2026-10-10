@@ -1,0 +1,44 @@
+apiVersion: horizon.nyxr.io/v1alpha2
+kind: Experiment
+metadata:
+  name: bounded-cross-port-sequence
+spec:
+  scope:
+    targets: ["192.0.2.10"]
+    tcpPorts: [443, 8443]
+  crossPort: true
+  changedVariable: sackPermitted
+  control:
+    steps:
+      - repeat:
+          count: 2
+          steps:
+            - send: {protocol: tcp, flags: [SYN], dstPort: 443, optionsProfile: baseline}
+            - observe: {windowMs: 10}
+            - wait: {durationMs: 5}
+      - send: {protocol: tcp, flags: [SYN], dstPort: 8443, optionsProfile: baseline}
+      - observe: {windowMs: 10}
+  treatment:
+    steps:
+      - repeat:
+          count: 2
+          steps:
+            - send: {protocol: tcp, flags: [SYN], dstPort: 443, optionsProfile: sack-permitted}
+            - observe: {windowMs: 10}
+            - wait: {durationMs: 5}
+      - send: {protocol: tcp, flags: [SYN], dstPort: 8443, optionsProfile: sack-permitted}
+      - observe: {windowMs: 10}
+  execution:
+    replicates: 2
+    randomizedOrder: true
+    seed: 42
+    washoutMs: 0
+  limits:
+    maxPackets: 24
+    maxDurationSeconds: 20
+    packetsPerSecond: 10
+    maxConcurrentFlows: 1
+    maxReceiveFrames: 4096
+    maxMemoryBytes: 2097152
+  capture:
+    maxBytes: 1048576

@@ -178,3 +178,11 @@ trails are planned; see the [Roadmap](../roadmap.md#phase-9--enterprise-hardenin
 | `--packetd` | | nyxr-packetd socket for raw scans, capture and live packets |
 | `--allow-packet-send` | off | Enable frame transmission from the packets page |
 | `--allow-privileged` | off | Allow running as root or with raw-socket capabilities |
+
+### Optional HORIZON API
+
+HORIZON is disabled by default. Operator startup flags enable synthetic
+experiments under an independent target/port/profile/permission policy.
+`POST /api/v1/horizon/plan`, `/resolve` and `/stop` provide strict experiment
+planning, sealed reports and a permanent session kill switch. The request cannot
+change server policy. See [HORIZON API controls](../horizon/general-dsl.md#api-and-executor-kill-switch).

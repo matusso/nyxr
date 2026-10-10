@@ -241,6 +241,14 @@ The illustrative rates and repetitions are **not universally safe defaults**; tu
 
 ### Phase 1 — Core Models, DSL, and Safety Admission
 
+**Implemented bounded extension (#67):** v1alpha2 adds send/observe/wait/repeat,
+lab/enterprise/fragile/ot-restricted ceilings, independent cross-port permission,
+resource properties, exact dry-run probes and CLI/API/executor cancellation.
+See the [operator guide](horizon/general-dsl.md). The API ships synthetic
+execution only; arbitrary disruptive packets remain unsupported. Cross-port
+inference, calibrated timing and live ground-truth research gates remain separate.
+
+
 **Goal:** Define experiments as validated, bounded, versioned artifacts.
 
 1. Implement experiment/observation/hypothesis model types and JSON/YAML schema.

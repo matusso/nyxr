@@ -18,7 +18,7 @@ complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a decode
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a sniff -d 'Capture and decode live frames'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a history -d 'List or query stored scans, assets and evidence'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a probe -d 'Import and summarize an nmap-service-probes file'
-complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a horizon -d 'Bounded HZ-001 experiments and offline replay'
+complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a horizon -d 'Bounded HORIZON experiments and offline replay'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a serve -d 'Serve the REST API and web UI'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a completion -d 'Print a shell completion script'
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a version -d 'Print the version'
@@ -32,9 +32,11 @@ complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcom
 complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from resolve' -l packetd -r -F
 complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from resolve' -l simulate -x -a 'sack stable loss noise'
 complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from resolve' -l dry-run
-for flag in allow-targets allow-ports target ports interface source-ip source-mac next-hop-mac
+for flag in permit allow-targets allow-ports target ports interface source-ip source-mac next-hop-mac
     complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from resolve' -l $flag -x
 end
+
+complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from resolve' -l policy -x -a 'lab enterprise fragile ot-restricted'
 
 # scan
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l profile -x -a '(__nyxr_profiles)' -d 'Scan profile'
@@ -138,3 +140,10 @@ complete -c nyxr -n '__fish_seen_subcommand_from history' -l help -d 'Show histo
 
 # completion
 complete -c nyxr -n '__fish_seen_subcommand_from completion' -x -a 'bash zsh fish powershell'
+
+complete -c nyxr -n '__fish_seen_subcommand_from serve' -l horizon-simulate -x -a 'sack stable loss noise'
+complete -c nyxr -n '__fish_seen_subcommand_from serve' -l horizon-policy -x -a 'lab enterprise fragile ot-restricted'
+complete -c nyxr -n '__fish_seen_subcommand_from serve' -l horizon-permit -x -a 'cross-port'
+for flag in horizon-allow-targets horizon-allow-ports
+    complete -c nyxr -n '__fish_seen_subcommand_from serve' -l $flag -x
+end

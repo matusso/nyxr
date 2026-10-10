@@ -36,7 +36,7 @@ _nyxr() {
                 'sniff:capture and decode live frames'
                 'history:list or query stored scans, assets and evidence'
                 'probe:import and summarize an nmap-service-probes file'
-                'horizon:bounded HZ-001 experiments and offline evidence replay'
+                'horizon:bounded HORIZON experiments and offline evidence replay'
                 'serve:serve the REST API and web UI'
                 'completion:print a shell completion script'
                 'version:print the version'
@@ -141,6 +141,11 @@ _nyxr() {
                         '--evidence-dir=[directory for API pcapng captures]:directory:_directories' \
                         '--token-file=[require this bearer token]:token file:_files' \
                         '--max-scans=[concurrent scans]:count:' \
+                        '--horizon-simulate=[synthetic HORIZON API]:scenario:(sack stable loss noise)' \
+                        '--horizon-policy=[HORIZON operator policy]:profile:(lab enterprise fragile ot-restricted)' \
+                        '--horizon-allow-targets=[HORIZON operator target scope]:scope:' \
+                        '--horizon-allow-ports=[HORIZON operator TCP ports]:ports:' \
+                        '--horizon-permit=[HORIZON operator permission]:permission:(cross-port)' \
                         '--allow-privileged[run even with root or raw-socket capabilities]' \
                         '(- *)--help[show serve help]' && ret=0
                     ;;
@@ -148,6 +153,8 @@ _nyxr() {
                     _arguments \
                         '1:subcommand:(resolve replay explain references)' \
                         '--experiment=[versioned experiment]:file:_files' \
+                        '--policy=[operator policy]:profile:(lab enterprise fragile ot-restricted)' \
+                        '--permit=[independent permission]:permission:(cross-port)' \
                         '--allow-targets=[authorized IP/CIDR scope]:scope:' \
                         '--allow-ports=[authorized TCP ports]:ports:' \
                         '--target=[assert experiment target]:IP:' \

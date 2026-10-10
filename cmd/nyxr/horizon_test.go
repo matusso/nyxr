@@ -145,3 +145,24 @@ func TestHorizonHelpAndCompletion(t *testing.T) {
 		}
 	}
 }
+
+func TestGeneralHorizonCLIPolicyAndExactDryRun(t *testing.T) {
+	args := []string{"horizon", "resolve", "--experiment", "../../lab/horizon/sequence-v1alpha2.yaml", "--allow-targets", "192.0.2.0/24", "--allow-ports", "443,8443", "--dry-run", "--interface", "must-not-open"}
+	var out bytes.Buffer
+	if err := run(args, &out); err == nil {
+		t.Fatal("v1alpha2 did not require policy")
+	}
+	args = append(args, "--policy", "lab")
+	if err := run(args, &out); err == nil {
+		t.Fatal("cross-port did not require independent permission")
+	}
+	args = append(args, "--permit", "cross-port", "--ports", "8443,443")
+	out.Reset()
+	if err := run(args, &out); err != nil {
+		t.Fatal(err)
+	}
+	var plan model.Plan
+	if err := json.Unmarshal(out.Bytes(), &plan); err != nil || len(plan.Trials) != 12 || plan.Trials[0].OptionsHex == "" || plan.MaxPackets != 24 {
+		t.Fatal("missing exact plan", err)
+	}
+}

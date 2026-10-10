@@ -247,3 +247,10 @@ Guide: [Deployment](../guide/deployment.md#privilege-separation-with-nyxr-packet
 | --- | --- |
 | `NO_COLOR` | Disable color output |
 | `NYXR_API_TOKEN` | Bearer token for `nyxr serve` |
+
+### HORIZON sequence policies
+
+`horizon resolve` accepts `--policy lab|enterprise|fragile|ot-restricted` and
+`--permit cross-port`. v1alpha2 requires a policy; multiple declared ports require
+independent permission. See [bounded sequence DSL](../horizon/general-dsl.md) for
+syntax, exact dry-run fields, resource ceilings and API/CLI kill switches.

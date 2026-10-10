@@ -73,6 +73,8 @@ _nyxr() {
             ;;
         horizon)
             case "$prev" in
+                --policy) COMPREPLY=($(compgen -W "lab enterprise fragile ot-restricted" -- "$cur")); return 0 ;;
+                --permit) COMPREPLY=($(compgen -W "cross-port" -- "$cur")); return 0 ;;
                 --simulate) COMPREPLY=($(compgen -W "sack stable loss noise" -- "$cur")); return 0 ;;
                 --experiment|--output|--packetd) COMPREPLY=($(compgen -f -- "$cur")); return 0 ;;
                 --allow-targets|--allow-ports|--target|--ports|--interface|--source-ip|--source-mac|--next-hop-mac) return 0 ;;
@@ -80,7 +82,7 @@ _nyxr() {
             if [[ -z "$sub" ]]; then
                 COMPREPLY=($(compgen -W "resolve replay explain references" -- "$cur"))
             elif [[ "$sub" == "resolve" ]]; then
-                COMPREPLY=($(compgen -W "--experiment --allow-targets --allow-ports --target --ports --dry-run --simulate --interface --source-ip --source-mac --next-hop-mac --packetd --output --help" -- "$cur"))
+                COMPREPLY=($(compgen -W "--experiment --policy --permit --allow-targets --allow-ports --target --ports --dry-run --simulate --interface --source-ip --source-mac --next-hop-mac --packetd --output --help" -- "$cur"))
             else
                 COMPREPLY=($(compgen -f -- "$cur"))
             fi
@@ -134,7 +136,7 @@ _nyxr() {
                 --listen|-listen|--max-scans|-max-scans)
                     return 0 ;;
             esac
-            COMPREPLY=($(compgen -W "--listen --db --packetd --evidence-dir --token-file --max-scans --allow-privileged --help" -- "$cur"))
+            COMPREPLY=($(compgen -W "--listen --db --packetd --evidence-dir --token-file --max-scans --horizon-simulate --horizon-policy --horizon-allow-targets --horizon-allow-ports --horizon-permit --allow-privileged --help" -- "$cur"))
             ;;
         completion)
             if [[ $COMP_CWORD -eq $((i + 1)) ]]; then

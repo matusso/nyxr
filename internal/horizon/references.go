@@ -24,6 +24,7 @@ type ReportReferences struct {
 }
 
 type TrialReferences struct {
+	Probe        int                 `json:"probe,omitempty"`
 	Source       observe.SourceRef   `json:"source"`
 	Pair         int                 `json:"pair"`
 	Arm          string              `json:"arm"`
@@ -53,7 +54,7 @@ func ImportReferences(reader io.Reader) (ReportReferences, error) {
 	if r.RunID == "" {
 		return ReportReferences{}, errors.New("report has no run ID")
 	}
-	ref := observe.SourceRef{Owner: "horizon", SourceSchema: model.Version, ArtifactID: observe.ArtifactID(b), Pointer: "/report", RunID: r.RunID}
+	ref := observe.SourceRef{Owner: "horizon", SourceSchema: r.APIVersion, ArtifactID: observe.ArtifactID(b), Pointer: "/report", RunID: r.RunID}
 	result := ReportReferences{Schema: observe.SchemaVersion, Kind: observe.KindExperimentReference, Source: ref, Experiment: ref,
 		ExperimentHash: r.ExperimentHash, ClaimStatus: r.Comparison.Status, Completed: r.Completed,
 		Trials: make([]TrialReferences, 0, len(r.Trials))}
@@ -62,7 +63,7 @@ func ImportReferences(reader io.Reader) (ReportReferences, error) {
 	}
 	result.Experiment.Pointer = "/report/experiment"
 	for i, trial := range r.Trials {
-		t := TrialReferences{Source: ref, Pair: trial.Pair, Arm: trial.Arm, FlowID: trial.FlowID, ClaimStatus: "unknown",
+		t := TrialReferences{Source: ref, Probe: trial.Probe, Pair: trial.Pair, Arm: trial.Arm, FlowID: trial.FlowID, ClaimStatus: "unknown",
 			QualityFlags: trial.QualityFlags, Evidence: make([]observe.SourceRef, 0, len(trial.Evidence))}
 		for _, evidence := range trial.Evidence {
 			if evidence.Direction == "rx" {
@@ -84,14 +85,14 @@ func ImportReferences(reader io.Reader) (ReportReferences, error) {
 // ResolveReference reuses HORIZON validation before resolving any source
 // pointer. Raw evidence stays owned by the original sealed envelope.
 func ResolveReference(source []byte, ref observe.SourceRef) ([]byte, error) {
-	if ref.Owner != "horizon" || ref.SourceSchema != model.Version {
+	if ref.Owner != "horizon" || (ref.SourceSchema != model.Version && ref.SourceSchema != model.GeneralVersion) {
 		return nil, errors.New("unsupported HORIZON reference")
 	}
 	r, err := ImportReferences(bytes.NewReader(source))
 	if err != nil {
 		return nil, err
 	}
-	if ref.RunID != r.Source.RunID {
+	if ref.RunID != r.Source.RunID || ref.SourceSchema != r.Source.SourceSchema {
 		return nil, errors.New("HORIZON run provenance mismatch")
 	}
 	return observe.ResolveSource(source, ref)
