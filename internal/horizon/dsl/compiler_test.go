@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/matusso/nyxr/internal/horizon/model"
 )
@@ -134,6 +135,116 @@ func TestStrictParsing(t *testing.T) {
 				t.Fatal("invalid document accepted")
 			}
 		})
+	}
+}
+
+func TestStrictWireTypes(t *testing.T) {
+	b, err := os.ReadFile("../../../lab/horizon/hz-001.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string]string{
+		"fractional replicates": strings.Replace(string(b), "replicates: 12", "replicates: 12.9", 1),
+		"fractional port":       strings.Replace(string(b), "tcpPorts: [443]", "tcpPorts: [443.9]", 1),
+		"fractional rate":       strings.Replace(string(b), "packetsPerSecond: 3", "packetsPerSecond: 3.9", 1),
+		"quoted integer":        strings.Replace(string(b), "maxPackets: 48", "maxPackets: \"48\"", 1),
+		"numeric name":          strings.Replace(string(b), "name: hz-001-sack-permission", "name: 123", 1),
+		"null seed":             strings.Replace(string(b), "seed: 42", "seed: null", 1),
+		"null washout":          strings.Replace(string(b), "washoutMs: 50", "washoutMs: null", 1),
+		"null extra step field": strings.Replace(string(b), "- observe: {windowMs: 100}", "- observe: {windowMs: 100}\n        send: null", 1),
+		"missing required":      strings.Replace(string(b), "    randomizedOrder: true\n", "", 1),
+		"explicit scalar tag":   strings.Replace(string(b), "seed: 42", "seed: !custom 42", 1),
+		"non-string field":      strings.Replace(string(b), "seed: 42", "42: 42", 1),
+		"empty":                 "",
+		"null root":             "null",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := Parse(strings.NewReader(data)); err == nil {
+				t.Fatal("invalid wire type accepted")
+			}
+		})
+	}
+	encoded, err := json.Marshal(example(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, data := range []string{
+		strings.Replace(string(encoded), `"replicates":12`, `"replicates":12.9`, 1),
+		strings.Replace(string(encoded), `"seed":42`, `"seed":null`, 1),
+		strings.Replace(string(encoded), `"name":"hz-001-sack-permission"`, `"name":123`, 1),
+	} {
+		if _, err := Parse(strings.NewReader(data)); err == nil {
+			t.Fatal("invalid JSON wire type accepted")
+		}
+	}
+}
+
+func TestNormalizedExperimentIdentity(t *testing.T) {
+	b, err := os.ReadFile("../../../lab/horizon/hz-001.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	explicit := strings.Replace(string(b), "seed: 42", "seed: 0", 1)
+	explicit = strings.Replace(explicit, "washoutMs: 50", "washoutMs: 0", 1)
+	omitted := strings.Replace(explicit, "    seed: 0\n", "", 1)
+	omitted = strings.Replace(omitted, "    washoutMs: 0\n", "", 1)
+	var plans []model.Plan
+	for _, data := range []string{explicit, omitted} {
+		e, err := Parse(strings.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, err := Compile(e, policy())
+		if err != nil {
+			t.Fatal(err)
+		}
+		plans = append(plans, p)
+	}
+	if !reflect.DeepEqual(plans[0], plans[1]) {
+		t.Fatal("omitted defaults changed experiment identity or trial order")
+	}
+	p := policy()
+	p.AllowTargets = []string{"2001:db8::/32"}
+	e := example(t)
+	e.Spec.Scope.Targets = []string{"2001:0db8:0000:0000:0000:0000:0000:0010"}
+	a, err := Compile(e, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.Spec.Scope.Targets = []string{"2001:db8::10"}
+	c, err := Compile(e, p)
+	if err != nil || !reflect.DeepEqual(a, c) {
+		t.Fatalf("equivalent IPv6 spellings changed the normalized plan: %v", err)
+	}
+}
+
+func TestCompileBoundsIncludeCleanup(t *testing.T) {
+	for _, replicates := range []int{2, 50} {
+		for _, rate := range []int{1, 10} {
+			e := example(t)
+			e.Spec.Execution.Replicates = replicates
+			e.Spec.Execution.WashoutMS = 5000
+			e.Spec.Control.Steps[1].Observe.WindowMS = 5000
+			e.Spec.Treatment.Steps[1].Observe.WindowMS = 5000
+			e.Spec.Limits.MaxPackets = 4 * replicates
+			e.Spec.Limits.PacketsPerSecond = rate
+			// Both SYNs and both potential RSTs reserve rate-gate time.
+			bound := time.Duration(2*replicates)*(10*time.Second+2*time.Second/time.Duration(rate)) + 2*time.Second
+			e.Spec.Limits.MaxDurationSeconds = int((bound + time.Second - 1) / time.Second)
+			p, err := Compile(e, policy())
+			if err != nil || p.MaxDurationMS != bound.Milliseconds() || p.MaxPackets != 4*replicates {
+				t.Fatalf("incorrect cleanup reservation: %+v %v", p, err)
+			}
+			e.Spec.Limits.MaxDurationSeconds--
+			if _, err := Compile(e, policy()); err == nil {
+				t.Fatal("duration below cleanup reservation admitted")
+			}
+			e.Spec.Limits.MaxDurationSeconds++
+			e.Spec.Limits.MaxPackets--
+			if _, err := Compile(e, policy()); err == nil {
+				t.Fatal("packet budget below cleanup reservation admitted")
+			}
+		}
 	}
 }
 

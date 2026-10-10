@@ -46,8 +46,8 @@ type Observe struct {
 type Execution struct {
 	Replicates      int   `json:"replicates" yaml:"replicates"`
 	RandomizedOrder bool  `json:"randomizedOrder" yaml:"randomizedOrder"`
-	Seed            int64 `json:"seed" yaml:"seed"`
-	WashoutMS       int   `json:"washoutMs" yaml:"washoutMs"`
+	Seed            int64 `json:"seed" yaml:"seed,omitempty"`
+	WashoutMS       int   `json:"washoutMs" yaml:"washoutMs,omitempty"`
 }
 type Limits struct {
 	MaxPackets         int `json:"maxPackets" yaml:"maxPackets"`
