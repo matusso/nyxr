@@ -29,7 +29,7 @@ ordinary NEXT GEN delivery remains independent of HORIZON's research go/no-go re
 
 Each issue has concrete acceptance criteria and dependency links. #61–#65
 enter **In review** after local implementation and validation, remaining open
-for review. #66–#74 stay **Todo**. This status does not imply code publication
+for review. #68 has local Phase 2 implementation and offline verification documented in [correlation and evidence](correlation-evidence.md); #66 and #69–#74 retain their independent research gates. This status does not imply code publication
 or a validated live lab.
 
 PoC acceptance: fail-closed independent scope/budgets; simulated effect/null/

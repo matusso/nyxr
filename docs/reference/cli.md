@@ -9,7 +9,7 @@ nyxr sniff --interface eth0 [flags]    capture and decode live frames
 nyxr history [--db file] [flags]       list or query stored scans, assets and evidence
 nyxr probe import file [--json]        import and summarize an nmap-service-probes file
 nyxr probe validate file [--json]      validate a Nyxr Protocol DSL file
-nyxr horizon resolve|replay|explain|references    bounded HZ-001 experiments and offline evidence
+nyxr horizon resolve|replay|explain|references|verify-capture    bounded HZ-001 experiments and offline evidence
 nyxr serve [--db file] [flags]         serve the REST API and web UI (unprivileged)
 nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
 nyxr version                           print the version
@@ -36,7 +36,7 @@ Optional `--target`/`--ports` assert the file's scope.
 JSON report. `explain REPORT` shows the comparison and limitations.
 `references REPORT` validates the original sealed envelope and emits versioned
 experiment/trial/evidence references without copying raw frames into inventory.
-See the [HORIZON operator guide](../horizon/README.md) for examples and bounds.
+`--pcapng FILE`, `--pcapng-max-bytes N` and `--pcapng-minimize` export bounded private packet evidence. `verify-capture REPORT PCAPNG` checks the actual capture against the report and packet references. See [Phase 2 correlation and evidence](../horizon/correlation-evidence.md) and the [HORIZON operator guide](../horizon/README.md) for examples and bounds.
 
 ## nyxr scan
 
