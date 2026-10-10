@@ -219,9 +219,12 @@ func (r *runner) trial(ctx context.Context, sent packet.ForgeSpec, t *model.Tria
 			}
 		}
 		if err != nil {
-			if window.Err() != nil {
+			// Only the receive window's own cancellation is a normal stop.
+			// A backend failure can race its deadline and must still fail closed.
+			if window.Err() != nil && errors.Is(err, window.Err()) {
 				break
 			}
+			t.QualityFlags = appendUnique(t.QualityFlags, "receive-failed")
 			return fmt.Errorf("receive packet: %w", err)
 		}
 	}
