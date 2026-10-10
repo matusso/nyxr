@@ -30,6 +30,11 @@ func TestHorizonCLIAdmissionAndDryRun(t *testing.T) {
 	if plan.MaxPackets != 48 || len(plan.Trials) != 24 || plan.Hash == "" {
 		t.Fatalf("bad plan: %+v", plan)
 	}
+	first := append([]byte(nil), out.Bytes()...)
+	out.Reset()
+	if err := run(args, &out); err != nil || !bytes.Equal(first, out.Bytes()) {
+		t.Fatalf("dry-run output changed on repeated compilation: %v", err)
+	}
 	for _, extra := range [][]string{{"--allow-targets", ""}, {"--allow-ports", "80"}, {"--target", "192.0.2.20"}, {"--ports", "80"}, {"--simulate", "sack", "--interface", "eth0"}, {"extra-target"}} {
 		out.Reset()
 		if err := run(append(horizonArgs(), extra...), &out); err == nil {
@@ -39,6 +44,28 @@ func TestHorizonCLIAdmissionAndDryRun(t *testing.T) {
 	out.Reset()
 	if err := run([]string{"horizon", "recognize"}, &out); err == nil {
 		t.Fatal("unsupported mode accepted")
+	}
+}
+
+func TestHorizonCLIRejectsInvalidWireTypes(t *testing.T) {
+	b, err := os.ReadFile("../../lab/horizon/hz-001.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(t.TempDir(), "experiment.yaml")
+	for _, data := range []string{
+		strings.Replace(string(b), "replicates: 12", "replicates: 12.9", 1),
+		strings.Replace(string(b), "tcpPorts: [443]", "tcpPorts: [443.9]", 1),
+		strings.Replace(string(b), "seed: 42", "seed: null", 1),
+	} {
+		if err := os.WriteFile(file, []byte(data), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		args := append(horizonArgs(), "--experiment", file, "--dry-run", "--interface", "must-not-open")
+		var out bytes.Buffer
+		if err := run(args, &out); err == nil || out.Len() != 0 {
+			t.Fatalf("invalid experiment produced a dry-run plan: %v %s", err, out.String())
+		}
 	}
 }
 

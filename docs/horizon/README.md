@@ -74,7 +74,9 @@ packets, not all kernel/target traffic.
 
 The [structural JSON Schema](experiment-v1alpha1.schema.json) describes the
 supported wire format; the compiler additionally enforces authorization and
-cross-field constraints. Omitted seed/washout fields normalize to zero.
+cross-field constraints. Required fields and their YAML/JSON types are checked
+before decoding; fractional or quoted integers, non-string names and explicit
+nulls are rejected. Omitted seed/washout fields normalize to zero.
 
 `horizon.nyxr.io/v1alpha1`, kind `Experiment`: one global unicast literal IP
 and one nonzero TCP port. Each arm has one TCP SYN `send` followed by one

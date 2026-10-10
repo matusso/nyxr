@@ -12,7 +12,9 @@ import (
 	"io"
 	"math/rand"
 	"net/netip"
+	"reflect"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/matusso/nyxr/internal/config"
@@ -54,6 +56,12 @@ func Parse(r io.Reader) (model.Experiment, error) {
 	if err := check(&root, 0); err != nil {
 		return e, err
 	}
+	if len(root.Content) != 1 {
+		return e, errors.New("exactly one experiment object is required")
+	}
+	if err := checkWireType(root.Content[0], reflect.TypeOf(e), "experiment"); err != nil {
+		return e, err
+	}
 	d := yaml.NewDecoder(bytes.NewReader(b))
 	d.KnownFields(true)
 	if err := d.Decode(&e); err != nil {
@@ -64,6 +72,63 @@ func Parse(r io.Reader) (model.Experiment, error) {
 		return e, errors.New("exactly one experiment document is required")
 	}
 	return e, nil
+}
+
+// yaml.v3 otherwise coerces fractional numbers to integers, non-string scalars
+// to strings, and nulls to zero values. Check the wire types before decoding so
+// admission never silently changes the operator's requested scope or budgets.
+func checkWireType(n *yaml.Node, typ reflect.Type, path string) error {
+	if typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
+	want := ""
+	switch typ.Kind() {
+	case reflect.Struct:
+		want = "!!map"
+	case reflect.Slice:
+		want = "!!seq"
+	case reflect.String:
+		want = "!!str"
+	case reflect.Bool:
+		want = "!!bool"
+	case reflect.Int, reflect.Int64, reflect.Uint16:
+		want = "!!int"
+	}
+	if want == "" || n.Tag != want {
+		return fmt.Errorf("%s requires %s, got %s", path, want, n.Tag)
+	}
+	switch typ.Kind() {
+	case reflect.Struct:
+		fields := make(map[string]reflect.StructField, typ.NumField())
+		for i := 0; i < typ.NumField(); i++ {
+			field := typ.Field(i)
+			name, _, _ := strings.Cut(field.Tag.Get("yaml"), ",")
+			fields[name] = field
+		}
+		for i := 0; i < len(n.Content); i += 2 {
+			key, value := n.Content[i], n.Content[i+1]
+			field, ok := fields[key.Value]
+			if key.Tag != "!!str" || !ok {
+				return fmt.Errorf("%s has unsupported field %q", path, key.Value)
+			}
+			if err := checkWireType(value, field.Type, path+"."+key.Value); err != nil {
+				return err
+			}
+			delete(fields, key.Value)
+		}
+		for name, field := range fields {
+			if field.Type.Kind() != reflect.Pointer && !strings.HasSuffix(field.Tag.Get("yaml"), ",omitempty") {
+				return fmt.Errorf("%s requires field %q", path, name)
+			}
+		}
+	case reflect.Slice:
+		for i, item := range n.Content {
+			if err := checkWireType(item, typ.Elem(), fmt.Sprintf("%s[%d]", path, i)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func Compile(e model.Experiment, policy model.Policy) (model.Plan, error) {
