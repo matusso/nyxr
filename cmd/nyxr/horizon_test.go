@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/matusso/nyxr/internal/horizon"
 	"github.com/matusso/nyxr/internal/horizon/model"
+	"github.com/matusso/nyxr/internal/observe"
 )
 
 func horizonArgs() []string {
@@ -85,6 +87,14 @@ func TestHorizonCLISyntheticExportAndReplay(t *testing.T) {
 	out.Reset()
 	if err := run([]string{"horizon", "explain", report}, &out); err != nil || !strings.Contains(out.String(), "unresolved") {
 		t.Fatalf("explain failed: %v", err)
+	}
+	out.Reset()
+	if err := run([]string{"horizon", "references", report}, &out); err != nil {
+		t.Fatal(err)
+	}
+	var refs horizon.ReportReferences
+	if err := json.Unmarshal(out.Bytes(), &refs); err != nil || refs.Source.ArtifactID != observe.ArtifactID(saved) || refs.Kind != "experiment-reference" || len(refs.Trials) != 4 {
+		t.Fatalf("reference adapter: %+v %v", refs, err)
 	}
 	out.Reset()
 	if err := run(args, &out); err == nil {

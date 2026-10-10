@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/probe"
 )
 
@@ -321,6 +322,11 @@ probeLoop:
 					o.ResponseHex = hex.EncodeToString(buf[:n])
 				}
 				if matched, ok := matchRecent(recent, buf[:n]); ok {
+					matcher := matched.probe.Matcher
+					if matcher == "any" {
+						matcher = ""
+					}
+					retainUDPExchange(&o, matched, buf[:n], matcher)
 					if matched.probe.Matcher == "any" {
 						if o.Confidence < 80 {
 							o.State, o.Confidence, o.Reason = "open", 80, "socket-scoped UDP response; probe identity unconfirmed"
@@ -351,6 +357,7 @@ probeLoop:
 					}
 					return o
 				}
+				retainUDPExchange(&o, recent[len(recent)-1], buf[:n], "")
 				if o.State != "open" {
 					o.State, o.Confidence, o.Reason = "open", 75, "UDP response with unknown fingerprint"
 					o.RTT = time.Since(start)
@@ -382,4 +389,20 @@ func isUDPFiltered(err error) bool {
 	// Windows uses WSAEHOSTUNREACH (10065) and WSAENETUNREACH (10051).
 	return errors.Is(err, syscall.EHOSTUNREACH) || errors.Is(err, syscall.ENETUNREACH) ||
 		errors.Is(err, syscall.Errno(10065)) || errors.Is(err, syscall.Errno(10051))
+}
+
+// Bound discovery transcripts independently of campaign retries. Keep the
+// initial 31 exchanges and the latest one; preserve the omission explicitly.
+// Copy socket bytes before the worker reuses its receive buffer.
+func retainUDPExchange(o *Observation, sent sentProbe, response []byte, matched string) {
+	ev := observe.Evidence{Probe: sent.probe.Name, Layer: "udp", Started: sent.sent.UTC(), Duration: time.Since(sent.sent),
+		Request:  append([]byte(nil), sent.request[:min(len(sent.request), 4096)]...),
+		Response: append([]byte(nil), response[:min(len(response), 4096)]...), Matched: matched,
+		Truncated: len(sent.request) > 4096 || len(response) > 4096}
+	if len(o.Evidence) < 32 {
+		o.Evidence = append(o.Evidence, ev)
+	} else {
+		o.Evidence[31] = ev
+		o.EvidenceTruncated = true
+	}
 }

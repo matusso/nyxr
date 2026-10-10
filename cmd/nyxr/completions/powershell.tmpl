@@ -68,7 +68,7 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
             if ($prev -match '^--?(experiment|output|packetd|allow-targets|allow-ports|target|ports|interface|source-ip|source-mac|next-hop-mac)$') { return }
             if ($wordToComplete.StartsWith('-')) {
                 & $emit @('--experiment', '--allow-targets', '--allow-ports', '--target', '--ports', '--dry-run', '--simulate', '--interface', '--source-ip', '--source-mac', '--next-hop-mac', '--packetd', '--output', '--help') 'ParameterName'
-            } elseif ($prev -eq 'horizon') { & $emit @('resolve', 'replay', 'explain') }
+            } elseif ($prev -eq 'horizon') { & $emit @('resolve', 'replay', 'explain', 'references') }
         }
         'probe' {
             if ($prev -match '^import$') { return }

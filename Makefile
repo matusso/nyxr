@@ -58,6 +58,7 @@ check: test vet
 
 ## fuzz: run short hostile-input campaigns for decoder, pcap, probe, service and nmap-db parsing
 fuzz:
+	$(GO) test -run '^$$' -fuzz '^FuzzSourceReference$$' -fuzztime=5s -parallel=2 ./internal/observe
 	$(GO) test -run '^$$' -fuzz '^FuzzDecoder$$' -fuzztime=5s -parallel=2 ./internal/packet
 	$(GO) test -run '^$$' -fuzz '^FuzzTCPStackOptions$$' -fuzztime=5s -parallel=2 ./internal/stack
 	$(GO) test -run '^$$' -fuzz '^FuzzPCAPReader$$' -fuzztime=5s -parallel=2 ./internal/packet

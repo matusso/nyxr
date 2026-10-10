@@ -29,6 +29,7 @@ func runHorizon(args []string, out io.Writer) error {
   nyxr horizon resolve --experiment file --allow-targets CIDR --allow-ports 443 --interface eth0 --source-ip IP --next-hop-mac MAC [--packetd socket]
   nyxr horizon replay report.json
   nyxr horizon explain report.json
+  nyxr horizon references report.json
 
 HZ-001 only: one literal target/port, MSS baseline vs SACK permission.
 resolve emits versioned JSON; --output writes evidence to a new private file.
@@ -37,15 +38,22 @@ Live mode requires an explicit interface source and unicast next-hop MAC.
 Ctrl-C cancels execution and emits partial evidence. No active mode is a default.`)
 		return err
 	}
-	if args[0] == "replay" || args[0] == "explain" {
+	if args[0] == "replay" || args[0] == "explain" || args[0] == "references" {
 		if len(args) != 2 {
-			return errors.New("horizon replay/explain requires one report file")
+			return errors.New("horizon replay/explain/references requires one report file")
 		}
 		file, err := os.Open(args[1])
 		if err != nil {
 			return err
 		}
 		defer file.Close()
+		if args[0] == "references" {
+			refs, err := horizon.ImportReferences(file)
+			if err != nil {
+				return err
+			}
+			return horizonJSON(out, refs)
+		}
 		envelope, err := horizon.Replay(file)
 		if err != nil {
 			return err

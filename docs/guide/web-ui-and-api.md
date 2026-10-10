@@ -129,6 +129,17 @@ curl -s -H "Authorization: Bearer $NYXR_API_TOKEN" localhost:8484/api/v1/scans
 profile and ICMP are not available through the API; ICMP echo needs a raw IP
 socket in the scanning process, which the unprivileged server does not have.
 
+## Evidence reference resolution
+
+`POST /api/v1/evidence/resolve` takes an observation/exchange `source` object from
+an observation query or event and returns its exact retained JSON artifact as
+base64. `status: "unavailable"` includes a reason and preserves the submitted
+reference when retention has removed the source or it belongs to HORIZON.
+Authentication, Host and CSRF checks are the same as the other API routes. The
+request is limited to 4 KiB and cannot name a server path or URL. Capture downloads
+verify recorded size and SHA-256 when an artifact ID exists; modified containers
+are unavailable rather than silently reassigned to old packet references.
+
 ## Live events
 
 Event streams are bounded so a slow client can never slow a scan:

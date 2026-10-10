@@ -36,7 +36,7 @@ func TestScanCustomUDPPayload(t *testing.T) {
 		Probe     string `json:"probe"`
 		PacketsRX int    `json:"packets_rx"`
 	}
-	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+	if err := json.NewDecoder(&output).Decode(&got); err != nil {
 		t.Fatal(err)
 	}
 	if got.State != "open" || got.Probe != "custom-hex" || got.PacketsRX != 1 {
@@ -67,7 +67,7 @@ func TestScanUDPBasicSendsEmptyDatagram(t *testing.T) {
 		State     string   `json:"state"`
 		Attempted []string `json:"probes_attempted"`
 	}
-	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+	if err := json.NewDecoder(&output).Decode(&got); err != nil {
 		t.Fatal(err)
 	}
 	if got.State != "open" || len(got.Attempted) != 1 || got.Attempted[0] != "udp-empty" {

@@ -124,8 +124,10 @@ filename and payload similarity are not unique observation IDs. For JSONL, retai
 each line as its own JSON artifact, or define a versioned indexed container before
 issuing refs. Keep the source bytes/container recoverable unchanged.
 
-Ordinary observations lack stable per-observation IDs today; preserve evidence
-array indices and half-open probe-update ranges. Root observation pointer is `""`,
+Ordinary observations now carry scan/sequence IDs and immutable source mappings
+from #76; migration/import IDs retain their database namespace. Preserve evidence
+array indices and half-open probe-update ranges. See the [source-reference wire
+contract](../reference/output-records.md#source-references). Root observation pointer is `""`,
 exchange pointer `/evidence/0`. For a sealed HORIZON envelope use `/report`,
 `/report/trials/0`, `/report/trials/0/evidence/0`; retain run ID, experiment hash,
 pair, arm and flow token. A flow tuple alone cannot identify an observation.

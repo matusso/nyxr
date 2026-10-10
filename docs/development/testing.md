@@ -25,6 +25,11 @@ including UDP retries and late responses. One test runs the same scan through
 `nyxr scan` and the API and requires identical observations apart from IDs and
 timings.
 
+Source integration tests verify exact stream/history/API exchanges, stable IDs
+and pointers, historical migration/identity preservation, pruning, cancellation
+across full store batches, bounded unknown UDP transcripts, capture hashes and
+HORIZON references over original envelope bytes.
+
 Fake UDP and SYN responders inject latency, loss, duplicate replies, ICMP rate
 limiting and protocol mismatches, so classification can be tested without a
 network.
@@ -73,6 +78,7 @@ make fuzz
 | `FuzzDefinitionAndMatcher` | `internal/probe` |
 | `FuzzResponseParsers` | `internal/service` |
 | `FuzzParse` | `internal/nmapdb` |
+| `FuzzSourceReference` | `internal/observe` (artifact identity and RFC 6901 pointers) |
 
 `make fuzz` runs each target for five seconds. For a longer campaign, run one
 target directly:

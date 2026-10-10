@@ -138,3 +138,12 @@ Coverage includes deterministic compilation, unsafe admission, stable/effect/
 loss/duplicate fixtures, replay/tampering, capture caps, failed sends,
 cancellation, deadlines and stale correlation. Synthetic acceptance is not
 live topology validation; that remains issue #66.
+
+## Reference adapter
+
+`nyxr horizon references report.json` imports a sealed report through offline
+replay validation and prints a `nyxr/v1` reference-only record. Keep the input
+file's exact bytes: references hash that envelope and retain its run, experiment
+hash, trial pair/arm, flow ID and evidence pointers. This does not copy captures
+into the inventory, merge assets or enable live experiment/API capabilities.
+See the [source contract](../reference/output-records.md#source-references).

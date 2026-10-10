@@ -2,9 +2,13 @@ package capture
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
+	"io"
 	"net/netip"
 	"os"
 	"sort"
@@ -89,6 +93,7 @@ type Recorder struct {
 	opts    Options
 	src     packetio.PacketIO
 	file    *os.File
+	digest  hash.Hash
 	out     *PCAPNGWriter
 	targets map[netip.Addr]struct{}
 	pool    chan []byte
@@ -125,13 +130,14 @@ func Start(parent context.Context, src packetio.PacketIO, opts Options) (*Record
 	if err != nil {
 		return nil, err
 	}
-	w, err := NewPCAPNGWriter(f, opts.Interface, opts.Snaplen, "nyxr")
+	digest := sha256.New()
+	w, err := NewPCAPNGWriter(io.MultiWriter(f, digest), opts.Interface, opts.Snaplen, "nyxr")
 	if err != nil {
 		_ = f.Close()
 		return nil, err
 	}
 	r := &Recorder{
-		opts: opts, src: src, file: f, out: w,
+		opts: opts, src: src, file: f, out: w, digest: digest,
 		targets: make(map[netip.Addr]struct{}, len(opts.Targets)),
 		pool:    make(chan []byte, opts.QueueFrames+32),
 		queue:   make(chan frame, opts.QueueFrames),
@@ -380,6 +386,9 @@ func (r *Recorder) Stop() (Result, error) {
 		closeErr := r.src.Close()
 		fileErr := r.file.Close()
 		r.stats.Bytes = r.out.Bytes()
+		if r.writeErr == nil && fileErr == nil {
+			r.stats.ArtifactID = "sha256:" + hex.EncodeToString(r.digest.Sum(nil))
+		}
 		r.stats.DroppedQueue = r.droppedQueue.Load()
 		r.stats.BackendDrops = backend.Dropped
 		r.stats.FlowsIndexed = len(r.flows)

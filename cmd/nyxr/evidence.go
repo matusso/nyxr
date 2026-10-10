@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/netip"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"time"
@@ -151,7 +152,8 @@ func emitStagePlan(out io.Writer, r config.Resolved, db string, asJSON bool, sty
 
 // runPipeline uses pipeline.FromResolved, the mapping the API also uses.
 func runPipeline(out io.Writer, r config.Resolved, db string, open packetio.Opener, asJSON, openOnly bool, style *ui.Styler, tally *scanTally) error {
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
 	opts := pipeline.FromResolved(r)
 	opts.OpenLive = open
 	opts.Sinks = append(opts.Sinks, progressSink{tally})
