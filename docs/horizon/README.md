@@ -1,4 +1,9 @@
-# HORIZON HZ-001 proof of concept
+# HORIZON experiments
+
+The [bounded sequence DSL and policy profiles](general-dsl.md) extend this PoC
+with v1alpha2 send/observe/wait/repeat sequences, explicit cross-port permission,
+exact dry-run probes and API/executor kill switches. v1alpha1 remains compatible.
+The guide below describes the original HZ-001 experiment.
 
 HORIZON is an opt-in experiment runner. Both SYN arms offer MSS 1460;
 **only treatment adds SACK permission**. It retains direct TCP replies and
@@ -138,7 +143,7 @@ go test -run '^$' -fuzz '^FuzzReplay$' -fuzztime=5s -parallel=2 ./internal/horiz
 go test -run '^$' -fuzz '^FuzzCorrelation$' -fuzztime=5s -parallel=2 ./internal/horizon
 ```
 
-`make fuzz` includes these three HORIZON campaigns in the existing CI workflow.
+`make fuzz` includes these HORIZON campaigns plus `FuzzSequenceBounds` in the existing CI workflow.
 
 Coverage includes deterministic compilation, unsafe admission, stable/effect/
 loss/duplicate fixtures, replay/tampering, capture caps, failed sends,
