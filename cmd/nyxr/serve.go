@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"strings"
@@ -15,7 +16,12 @@ import (
 	"time"
 
 	"github.com/matusso/nyxr/internal/api"
+	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/horizon"
+	"github.com/matusso/nyxr/internal/horizon/dsl"
+	"github.com/matusso/nyxr/internal/horizon/model"
 	"github.com/matusso/nyxr/internal/packetd"
+	"github.com/matusso/nyxr/internal/packetio"
 )
 
 func serveUsage(out io.Writer) {
@@ -32,6 +38,11 @@ Flags:
   --token-file file    require this bearer token (or set NYXR_API_TOKEN)
   --max-scans int      concurrent scans (default 1)
   --allow-packet-send  enable single-frame send/resend from the web UI (requires --packetd)
+  --horizon-simulate scenario   enable synthetic HORIZON API (sack/stable/loss/noise)
+  --horizon-policy profile      lab/enterprise/fragile/ot-restricted
+  --horizon-allow-targets CIDRs independent HORIZON target scope
+  --horizon-allow-ports ports   independent HORIZON TCP port scope
+  --horizon-permit cross-port  independent cross-port permission
   --allow-privileged   run even with root or raw-socket capabilities
 
 A non-loopback --listen address requires a token.
@@ -48,6 +59,11 @@ func runServe(args []string, out io.Writer) error {
 	evidenceDir := fs.String("evidence-dir", "", "pcapng directory")
 	tokenFile := fs.String("token-file", "", "bearer token file")
 	maxScans := fs.Int("max-scans", 1, "concurrent scans")
+	horizonSim := fs.String("horizon-simulate", "", "synthetic HORIZON API scenario")
+	horizonPolicy := fs.String("horizon-policy", "", "HORIZON operator profile")
+	horizonTargets := fs.String("horizon-allow-targets", "", "HORIZON operator target scope")
+	horizonPorts := fs.String("horizon-allow-ports", "", "HORIZON operator TCP ports")
+	horizonPermit := fs.String("horizon-permit", "", "HORIZON operator permissions")
 	allowPacketSend := fs.Bool("allow-packet-send", false, "enable web UI packet transmission")
 	allowPrivileged := fs.Bool("allow-privileged", false, "allow root or raw-socket capabilities")
 	if err := fs.Parse(args); err != nil {
@@ -58,6 +74,46 @@ func runServe(args []string, out io.Writer) error {
 	}
 	if fs.NArg() != 0 {
 		return errors.New("serve takes no positional arguments")
+	}
+	var horizonController *horizon.Controller
+	if *horizonSim != "" {
+		if *horizonPolicy == "" || *horizonTargets == "" || *horizonPorts == "" {
+			return errors.New("HORIZON API requires --horizon-policy, --horizon-allow-targets and --horizon-allow-ports")
+		}
+		profOK := false
+		for _, p := range dsl.Profiles() {
+			if p.Name == *horizonPolicy {
+				profOK = true
+			}
+		}
+		if !profOK {
+			return errors.New("unknown HORIZON policy")
+		}
+		scope, err := config.ParseScope(strings.Split(*horizonTargets, ","))
+		if err != nil || scope.Empty() {
+			return errors.New("invalid HORIZON target scope")
+		}
+		ports, err := config.ParsePorts(*horizonPorts)
+		if err != nil {
+			return err
+		}
+		policy := model.Policy{Profile: *horizonPolicy, AllowTargets: strings.Split(*horizonTargets, ","), AllowPorts: ports}
+		if *horizonPermit != "" {
+			if *horizonPermit != "cross-port" {
+				return errors.New("unsupported HORIZON permission")
+			}
+			policy.Permissions = []string{"cross-port"}
+		}
+		sim, err := horizon.NewSimulator(*horizonSim)
+		if err != nil {
+			return err
+		}
+		sim.Close()
+		link := horizon.Link{SourceIP: netip.MustParseAddr("192.0.2.1"), SourceMAC: net.HardwareAddr{2, 0, 0, 0, 0, 1}, NextHopMAC: net.HardwareAddr{2, 0, 0, 0, 0, 2}, Build: version, Backend: "synthetic/" + *horizonSim}
+		horizonController = horizon.NewController(policy, link, func() (packetio.PacketIO, error) { return horizon.NewSimulator(*horizonSim) })
+		defer horizonController.Close()
+	} else if *horizonPolicy != "" || *horizonTargets != "" || *horizonPorts != "" || *horizonPermit != "" {
+		return errors.New("HORIZON API options require --horizon-simulate")
 	}
 	db, err := dbFlag.resolve()
 	if err != nil {
@@ -118,7 +174,7 @@ func runServe(args []string, out io.Writer) error {
 		// the loopback API from a browser.
 		hosts = []string{"localhost", "127.0.0.1", "::1", strings.Trim(host, "[]")}
 	}
-	handler := api.Handler(api.ServerConfig{Manager: manager, Store: store, Token: token, AllowedHosts: hosts,
+	handler := api.Handler(api.ServerConfig{Horizon: horizonController, Manager: manager, Store: store, Token: token, AllowedHosts: hosts,
 		Version: version, EvidenceDir: *evidenceDir, PacketSendEnabled: *allowPacketSend})
 	l, err := net.Listen("tcp", *listen)
 	if err != nil {
@@ -133,6 +189,9 @@ func runServe(args []string, out io.Writer) error {
 		manager.Close()
 		return err
 	case <-ctx.Done():
+	}
+	if horizonController != nil {
+		horizonController.Stop()
 	}
 	shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

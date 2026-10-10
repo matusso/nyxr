@@ -1,5 +1,5 @@
-// Package dsl admits only a bounded SYN/SACK experiment; unsupported roadmap
-// primitives fail closed rather than falling back to ordinary discovery.
+// Package dsl compiles versioned, authorized and bounded TCP experiments.
+// Unsupported packet actions fail closed.
 package dsl
 
 import (
@@ -43,7 +43,7 @@ func Parse(r io.Reader) (model.Experiment, error) {
 	}
 	var check func(*yaml.Node, int) error
 	check = func(n *yaml.Node, depth int) error {
-		if depth > 16 || n.Kind == yaml.AliasNode || n.Anchor != "" {
+		if depth > 24 || n.Kind == yaml.AliasNode || n.Anchor != "" {
 			return errors.New("aliases, anchors and deeply nested experiments are unsupported")
 		}
 		for _, c := range n.Content {
@@ -66,6 +66,28 @@ func Parse(r io.Reader) (model.Experiment, error) {
 	d.KnownFields(true)
 	if err := d.Decode(&e); err != nil {
 		return e, err
+	}
+	if e.APIVersion == model.Version {
+		var legacyFields func(*yaml.Node) error
+		legacyFields = func(n *yaml.Node) error {
+			if n.Kind == yaml.MappingNode {
+				for i := 0; i < len(n.Content); i += 2 {
+					switch n.Content[i].Value {
+					case "crossPort", "wait", "repeat", "maxReceiveFrames", "maxMemoryBytes":
+						return errors.New("v1alpha2 fields require v1alpha2")
+					}
+				}
+			}
+			for _, child := range n.Content {
+				if err := legacyFields(child); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		if err := legacyFields(&root); err != nil {
+			return e, err
+		}
 	}
 	var extra any
 	if err := d.Decode(&extra); err != io.EOF {
@@ -133,6 +155,19 @@ func checkWireType(n *yaml.Node, typ reflect.Type, path string) error {
 
 func Compile(e model.Experiment, policy model.Policy) (model.Plan, error) {
 	var p model.Plan
+	if e.APIVersion == model.GeneralVersion {
+		return compileGeneral(e, policy)
+	}
+	if e.Spec.CrossPort || e.Spec.Limits.MaxReceiveFrames != 0 || e.Spec.Limits.MaxMemoryBytes != 0 {
+		return p, errors.New("v1alpha2 fields require v1alpha2")
+	}
+	for _, seq := range []model.Sequence{e.Spec.Control, e.Spec.Treatment} {
+		for _, step := range seq.Steps {
+			if step.Wait != nil || step.Repeat != nil {
+				return p, errors.New("general primitives require v1alpha2")
+			}
+		}
+	}
 	if e.APIVersion != model.Version || e.Kind != "Experiment" || !namePattern.MatchString(e.Metadata.Name) {
 		return p, errors.New("require v1alpha1 Experiment with a short lowercase name")
 	}
@@ -214,5 +249,13 @@ func Compile(e model.Experiment, policy model.Policy) (model.Plan, error) {
 			p.Trials = append(p.Trials, model.PlannedTrial{Pair: pair, Arm: arm})
 		}
 	}
-	return p, nil
+	for i := range p.Trials {
+		seq := s.Control
+		if p.Trials[i].Arm == "treatment" {
+			seq = s.Treatment
+		}
+		p.Trials[i].Send = seq.Steps[0].Send
+		p.Trials[i].WindowMS = seq.Steps[1].Observe.WindowMS
+	}
+	return describePlan(p, policy)
 }

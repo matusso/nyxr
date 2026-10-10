@@ -11,7 +11,9 @@ import (
 	"net/netip"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/horizon"
@@ -31,7 +33,8 @@ func runHorizon(args []string, out io.Writer) error {
   nyxr horizon explain report.json
   nyxr horizon references report.json
 
-HZ-001 only: one literal target/port, MSS baseline vs SACK permission.
+v1alpha1 HZ-001 and v1alpha2 bounded send/observe/wait/repeat sequences.
+v1alpha2 requires --policy; cross-port requires --permit cross-port.
 resolve emits versioned JSON; --output writes evidence to a new private file.
 Simulations (sack, stable, loss, noise) send no network traffic.
 Live mode requires an explicit interface source and unicast next-hop MAC.
@@ -78,7 +81,9 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 	}
 	fs := flag.NewFlagSet("horizon resolve", flag.ContinueOnError)
 	fs.SetOutput(out)
-	experiment := fs.String("experiment", "", "versioned HZ-001 YAML/JSON")
+	experiment := fs.String("experiment", "", "versioned HORIZON YAML/JSON")
+	policyName := fs.String("policy", "", "lab, enterprise, fragile or ot-restricted")
+	permissions := fs.String("permit", "", "independent permissions: cross-port")
 	allowTargets := fs.String("allow-targets", "", "independent approved IP/CIDR scope")
 	allowPorts := fs.String("allow-ports", "", "independent approved TCP ports")
 	target := fs.String("target", "", "assert the literal target in the experiment")
@@ -110,7 +115,10 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 	if err != nil {
 		return err
 	}
-	policy := model.Policy{AllowTargets: strings.Split(*allowTargets, ","), AllowPorts: authorizedPorts}
+	policy := model.Policy{Profile: *policyName, AllowTargets: strings.Split(*allowTargets, ","), AllowPorts: authorizedPorts}
+	if *permissions != "" {
+		policy.Permissions = strings.Split(*permissions, ",")
+	}
 	p, err := dsl.Compile(e, policy)
 	if err != nil {
 		return err
@@ -123,7 +131,10 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 		if err != nil {
 			return err
 		}
-		if len(requested) != 1 || requested[0] != e.Spec.Scope.TCPPorts[0] {
+		declared := append([]uint16(nil), e.Spec.Scope.TCPPorts...)
+		slices.Sort(requested)
+		slices.Sort(declared)
+		if !slices.Equal(requested, declared) {
 			return errors.New("--ports does not match experiment scope")
 		}
 	}
@@ -133,7 +144,7 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 	if *sim != "" && (*device != "" || *sourceIP != "" || *sourceMAC != "" || *nextHop != "" || *socket != "") {
 		return errors.New("simulation cannot be combined with live packet settings")
 	}
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	link := horizon.Link{Build: version}
 	var transport packetio.PacketIO

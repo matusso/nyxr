@@ -66,6 +66,7 @@ fuzz:
 	$(GO) test -run '^$$' -fuzz '^FuzzResponseParsers$$' -fuzztime=5s -parallel=2 ./internal/service
 	$(GO) test -run '^$$' -fuzz '^FuzzParse$$' -fuzztime=5s -parallel=2 ./internal/nmapdb
 	$(GO) test -run '^$$' -fuzz '^FuzzAdmission$$' -fuzztime=5s -parallel=2 ./internal/horizon/dsl
+	$(GO) test -run '^$$' -fuzz '^FuzzSequenceBounds$$' -fuzztime=5s -parallel=2 ./internal/horizon/dsl
 	$(GO) test -run '^$$' -fuzz '^FuzzReplay$$' -fuzztime=5s -parallel=2 ./internal/horizon
 	$(GO) test -run '^$$' -fuzz '^FuzzCorrelation$$' -fuzztime=5s -parallel=2 ./internal/horizon
 

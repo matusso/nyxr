@@ -64,10 +64,11 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
             }
         }
         'horizon' {
+            if ($prev -match '^--?policy$') { & $emit @('lab', 'enterprise', 'fragile', 'ot-restricted'); return }
             if ($prev -match '^--?simulate$') { & $emit @('sack', 'stable', 'loss', 'noise'); return }
-            if ($prev -match '^--?(experiment|output|packetd|allow-targets|allow-ports|target|ports|interface|source-ip|source-mac|next-hop-mac)$') { return }
+            if ($prev -match '^--?(experiment|output|packetd|permit|allow-targets|allow-ports|target|ports|interface|source-ip|source-mac|next-hop-mac)$') { return }
             if ($wordToComplete.StartsWith('-')) {
-                & $emit @('--experiment', '--allow-targets', '--allow-ports', '--target', '--ports', '--dry-run', '--simulate', '--interface', '--source-ip', '--source-mac', '--next-hop-mac', '--packetd', '--output', '--help') 'ParameterName'
+                & $emit @('--experiment', '--policy', '--permit', '--allow-targets', '--allow-ports', '--target', '--ports', '--dry-run', '--simulate', '--interface', '--source-ip', '--source-mac', '--next-hop-mac', '--packetd', '--output', '--help') 'ParameterName'
             } elseif ($prev -eq 'horizon') { & $emit @('resolve', 'replay', 'explain', 'references') }
         }
         'probe' {
@@ -92,7 +93,7 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
         'serve' {
             # Returning nothing lets PowerShell fall back to path completion.
             if ($prev -match '^--?(listen|db|packetd|evidence-dir|token-file|max-scans)$') { return }
-            & $emit @('--listen', '--db', '--packetd', '--evidence-dir', '--token-file', '--max-scans', '--allow-privileged', '--help') 'ParameterName'
+            & $emit @('--listen', '--db', '--packetd', '--evidence-dir', '--token-file', '--max-scans', '--horizon-simulate', '--horizon-policy', '--horizon-allow-targets', '--horizon-allow-ports', '--horizon-permit', '--allow-privileged', '--help') 'ParameterName'
         }
         'completion' {
             if ($words.Count -eq $cmdIndex + 1) { & $emit @('bash', 'zsh', 'fish', 'powershell') }

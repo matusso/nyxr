@@ -1,4 +1,4 @@
-// Package horizon runs an opt-in HZ-001 experiment on Nyxr's packet transport.
+// Package horizon runs opt-in bounded experiments on Nyxr's packet transport.
 package horizon
 
 import (
@@ -59,7 +59,7 @@ func Run(ctx context.Context, e model.Experiment, policy model.Policy, link Link
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return report, err
 	}
-	report = model.Report{APIVersion: model.Version, Kind: "EvidenceReport", Experiment: p.Experiment, ExperimentHash: p.Hash,
+	report = model.Report{APIVersion: p.APIVersion, Kind: "EvidenceReport", Experiment: p.Experiment, ExperimentHash: p.Hash,
 		RunID: hex.EncodeToString(nonce[:]), Build: link.Build, Backend: link.Backend, StartedAt: time.Now().UTC(),
 		Limitations: []string{"Synthetic backends validate software only; live ground truth remains unvalidated.", "SACK is the sole pre-registered metric; RTT/TTL/options and response classes are descriptive.", "Paired sign test assumes independent, stationary pairs; it does not establish causality or topology.", "User-space send/receive timestamps include queueing; clock precision and transport checksums are not calibrated.", "Fresh TCP sequence and IP ID tokens differ between probes; ambient load, routing and reused flow state may confound results.", "Only direct TCP replies are classified; ICMP/NAT/path-shift replies remain unresolved.", "SHA-256 detects corruption, not forgery; this report is not digitally signed.", "RST cleanup is best effort; cancellation/error may leave remote SYN state to expire."}}
 	before := io.Stats().Dropped
@@ -83,17 +83,34 @@ func Run(ctx context.Context, e model.Experiment, policy model.Policy, link Link
 		if err := ctx.Err(); err != nil {
 			return report, err
 		}
+		if err := pause(ctx, time.Duration(trial.WaitBeforeMS)*time.Millisecond); err != nil {
+			return report, err
+		}
+		slot := trial.Pair
+		if e.APIVersion == model.GeneralVersion {
+			slot = trial.Pair*32 + trial.Probe
+		}
+		arm := "control"
+		if trial.Send.OptionsProfile == "sack-permitted" {
+			arm = "treatment"
+		}
 		sent := packet.ForgeSpec{SourceIP: link.SourceIP, DestinationIP: target, SourceMAC: link.SourceMAC, DestinationMAC: link.NextHopMAC,
-			Protocol: 6, SourcePort: uint16(49152 + (basePort+trial.Pair)%16384), DestPort: e.Spec.Scope.TCPPorts[0], TCPFlags: 2,
-			TCPOptions: options(trial.Arm), Sequence: baseToken + uint32(i), Window: 64240, HopLimit: 64, ID: baseToken + uint32(i), DontFragment: true, Experiment: true}
-		t := model.Trial{Pair: trial.Pair, Arm: trial.Arm, FlowID: flowID(sent), Features: model.Features{ResponseClass: "no-response"}, QualityFlags: []string{}, Evidence: []model.Evidence{}}
-		err := r.trial(ctx, sent, &t)
+			Protocol: 6, SourcePort: uint16(49152 + (basePort+slot)%16384), DestPort: trial.Send.DstPort, TCPFlags: 2,
+			TCPOptions: options(arm), Sequence: baseToken + uint32(i), Window: 64240, HopLimit: 64, ID: baseToken + uint32(i), DontFragment: true, Experiment: true}
+		t := model.Trial{Probe: trial.Probe, Pair: trial.Pair, Arm: trial.Arm, FlowID: flowID(sent), Features: model.Features{ResponseClass: "no-response"}, QualityFlags: []string{}, Evidence: []model.Evidence{}}
+		err := r.trial(ctx, sent, &t, trial.WindowMS)
 		report.Trials = append(report.Trials, t)
 		if err != nil {
 			return report, err
 		}
-		if err := pause(ctx, time.Duration(e.Spec.Execution.WashoutMS)*time.Millisecond); err != nil {
+		if err := pause(ctx, time.Duration(trial.WaitAfterMS)*time.Millisecond); err != nil {
 			return report, err
+		}
+		endArm := i+1 == len(p.Trials) || p.Trials[i+1].Arm != trial.Arm || p.Trials[i+1].Pair != trial.Pair
+		if endArm {
+			if err := pause(ctx, time.Duration(e.Spec.Execution.WashoutMS)*time.Millisecond); err != nil {
+				return report, err
+			}
 		}
 	}
 	report.Completed = true
@@ -169,15 +186,19 @@ func (r *runner) send(ctx context.Context, s packet.ForgeSpec, t *model.Trial, d
 	return nil
 }
 
-func (r *runner) trial(ctx context.Context, sent packet.ForgeSpec, t *model.Trial) error {
+func (r *runner) trial(ctx context.Context, sent packet.ForgeSpec, t *model.Trial, windowMS int) error {
 	if err := r.send(ctx, sent, t, "tx"); err != nil {
 		return err
 	}
-	window, cancel := context.WithTimeout(ctx, time.Duration(r.plan.Experiment.Spec.Control.Steps[1].Observe.WindowMS)*time.Millisecond)
+	window, cancel := context.WithTimeout(ctx, time.Duration(windowMS)*time.Millisecond)
 	defer cancel()
 	decoder := packet.NewDecoder()
 	buffer := make([]byte, 65535)
 	matched, received := 0, 0
+	receiveLimit := 4096
+	if limit := r.plan.Experiment.Spec.Limits.MaxReceiveFrames; limit != 0 {
+		receiveLimit = limit
+	}
 	var cleanup *packet.ForgeSpec
 	for window.Err() == nil {
 		batch := [][]byte{buffer}
@@ -187,7 +208,7 @@ func (r *runner) trial(ctx context.Context, sent packet.ForgeSpec, t *model.Tria
 		}
 		if n == 1 {
 			received++
-			if received > 4096 {
+			if received > receiveLimit {
 				t.QualityFlags = append(t.QualityFlags, "receive-limit")
 				return errors.New("receive work budget exhausted")
 			}

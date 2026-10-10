@@ -49,11 +49,11 @@ func Replay(reader io.Reader) (model.Envelope, error) {
 	if err != nil || sealed.SHA256 != envelope.SHA256 {
 		return envelope, errors.New("report integrity check failed")
 	}
-	if r.APIVersion != model.Version || r.Kind != "EvidenceReport" {
+	if (r.APIVersion != model.Version && r.APIVersion != model.GeneralVersion) || r.APIVersion != r.Experiment.APIVersion || r.Kind != "EvidenceReport" {
 		return envelope, errors.New("unsupported report version/kind")
 	}
 	// Scope here is an offline consistency check, not live authorization.
-	p, err := dsl.Compile(r.Experiment, model.Policy{AllowTargets: r.Experiment.Spec.Scope.Targets, AllowPorts: r.Experiment.Spec.Scope.TCPPorts})
+	p, err := dsl.Compile(r.Experiment, model.Policy{AllowTargets: r.Experiment.Spec.Scope.Targets, AllowPorts: r.Experiment.Spec.Scope.TCPPorts, Profile: "lab", Permissions: []string{"cross-port"}})
 	if err != nil {
 		return envelope, err
 	}
@@ -70,7 +70,7 @@ func Replay(reader io.Reader) (model.Envelope, error) {
 	for i := range r.Trials {
 		t := &r.Trials[i]
 		want := p.Trials[i]
-		if t.Pair != want.Pair || t.Arm != want.Arm || len(t.Evidence) > 19 {
+		if t.Pair != want.Pair || t.Arm != want.Arm || t.Probe != want.Probe || len(t.Evidence) > 19 {
 			return envelope, errors.New("trial order or evidence count mismatch")
 		}
 		// A failed first send may produce a final, empty partial trial.
@@ -85,8 +85,12 @@ func Replay(reader io.Reader) (model.Envelope, error) {
 		if !ok || e.Direction != "tx" || !e.Timestamp.Equal(t.SentAt) || s.Protocol != "tcp" || len(e.Frame) < 14 {
 			return envelope, errors.New("invalid trial transmit evidence")
 		}
-		sent := packet.ForgeSpec{SourceMAC: e.Frame[6:12], DestinationMAC: e.Frame[:6], SourceIP: s.Source, DestinationIP: s.Destination, Protocol: 6, SourcePort: s.SourcePort, DestPort: s.DestPort, TCPFlags: 2, TCPOptions: options(t.Arm), Sequence: s.TCPSeq, Window: 64240, HopLimit: 64, ID: s.TCPSeq, DontFragment: true, Experiment: true}
-		if sent.DestinationIP.String() != r.Experiment.Spec.Scope.Targets[0] || sent.DestPort != r.Experiment.Spec.Scope.TCPPorts[0] || sent.SourceIP == sent.DestinationIP || !sent.SourceIP.IsGlobalUnicast() || sent.SourceIP.Is4In6() {
+		arm := "control"
+		if want.Send.OptionsProfile == "sack-permitted" {
+			arm = "treatment"
+		}
+		sent := packet.ForgeSpec{SourceMAC: e.Frame[6:12], DestinationMAC: e.Frame[:6], SourceIP: s.Source, DestinationIP: s.Destination, Protocol: 6, SourcePort: s.SourcePort, DestPort: s.DestPort, TCPFlags: 2, TCPOptions: options(arm), Sequence: s.TCPSeq, Window: 64240, HopLimit: 64, ID: s.TCPSeq, DontFragment: true, Experiment: true}
+		if sent.DestinationIP.String() != r.Experiment.Spec.Scope.Targets[0] || sent.DestPort != want.Send.DstPort || sent.SourceIP == sent.DestinationIP || !sent.SourceIP.IsGlobalUnicast() || sent.SourceIP.Is4In6() {
 			return envelope, errors.New("transmit evidence outside experiment scope")
 		}
 		frames, err := packet.ForgeFrames(sent)
@@ -99,7 +103,11 @@ func Replay(reader io.Reader) (model.Envelope, error) {
 		} else if sent.SourceIP != firstSent.SourceIP || !bytes.Equal(sent.SourceMAC, firstSent.SourceMAC) || !bytes.Equal(sent.DestinationMAC, firstSent.DestinationMAC) {
 			return envelope, errors.New("source/link changed between arms")
 		}
-		if firstSent.SourcePort < 49152 || sent.SourcePort != uint16(49152+(int(firstSent.SourcePort)-49152+t.Pair)%16384) || sent.Sequence != firstSent.Sequence+uint32(i) {
+		slot := t.Pair
+		if r.APIVersion == model.GeneralVersion {
+			slot = t.Pair*32 + t.Probe
+		}
+		if firstSent.SourcePort < 49152 || sent.SourcePort != uint16(49152+(int(firstSent.SourcePort)-49152+slot)%16384) || sent.Sequence != firstSent.Sequence+uint32(i) {
 			return envelope, errors.New("paired source port or sequence schedule mismatch")
 		}
 		features := model.Features{ResponseClass: "no-response"}

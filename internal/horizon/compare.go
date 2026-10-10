@@ -31,6 +31,18 @@ func sack(b []byte) bool {
 // Missing/poor-quality trials are not silently removed to hide attrition.
 func Compare(r model.Report) model.Comparison {
 	c := model.Comparison{Status: "unresolved", Conclusion: "insufficient or confounded evidence", PValue: 1}
+	if r.Experiment.APIVersion == model.GeneralVersion {
+		if r.Experiment.Spec.ChangedVariable != "sackPermitted" {
+			c.Conclusion = "exploratory sequence observations; inference is not implemented"
+			return c
+		}
+		for _, t := range r.Trials {
+			if t.Probe != 0 {
+				c.Conclusion = "multi-probe sequence observations; inference is not implemented"
+				return c
+			}
+		}
+	}
 	pairs := make(map[int]map[string]model.Trial)
 	for _, t := range r.Trials {
 		if t.Features.ResponseClass != "syn-ack" || len(t.QualityFlags) > 0 {
