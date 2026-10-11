@@ -11,6 +11,34 @@ import windows
 
 
 class WindowsFixtureTests(unittest.TestCase):
+    def test_ipv6_ula_scope_and_immutable_family_registration(self):
+        self.assertEqual(windows.private_address('fd66:66:11:0:0:0:0:2'), 'fd66:66:11::2')
+        for bad in ('fe80::2', 'fd66::2%bridge101', '2001:db8::2', '::1', '::ffff:192.168.254.130'):
+            with self.assertRaises(ValueError): windows.private_address(bad)
+        self.assertEqual(windows.protocol_for(4), windows.PROTOCOL)
+        v6 = windows.protocol_for(6)
+        self.assertEqual(v6['version'], 'horizon-windows-ipv6-exploratory/v1')
+        self.assertEqual([r['seed'] for r in windows.planned_runs(6, v6)], [66200, 66201, 66202])
+        self.assertTrue(all(r['family'] == 6 for r in windows.planned_runs(6, v6)))
+        self.assertEqual(windows.PROTOCOL['seed_start'], 66100)
+
+    def test_ipv6_scanner_capture_checks_addresses_syn_and_denominator(self):
+        frame = bytearray(74)
+        frame[12:14], frame[14], frame[20] = b'\x86\xdd', 0x60, 6
+        frame[22:38] = socket.inet_pton(socket.AF_INET6, 'fd66:66:11::1')
+        frame[38:54] = socket.inet_pton(socket.AF_INET6, 'fd66:66:11::2')
+        frame[56:58], frame[67] = b'\x01\xbb', 0xc2  # SYN with ECN negotiation.
+        frames = collections.Counter({bytes(frame): 1})
+        windows.validate_scan_capture(frames, 'fd66:66:11::1', 'fd66:66:11::2', 1)
+        for bad, target, count in (({}, 'fd66:66:11::2', 1),
+                                  (frames, 'fd66:66:11::3', 1),
+                                  (frames, 'fd66:66:11::2', 2)):
+            with self.assertRaisesRegex(ValueError, 'missing from independent'):
+                windows.validate_scan_capture(bad, 'fd66:66:11::1', target, count)
+        frame[67] = 0x12  # SYN ACK is a reply, not a scanner transmission.
+        with self.assertRaises(ValueError):
+            windows.validate_scan_capture({bytes(frame): 1}, 'fd66:66:11::1', 'fd66:66:11::2', 1)
+
     def test_zero_drop_empty_or_wrong_scope_scanner_capture_is_invalid(self):
         frame = bytearray(54)
         frame[12:14], frame[14], frame[23] = b'\x08\x00', 0x45, 6
@@ -44,6 +72,15 @@ class WindowsFixtureTests(unittest.TestCase):
         scalar['fixture_addresses'][0] = {'LocalAddress': '192.168.254.130', 'RemoteAddress': '192.168.254.1'}
         scalar['fixture_ports'][0]['LocalPort'] = '443'
         self.assertEqual(check(scalar), 'fixture-1')
+        v6 = json.loads(json.dumps(scalar))
+        v6.update(local_address='fd66:66:11::2', peer_address='fd66:66:11::1')
+        v6['fixture_addresses'][0] = {'LocalAddress': 'fd66:0066:0011:0000:0000:0000:0000:0002',
+                                     'RemoteAddress': ['fd66:66:11::1']}
+        self.assertEqual(windows.validate_truth(v6, 'fd66:66:11::2', 'fd66:66:11::1',
+                                               '00:0c:29:7d:91:cb', 'fixture-1'), 'fixture-1')
+        v6['fixture_addresses'][0]['RemoteAddress'] = 'fd66:66:11::/64'
+        with self.assertRaisesRegex(ValueError, 'address scope'):
+            windows.validate_truth(v6, 'fd66:66:11::2', 'fd66:66:11::1', '00:0c:29:7d:91:cb')
         with self.assertRaisesRegex(ValueError, 'identity'): check(state, 'other')
         modified = json.loads(json.dumps(state))
         modified['fixture_addresses'][0]['RemoteAddress'] = ['Any']

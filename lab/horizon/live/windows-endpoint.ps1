@@ -3,29 +3,54 @@
 param(
     [Parameter(Mandatory=$true)][string]$LocalAddress,
     [Parameter(Mandatory=$true)][string]$PeerAddress,
+    [switch]$AddTemporaryIPv6,
+    [string]$InterfaceIPv4,
     [ValidateRange(60,1800)][int]$Seconds = 600
 )
 $ErrorActionPreference = 'Stop'
 $local = [System.Net.IPAddress]::Parse($LocalAddress)
 $peer = [System.Net.IPAddress]::Parse($PeerAddress)
-if ($local.AddressFamily -ne 'InterNetwork' -or $peer.AddressFamily -ne 'InterNetwork') {
-    throw 'This exploratory fixture supports IPv4 only.'
-}
+if ($local.AddressFamily -ne $peer.AddressFamily) { throw 'Source/target address families must match.' }
+$family = if ($local.AddressFamily -eq 'InterNetworkV6') { 'IPv6' } else { 'IPv4' }
 foreach ($ip in @($local,$peer)) {
     $octets = $ip.GetAddressBytes()
-    if (-not ($octets[0] -eq 10 -or ($octets[0] -eq 172 -and $octets[1] -ge 16 -and $octets[1] -le 31) -or
+    if ($family -eq 'IPv6') {
+        if (($octets[0] -band 254) -ne 252 -or $ip.ScopeId -ne 0) { throw 'Use an operator-owned ULA virtual segment.' }
+    } elseif (-not ($octets[0] -eq 10 -or ($octets[0] -eq 172 -and $octets[1] -ge 16 -and $octets[1] -le 31) -or
         ($octets[0] -eq 192 -and $octets[1] -eq 168))) { throw 'Use an operator-owned RFC1918 virtual segment.' }
 }
+$LocalAddress = $local.ToString()
+$PeerAddress = $peer.ToString()
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw 'An elevated console is required for the temporary scoped firewall rule.'
 }
-$address = Get-NetIPAddress -IPAddress $LocalAddress -AddressFamily IPv4
-if (@($address).Count -ne 1) { throw 'Local address is not uniquely assigned.' }
+$address = @(Get-NetIPAddress -IPAddress $LocalAddress -AddressFamily $family -ErrorAction SilentlyContinue)
+if ($AddTemporaryIPv6) {
+    if ($family -ne 'IPv6' -or $address.Count -ne 0 -or -not $InterfaceIPv4) {
+        throw 'Temporary IPv6 requires an unused ULA and an existing adapter IPv4 address.'
+    }
+    $selector = [System.Net.IPAddress]::Parse($InterfaceIPv4)
+    $octets = $selector.GetAddressBytes()
+    if ($selector.AddressFamily -ne 'InterNetwork' -or -not ($octets[0] -eq 10 -or
+        ($octets[0] -eq 172 -and $octets[1] -ge 16 -and $octets[1] -le 31) -or
+        ($octets[0] -eq 192 -and $octets[1] -eq 168))) { throw 'Adapter selector must be RFC1918 IPv4.' }
+    $adapterAddress = @(Get-NetIPAddress -IPAddress $InterfaceIPv4 -AddressFamily IPv4)
+    if ($adapterAddress.Count -ne 1) { throw 'Adapter selector is not uniquely assigned.' }
+    $interfaceIndex = $adapterAddress[0].InterfaceIndex
+} else {
+    if ($address.Count -ne 1) { throw 'Local address is not uniquely assigned.' }
+    $interfaceIndex = $address[0].InterfaceIndex
+}
+$setupAddresses = @(Get-NetIPAddress -InterfaceIndex $interfaceIndex | Select-Object IPAddress,AddressFamily,PrefixLength,AddressState)
+$setupRoutes = @(Get-NetRoute -InterfaceIndex $interfaceIndex | Select-Object DestinationPrefix,NextHop,RouteMetric)
+$ipv6Settings = if ($family -eq 'IPv6') { Get-NetIPInterface -InterfaceIndex $interfaceIndex -AddressFamily IPv6 } else { $null }
 $fixture = [guid]::NewGuid().ToString()
 $ruleName = 'nyxr-hz66-' + $fixture
 $listener = New-Object System.Net.Sockets.TcpListener($local,443)
 $createdRule = $false
+$createdAddress = $false
+$attemptedAddress = $false
 function Get-Truth {
     $os = Get-CimInstance Win32_OperatingSystem
     $rule = Get-NetFirewallRule -Name $ruleName -ErrorAction SilentlyContinue
@@ -34,6 +59,9 @@ function Get-Truth {
         platform = 'Windows'; caption = $os.Caption; version = $os.Version
         build = $os.BuildNumber; architecture = $os.OSArchitecture
         local_address = $LocalAddress; peer_address = $PeerAddress; port = 443
+        temporary_address_created = $createdAddress
+        setup_addresses_before = $setupAddresses; setup_routes_before = $setupRoutes
+        ipv6_interface_before = $ipv6Settings | Select-Object InterfaceIndex,Dhcp,RouterDiscovery
         addresses = @(Get-NetIPAddress -InterfaceIndex $address.InterfaceIndex |
             Select-Object IPAddress,AddressFamily,PrefixLength,AddressState)
         routes = @(Get-NetRoute -InterfaceIndex $address.InterfaceIndex |
@@ -55,6 +83,19 @@ function Get-Truth {
     }
 }
 try {
+    if ($AddTemporaryIPv6) {
+        $attemptedAddress = $true
+        $address = New-NetIPAddress -IPAddress $LocalAddress -PrefixLength 64 -InterfaceIndex $interfaceIndex -PolicyStore ActiveStore -SkipAsSource $true
+        $createdAddress = $true
+        # Wait for duplicate-address detection before binding the listener.
+        for ($i=0; $i -lt 100; $i++) {
+            $address = Get-NetIPAddress -IPAddress $LocalAddress -InterfaceIndex $interfaceIndex -AddressFamily IPv6
+            if ($address.AddressState -eq 'Preferred') { break }
+            if ($address.AddressState -eq 'Duplicate') { throw 'Temporary ULA failed duplicate-address detection.' }
+            Start-Sleep -Milliseconds 100
+        }
+        if ($address.AddressState -ne 'Preferred') { throw 'Temporary ULA did not become ready.' }
+    }
     # Bind first: never replace an existing listener on the chosen address/port.
     $listener.Start()
     New-NetFirewallRule -Name $ruleName -DisplayName $ruleName -Direction Inbound `
@@ -68,7 +109,7 @@ try {
         if (-not $listener.Pending()) { Start-Sleep -Milliseconds 25; continue }
         $client = $listener.AcceptTcpClient()
         try {
-            if ($client.Client.RemoteEndPoint.Address.ToString() -ne $PeerAddress) { continue }
+            if (-not $client.Client.RemoteEndPoint.Address.Equals($peer)) { continue }
             $stream = $client.GetStream()
             $stream.ReadTimeout = 2000
             $stream.WriteTimeout = 2000
@@ -95,6 +136,24 @@ try {
     }
 } finally {
     $listener.Stop()
-    if ($createdRule) { Remove-NetFirewallRule -Name $ruleName }
+    $cleanupErrors = @()
+    if ($createdRule) {
+        try { Remove-NetFirewallRule -Name $ruleName } catch { $cleanupErrors += $_.Exception.Message }
+    }
+    if ($attemptedAddress) {
+        try {
+            $owned = @(Get-NetIPAddress -IPAddress $LocalAddress -InterfaceIndex $interfaceIndex -ErrorAction SilentlyContinue)
+            if ($owned.Count -gt 0) { $owned | Remove-NetIPAddress -Confirm:$false }
+        } catch { $cleanupErrors += $_.Exception.Message }
+        # New-NetIPAddress can disable DHCP for this family; restore its prior state.
+        try {
+            Set-NetIPInterface -InterfaceIndex $interfaceIndex -AddressFamily IPv6 -Dhcp $ipv6Settings.Dhcp
+        } catch { $cleanupErrors += $_.Exception.Message }
+        $remaining = @(Get-NetIPAddress -IPAddress $LocalAddress -InterfaceIndex $interfaceIndex -ErrorAction SilentlyContinue)
+        Write-Host "Temporary IPv6 address removed: $($remaining.Count -eq 0)"
+        $restored = Get-NetIPInterface -InterfaceIndex $interfaceIndex -AddressFamily IPv6
+        Write-Host "IPv6 DHCP state restored: $($restored.Dhcp -eq $ipv6Settings.Dhcp)"
+    }
+    if ($cleanupErrors.Count -gt 0) { throw ('Fixture cleanup failed: ' + ($cleanupErrors -join '; ')) }
     Write-Host "HORIZON fixture stopped; temporary rule $ruleName removed."
 }

@@ -172,9 +172,12 @@ configured/verified, label the fixture unresolved, not a null control.
 Store external fixtures separately with a manifest documenting every planned
 and missing run. `lab.py analyze` currently validates only this harness's Linux
 corpus; it must not accept fabricated Linux configuration as Windows/BSD truth.
-The separate [Windows IPv4 collector](WINDOWS.md) implements an exploratory
+The separate [Windows IPv4/IPv6 collector](WINDOWS.md) implements an exploratory
 native listener and macOS source measurement. The [2026-10-11 Windows corpus](../corpus/2026-10-11-windows-arm64/RESULTS.md)
 retains three verified runs and an initial three-run scanner-capture failure.
-It does not independently configure SACK or provide Windows IPv6/BSD or held-out
+The [Windows IPv6 corpus](../corpus/2026-10-11-windows-ipv6-arm64/RESULTS.md)
+adds three verified runs on the same endpoint with temporary ULA setup and
+confirmed address/firewall cleanup. It does not independently configure SACK
+or provide controlled Windows nulls, BSD or held-out
 coverage. Issue #66 stays open until those fixtures and the measured acceptance
 gates exist.

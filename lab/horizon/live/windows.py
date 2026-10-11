@@ -1,4 +1,4 @@
-"""Exploratory native Windows IPv4 fixture measured from macOS BPF.
+"""Exploratory native Windows IPv4/IPv6 fixture measured from macOS BPF.
 
 The supplemental protocol cannot satisfy the Linux null gate or all of #66.
 The operator starts windows-endpoint.ps1; this tool opens no guest shell.
@@ -42,8 +42,37 @@ def private_v4(value):
     return str(address)
 
 
+def private_address(value):
+    address = ipaddress.ip_address(value)
+    if address.version == 4:
+        return private_v4(value)
+    if address.scope_id or address not in ipaddress.IPv6Network("fc00::/7"):
+        raise ValueError("Windows IPv6 fixture must use an operator-owned ULA virtual segment")
+    return str(address)
+
+
+def protocol_for(family):
+    if family == 4:
+        return PROTOCOL
+    if family != 6:
+        raise ValueError("unsupported Windows address family")
+    protocol = json.loads(json.dumps(PROTOCOL))
+    protocol.update(version="horizon-windows-ipv6-exploratory/v1", seed_start=66200)
+    protocol["limitations"][0] = "IPv6 only; no controlled Windows null/BSD/held-out coverage"
+    protocol["limitations"].append("IPv6 scanner uses kernel TCP connect; its SYN TX and full handshake traffic are independently captured")
+    protocol["limitations"].append("Temporary ULA addresses create a direct attached IPv6 path; no routed IPv6/NAT coverage")
+    return protocol
+
+
+def planned_runs(family, protocol):
+    return [{"id": f"windows-v{family}-clean-{n:03d}", "seed": protocol["seed_start"] + n,
+             "platform": "Windows", "family": family, "impairment": "clean", "expected": "difference"}
+            for n in range(protocol["runs"])]
+
+
 def truth(target, source, request="TRUTH"):
-    with socket.socket() as sock:
+    family = socket.AF_INET6 if ipaddress.ip_address(target).version == 6 else socket.AF_INET
+    with socket.socket(family) as sock:
         sock.settimeout(10)
         sock.bind((source, 0))
         sock.connect((target, 443))
@@ -62,14 +91,24 @@ def validate_scan_capture(frames, source, target, packets_tx):
     if not isinstance(packets_tx, int) or packets_tx < 1:
         raise ValueError("missing scanner TX denominator")
     count = 0
+    family = ipaddress.ip_address(target).version
+    source_bytes, target_bytes = ipaddress.ip_address(source).packed, ipaddress.ip_address(target).packed
     for frame, copies in frames.items():
-        if len(frame) < 54 or frame[12:14] != b"\x08\x00" or frame[14] >> 4 != 4:
-            continue
-        offset = 14 + (frame[14] & 15) * 4
-        if offset < 34 or len(frame) < offset + 20 or frame[23] != 6:
-            continue
-        if (frame[26:30] == socket.inet_aton(source) and frame[30:34] == socket.inet_aton(target)
-                and frame[offset + 2:offset + 4] == b"\x01\xbb" and frame[offset + 13] == 2):
+        if family == 4:
+            if len(frame) < 54 or frame[12:14] != b"\x08\x00" or frame[14] >> 4 != 4:
+                continue
+            offset = 14 + (frame[14] & 15) * 4
+            if offset < 34 or len(frame) < offset + 20 or frame[23] != 6:
+                continue
+            addresses_match = frame[26:30] == source_bytes and frame[30:34] == target_bytes
+        else:
+            # This fixture emits ordinary IPv6 TCP, without extension headers.
+            if len(frame) < 74 or frame[12:14] != b"\x86\xdd" or frame[14] >> 4 != 6 or frame[20] != 6:
+                continue
+            offset = 54
+            addresses_match = frame[22:38] == source_bytes and frame[38:54] == target_bytes
+        if (addresses_match and frame[offset + 2:offset + 4] == b"\x01\xbb"
+                and frame[offset + 13] & 0x17 == 2):
             count += copies
     if count < packets_tx:
         raise ValueError("scanner SYN transmissions missing from independent capture")
@@ -94,7 +133,15 @@ def validate_truth(state, target, source, mac, fixture=None):
     # Accept exactly one value in either representation; never widen the scope.
     def single(value, expected):
         return value == expected or value == [expected]
-    if len(addresses) != 1 or not single(addresses[0].get("LocalAddress"), target) or not single(addresses[0].get("RemoteAddress"), source):
+    def single_address(value, expected):
+        if isinstance(value, list):
+            if len(value) != 1: return False
+            value = value[0]
+        try:
+            return ipaddress.ip_address(value) == ipaddress.ip_address(expected)
+        except (ValueError, TypeError):
+            return False
+    if len(addresses) != 1 or not single_address(addresses[0].get("LocalAddress"), target) or not single_address(addresses[0].get("RemoteAddress"), source):
         raise ValueError("fixture rule address scope differs from plan")
     if len(ports) != 1 or str(ports[0].get("Protocol")) not in ("TCP", "6") or not single(ports[0].get("LocalPort"), "443"):
         raise ValueError("fixture rule protocol/port differs from plan")
@@ -105,12 +152,15 @@ def validate_truth(state, target, source, mac, fixture=None):
 
 def analyze(out, binary):
     manifest = json.loads((out / "manifest.json").read_text())
-    if json.loads((out / "protocol.json").read_text()) != PROTOCOL or manifest["protocol_sha256"] != lab.digest(out / "protocol.json"):
-        raise ValueError("Windows supplemental protocol differs from registration")
     target, source, mac = manifest["target"], manifest["source"], manifest["next_hop_mac"]
-    planned = [{"id": f"windows-v4-clean-{n:03d}", "seed": PROTOCOL["seed_start"] + n,
-                "platform": "Windows", "family": 4, "impairment": "clean", "expected": "difference"}
-               for n in range(PROTOCOL["runs"])]
+    target, source = private_address(target), private_address(source)
+    family = ipaddress.ip_address(target).version
+    if ipaddress.ip_address(source).version != family or source == target:
+        raise ValueError("Windows source/target family or identity differs")
+    protocol = protocol_for(family)
+    if json.loads((out / "protocol.json").read_text()) != protocol or manifest["protocol_sha256"] != lab.digest(out / "protocol.json"):
+        raise ValueError("Windows supplemental protocol differs from registration")
+    planned = planned_runs(family, protocol)
     if manifest["planned"] != planned:
         raise ValueError("Windows all-planned-run denominator/seed changed")
     rows = []
@@ -153,14 +203,14 @@ def analyze(out, binary):
                         raise ValueError("Windows TX missing from independent capture")
                 else:
                     validate_scan_capture(frames, source, target, scanner.get("packets_tx"))
-            if not row["completed"] or row["backend_drops"] or row["runner_tx_packets"] > PROTOCOL["max_packets"]:
+            if not row["completed"] or row["backend_drops"] or row["runner_tx_packets"] > protocol["max_packets"]:
                 raise ValueError("incomplete/budget/drop-invalid Windows report")
         except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
             row["error"] = str(error)
         rows.append(row)
-    summary = {"version": PROTOCOL["version"], "rows": rows,
+    summary = {"version": protocol["version"], "rows": rows,
                "stratum": lab.stratum(rows, len(planned), "difference"),
-               "issue_66_complete": False, "limitations": PROTOCOL["limitations"],
+               "issue_66_complete": False, "limitations": protocol["limitations"],
                "cleanup_verified": manifest.get("cleanup_verified", False)}
     lab.save(out / "summary.json", summary)
     return summary
@@ -169,7 +219,11 @@ def analyze(out, binary):
 def collect(args):
     if platform.system() != "Darwin":
         raise RuntimeError("this collector requires macOS Ethernet BPF")
-    target, source = private_v4(args.target), private_v4(args.source)
+    target, source = private_address(args.target), private_address(args.source)
+    family = ipaddress.ip_address(target).version
+    if ipaddress.ip_address(source).version != family or source == target:
+        raise ValueError("Windows source and target must be distinct and in the same family")
+    protocol = protocol_for(family)
     binary = str(Path(args.binary).resolve())
     out = Path(args.output).resolve()
     out.mkdir(mode=0o700)
@@ -177,10 +231,8 @@ def collect(args):
     def terminate(_signal, _frame):
         raise KeyboardInterrupt("Windows collection cancelled")
     signal.signal(signal.SIGTERM, terminate)
-    lab.save(out / "protocol.json", PROTOCOL)
-    planned = [{"id": f"windows-v4-clean-{n:03d}", "seed": PROTOCOL["seed_start"] + n,
-                "platform": "Windows", "family": 4, "impairment": "clean", "expected": "difference"}
-               for n in range(PROTOCOL["runs"])]
+    lab.save(out / "protocol.json", protocol)
+    planned = planned_runs(family, protocol)
     manifest = {"protocol_sha256": lab.digest(out / "protocol.json"), "planned": planned,
                 "results": [], "completed": False, "target": target, "source": source,
                 "next_hop_mac": args.mac, "interface": args.interface}
@@ -223,7 +275,7 @@ def collect(args):
                                 "--next-hop-mac", args.mac, "--output", str(run / "report.json")]
                         else:
                             cmd = [binary, "scan", "--no-db", "--no-last-pcapng", "--profile", "custom",
-                                "--protocols", "tcp", "--tcp-mode", "syn", "--interface", args.interface,
+                                "--protocols", "tcp", "--tcp-mode", "syn" if family == 4 else "connect", "--interface", args.interface,
                                 "--source-ip", source, "--next-hop-mac", args.mac, "--ports", "443", "--workers", "1",
                                 "--timeout", "800ms", "--rate", "3", "--json", target]
                         lab.measure(cmd, run)
