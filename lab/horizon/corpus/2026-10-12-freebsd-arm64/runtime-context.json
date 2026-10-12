@@ -1,0 +1,130 @@
+{
+  "date": "2026-10-12",
+  "guest": "FreeBSD 15.1-RELEASE-p4 ARM64; same operator-owned Fusion virtual segment",
+  "raw_file_count": 508,
+  "archive_sha256": "933ffe0cf653f1cb1560985b22aa0186179c1ce0f68ab2b913707f155dafcc1a",
+  "archive_bytes": 691301,
+  "binary_sha256": "951278fab4e04baf80d54cf74fab0cd96b6ae5a2e3b3898f02824f3137d22991",
+  "native_helper_binary_sha256": "dd2e3ece16a8af1ce68b209f225b49570d33f59c3cf990b71b0ed22521129090",
+  "cleanup": {
+    "original_sack": 1,
+    "restored_sack": 1,
+    "guest_ula_removed": true,
+    "guest_listeners_closed": true,
+    "source_ula_removed": true,
+    "helper_http_endpoint_closed": true
+  },
+  "source_snapshot": "Go source copied at archival; dirty binary VCS metadata retained; no reproducible clean-commit build claim",
+  "verification": {
+    "canonical_replays": 12,
+    "native_state_and_reply_options_verified": [
+      {
+        "id": "freebsd-v4-effect-000",
+        "sack_setting": 1,
+        "sack_replies": {
+          "control": 0,
+          "treatment": 12
+        }
+      },
+      {
+        "id": "freebsd-v4-null-000",
+        "sack_setting": 0,
+        "sack_replies": {
+          "control": 0,
+          "treatment": 0
+        }
+      },
+      {
+        "id": "freebsd-v6-effect-000",
+        "sack_setting": 1,
+        "sack_replies": {
+          "control": 0,
+          "treatment": 12
+        }
+      },
+      {
+        "id": "freebsd-v6-null-000",
+        "sack_setting": 0,
+        "sack_replies": {
+          "control": 0,
+          "treatment": 0
+        }
+      },
+      {
+        "id": "freebsd-v4-effect-001",
+        "sack_setting": 1,
+        "sack_replies": {
+          "control": 0,
+          "treatment": 12
+        }
+      },
+      {
+        "id": "freebsd-v4-null-001",
+        "sack_setting": 0,
+        "sack_replies": {
+          "control": 0,
+          "treatment": 0
+        }
+      },
+      {
+        "id": "freebsd-v6-effect-001",
+        "sack_setting": 1,
+        "sack_replies": {
+          "control": 0,
+          "treatment": 12
+        }
+      },
+      {
+        "id": "freebsd-v6-null-001",
+        "sack_setting": 0,
+        "sack_replies": {
+          "control": 0,
+          "treatment": 0
+        }
+      },
+      {
+        "id": "freebsd-v4-effect-002",
+        "sack_setting": 1,
+        "sack_replies": {
+          "control": 0,
+          "treatment": 12
+        }
+      },
+      {
+        "id": "freebsd-v4-null-002",
+        "sack_setting": 0,
+        "sack_replies": {
+          "control": 0,
+          "treatment": 0
+        }
+      },
+      {
+        "id": "freebsd-v6-effect-002",
+        "sack_setting": 1,
+        "sack_replies": {
+          "control": 0,
+          "treatment": 12
+        }
+      },
+      {
+        "id": "freebsd-v6-null-002",
+        "sack_setting": 0,
+        "sack_replies": {
+          "control": 0,
+          "treatment": 0
+        }
+      }
+    ],
+    "guest_cleanup_verified": true,
+    "source_cleanup_verified": true,
+    "expired_setup": "Deadline reached before experimental traffic; original SACK and guest address restoration separately retained"
+  },
+  "limitations": [
+    "One operator-owned FreeBSD VM; three repeats per family and SACK state; no population independence or statistical acceptance claim",
+    "Clean directly attached private IPv4 and temporary ULA IPv6; no impairment, routed IPv6, proxy, NAT or held-out coverage",
+    "SACK control affects the dedicated guest TCP stack and is restored on stop, signal or deadline",
+    "Guest firewall and existing default routes are recorded without modification; temporary IPv6 adds only a connected prefix",
+    "macOS kernel RSTs remain enabled; IPv6 scanner uses kernel connect; source child CPU/RSS is not guest CPU/RSS",
+    "Missing, failed, dropped and unresolved outcomes remain in all-planned denominators; families/states are not pooled"
+  ]
+}
