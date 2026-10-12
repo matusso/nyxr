@@ -34,7 +34,7 @@ cleanup() {
     if test "$kenv_changed" = 1; then
         if test -n "$old_kenv"; then kenv "net.inet.ip.fw.default_to_accept=$old_kenv"; else kenv -u net.inet.ip.fw.default_to_accept; fi
     fi
-    { date -u; jls; kldstat; ifconfig em0; netstat -rn; sysctl net.inet.tcp.sack.enable; mount; } > "$base/host-after.txt" 2>&1
+    { date -u; jls; kldstat; ifconfig em0; netstat -rn; sysctl hw.physmem kern.boottime net.inet.tcp.sack.enable; mount; } > "$base/host-after.txt" 2>&1
     echo "setup_exit_status=$status" > "$base/status.txt"
     tar -czf "$base/artifacts.tar.gz" -C "$base" host-before.txt host-after.txt setup.log status.txt \
         endpoint.c endpoint compiler.log delay-profile.txt development reserved 2>/dev/null
@@ -43,7 +43,7 @@ cleanup() {
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM HUP
-{ date -u; freebsd-version -kru; uname -a; jls; kldstat; ifconfig; netstat -rn; sysctl net.inet.tcp.sack.enable; kenv net.inet.ip.fw.default_to_accept 2>/dev/null || true; mount; } > "$base/host-before.txt" 2>&1
+{ date -u; freebsd-version -kru; uname -a; jls; kldstat; ifconfig; netstat -rn; sysctl hw.physmem kern.boottime net.inet.tcp.sack.enable; kenv net.inet.ip.fw.default_to_accept 2>/dev/null || true; mount; } > "$base/host-before.txt" 2>&1
 # Refuse a non-disposable environment with existing jails or host IPFW.
 test "$(jls jid | wc -l | tr -d ' ')" = 0
 if kldstat -n ipfw >/dev/null 2>&1; then echo "Existing IPFW: refusing host changes"; exit 1; fi

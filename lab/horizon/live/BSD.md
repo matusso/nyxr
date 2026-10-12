@@ -55,6 +55,34 @@ or population performance. Split-half RTT drift and lag-one correlation are
 descriptive preregistered diagnostics; no flags cannot prove IID/stationarity.
 Count thresholds alone cannot close the issue.
 
+### Interrupted attempt and separate sequential registration
+
+The [concurrent attempt](../corpus/2026-10-12-freebsd-vnet-failed-arm64/RESULTS.md)
+started 16 of 588 planned runs before a native kernel panic: 12 valid, four
+invalid and 572 missing. Its raw reports, failed stop requests, reboot recovery
+and preflight failures remain separate. No result is discarded or replaced.
+
+`bsd-study-sequential-protocol.json` and `bsd_study_sequential.py` register a new
+588-report study, version `horizon-freebsd-vnet-config-reserved-sequential/v2`.
+Seeds 67400–67987 and one active worker cap combined probes at 3pps. The VM's
+configured memory was increased from 256MB to 2048MB before fresh fixtures were
+created. Both memory and concurrency changed, so stability cannot identify a
+causal fix. Primary outcome, thresholds and per-run bounds remain unchanged.
+Native snapshots include physical memory and boot time. The second fixture is
+still configuration-reserved on the same kernel, with no physical-independence
+or population acceptance claim.
+
+    PYTHONDONTWRITEBYTECODE=1 python3 lab/horizon/live/bsd_study_sequential.py run \
+      --binary /path/to/nyxr --output /tmp/new-bsd-sequential-study \
+      --interface bridge101 --fixtures /path/to/verified-fixtures.json
+
+Use the corresponding frozen wrapper for offline sequential re-analysis. Do
+not pool registrations or run the v1 analyzer against v2 evidence. The bootstrap
+installs no packages; separate operator-authorized panic diagnosis installed
+GDB and its dependencies in the guest. These packages and the 2048MB VM memory
+allocation are intentional persistent lab changes, not temporary fixture
+resources. Temporary privileged access must be separately removed after work.
+
 STOP restores each VNET's original SACK value and clears owned shaping rules.
 The wrapper removes owned jails, mounts, bridge, epairs and newly loaded modules,
 and restores the prior tunable. Retain host before/after snapshots, then remove
