@@ -1,0 +1,24 @@
+{
+  "version": "horizon-freebsd-controlled-exploratory/v1",
+  "families": [4, 6],
+  "states": [1, 0],
+  "runs_per_stratum": 3,
+  "seed_start": 66300,
+  "replicates": 12,
+  "window_ms": 800,
+  "washout_ms": 300,
+  "packets_per_second": 3,
+  "max_packets": 48,
+  "max_duration_seconds": 90,
+  "alpha": 0.05,
+  "primary_outcome": "SACK negotiation difference",
+  "expected_basis": "Native net.inet.tcp.sack.enable is independently set and read before and after every run",
+  "limitations": [
+    "One operator-owned FreeBSD VM; three repeats per family and SACK state; no population independence or statistical acceptance claim",
+    "Clean directly attached private IPv4 and temporary ULA IPv6; no impairment, routed IPv6, proxy, NAT or held-out coverage",
+    "SACK control affects the dedicated guest TCP stack and is restored on stop, signal or deadline",
+    "Guest firewall and existing default routes are recorded without modification; temporary IPv6 adds only a connected prefix",
+    "macOS kernel RSTs remain enabled; IPv6 scanner uses kernel connect; source child CPU/RSS is not guest CPU/RSS",
+    "Missing, failed, dropped and unresolved outcomes remain in all-planned denominators; families/states are not pooled"
+  ]
+}

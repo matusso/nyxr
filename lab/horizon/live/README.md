@@ -181,3 +181,11 @@ confirmed address/firewall cleanup. It does not independently configure SACK
 or provide controlled Windows nulls, BSD or held-out
 coverage. Issue #66 stays open until those fixtures and the measured acceptance
 gates exist.
+
+The separate [FreeBSD controlled collector](BSD.md) supplies native SACK-enabled
+and SACK-disabled IPv4/IPv6 ground truth. Its
+[2026-10-12 corpus](../corpus/2026-10-12-freebsd-arm64/RESULTS.md) retains 12
+verified clean baselines and a separate expired setup, including native
+restoration evidence. BSD impairment/breadth, controlled Windows nulls,
+independently held-out coverage and the registered statistical gates remain
+outstanding.
