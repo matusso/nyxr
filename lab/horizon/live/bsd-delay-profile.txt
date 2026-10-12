@@ -1,0 +1,5 @@
+name nyxr66-uniform-15-25
+samples 128
+prob delay
+0 15
+1 25

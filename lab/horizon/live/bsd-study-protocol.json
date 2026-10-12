@@ -1,0 +1,55 @@
+{
+  "version": "horizon-freebsd-vnet-config-reserved/v1",
+  "roles": ["development", "reserved"],
+  "families": [4, 6],
+  "conditions": ["clean", "loss-jitter"],
+  "blocks": 12,
+  "nulls_per_block": 5,
+  "effects_per_block": 1,
+  "drop_runs_per_family": 3,
+  "order_seed": 66400,
+  "seed_start": 66400,
+  "replicates": 12,
+  "window_ms": 800,
+  "washout_ms": 300,
+  "packets_per_second": 3,
+  "max_packets": 48,
+  "max_duration_seconds": 90,
+  "alpha": 0.05,
+  "confidence": 0.95,
+  "maximum_false_positive_rate": 0.05,
+  "null_runs_per_stratum": 60,
+  "effect_runs_per_stratum": 12,
+  "minimum_clean_effect_accuracy": 0.9,
+  "primary_outcome": "SACK negotiation difference",
+  "expected_basis": "Native VNET TCP SACK sysctl, read before and after each run; outgoing SYN-ACK rules and dummynet counters",
+  "impairment": {
+    "delay_profile": "128 empirical uniform samples interpolated from 15 to 25 ms",
+    "loss_probability": 0.05,
+    "bandwidth_mbit_per_second": 100,
+    "scope": "Only outgoing TCP443 SYN-ACKs to the explicit private source; control TCP18067 bypasses impairment",
+    "pipe": 6066,
+    "rules": [60066, 60067],
+    "rule_set": 30
+  },
+  "collection": {
+    "concurrent_fixtures": 2,
+    "maximum_combined_probe_rate": 6,
+    "fixture_deadline_seconds": 21600,
+    "reset": "Measurement listeners reopened and native SACK/condition set before each run; independent per-flow randomized tokens",
+    "reserved_policy": "Second fresh VNET configuration allocated before either fixture is measured; frozen algorithm and protocol; no tuning from reserved outcomes"
+  },
+  "diagnostics": {
+    "split_half_rtt_relative_drift_flag": 0.25,
+    "absolute_lag_one_rtt_correlation_flag": 0.3,
+    "meaning": "Descriptive temporal flags only; lack of flags cannot establish IID or stationarity"
+  },
+  "limitations": [
+    "Two fresh VNET TCP stacks on one FreeBSD kernel and one macOS source; configuration-reserved coverage is not physically independent held-out validation",
+    "Exact binomial confidence bounds and numerical gates are conditional on IID Bernoulli sampling, which this experiment cannot establish",
+    "Strict complete-pair inference stays unresolved under loss; all planned invalid, missing and unresolved outcomes remain in denominators",
+    "Direct private IPv4/IPv6 only; Linux corpus supplies proxy/NAT fixtures; no BSD NAT, proxy, routed IPv6 or native FreeBSD Nyxr backend validation",
+    "Concurrent fixtures share source CPU and host resources; per-child CPU/RSS and RTT are descriptive, not calibrated performance",
+    "Original VM TCP setting/default routes/firewall rules remain unchanged; only temporary VNET rules, links, read-only jail mounts and owned modules are removed"
+  ]
+}

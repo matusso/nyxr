@@ -1,4 +1,67 @@
-# Controlled FreeBSD exploratory baseline
+# Controlled FreeBSD baselines
+
+## Expanded VNET study
+
+The separate bsd-study-guest.sh, bsd-study-endpoint.c, bsd-study-protocol.json,
+bsd-delay-profile.txt and bsd_study.py implement the larger study without
+changing the exploratory registration or corpus. The bootstrap is specific to
+the recorded Fusion lab; adapt its explicit private addresses for another lab.
+It requires an operator-owned disposable VM with no existing jails or IPFW.
+
+Two fresh VNET jails have separate TCP stacks, epair adapters and private IPv4/
+IPv6 addresses. Runtime directories use read-only nullfs mounts; devfs uses
+ruleset 4. No credentials or packages are installed. A temporary guest bridge
+attaches the fixtures to the VM Ethernet interface. Static IPv4 addresses are
+outside the recorded DHCP pool. No forwarding or default routes are added.
+
+Before loading absent IPFW/dummynet modules, the bootstrap records and
+temporarily sets the default-to-accept tunable and verifies the default-only
+ruleset. Host rules are unchanged. Fresh VNET rules 60066/60067, set 30 and pipe
+6066 affect only outgoing TCP443 SYN-ACKs to exact private source addresses.
+The registered impairment uses an empirical uniform 15–25ms delay profile,
+5% loss and a 100Mbit/s cap; DROP denies the same replies. This condition is
+not claimed identical to Linux netem.
+
+TCP443 connections carry no commands. Private IPv4 control TCP18067 bypasses
+shaping and accepts only TRUTH, CLEAN0, CLEAN1, IMPAIR0, IMPAIR1, DROP1 and STOP.
+No arbitrary command or remote shell interface exists. Native SACK/condition
+controls reopen measurement listeners before each run; before/after snapshots
+record native settings and rule/pipe counters. Helpers stop after six hours.
+
+The frozen plan has 588 reports: twelve balanced randomized blocks provide 60
+nulls and 12 effects per role/family/clean-or-impaired stratum, followed by three
+DROP checks per role/family. Both roles are allocated before experimental
+traffic, with no algorithm tuning from reserved outcomes. Two workers run
+concurrently at at most 6pps combined, retaining separate captures and per-child
+resources. An external 90s deadline stops/reaps failed children.
+
+Prepare a JSON mapping development and reserved to verified target_v4,
+target_v6, source_v4, source_v6, guest_interface and next_hop_mac. Role targets/
+MACs must differ and source addresses must already be assigned:
+
+    PYTHONDONTWRITEBYTECODE=1 python3 lab/horizon/live/bsd_study.py run \
+      --binary /path/to/nyxr --output /tmp/new-bsd-vnet-study \
+      --interface bridge101 --fixtures /path/to/verified-fixtures.json
+
+Offline bsd_study.py analyze uses the same binary/output flags, identical
+canonical replay, native/canonical SACK agreement and independent TX accounting.
+All planned invalid, missing and unresolved outcomes remain in their separate
+denominators. Strict complete-pair inference may fail under loss; the rule is
+not relaxed to obtain success.
+
+Numerical confidence/effect gates are conditional on IID sampling. Shared
+kernel/VM/source resources prevent a claim of physically independent held-out
+or population performance. Split-half RTT drift and lag-one correlation are
+descriptive preregistered diagnostics; no flags cannot prove IID/stationarity.
+Count thresholds alone cannot close the issue.
+
+STOP restores each VNET's original SACK value and clears owned shaping rules.
+The wrapper removes owned jails, mounts, bridge, epairs and newly loaded modules,
+and restores the prior tunable. Retain host before/after snapshots, then remove
+only the source's owned IPv6 alias and confirm endpoints are closed. A crash or
+forced SIGKILL can bypass traps; inspect and clean only this study's resources.
+
+## Exploratory clean fixture
 
 `bsd-endpoint.c` supplies native TCP listeners and an independently controlled
 SACK setting on an operator-owned FreeBSD lab VM. `bsd.py` measures those
