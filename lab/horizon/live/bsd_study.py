@@ -338,7 +338,7 @@ def collect(args):
     lab.save(out / "environment.json", {"platform": platform.platform(), "nyxr_sha256": lab.digest(Path(binary)),
         "buildinfo": lab.command("go", "version", "-m", binary), "interface": assigned,
         "collector_sha256": lab.digest(Path(__file__)), "helper_sha256": lab.digest(HERE / "bsd-study-endpoint.c"),
-        "concurrent_fixtures": 2})
+        "concurrent_fixtures": PROTOCOL["collection"]["concurrent_fixtures"]})
     def worker(role):
         scope = fixtures[role]
         for entry in (p for p in manifest["planned"] if p["role"] == role):
@@ -365,7 +365,7 @@ def collect(args):
         if fixtures["development"]["fixture"] == fixtures["reserved"]["fixture"]:
             raise ValueError("BSD fixture identities are not distinct")
         persist()
-        with ThreadPoolExecutor(max_workers=2) as executor:
+        with ThreadPoolExecutor(max_workers=PROTOCOL["collection"]["concurrent_fixtures"]) as executor:
             futures = [executor.submit(worker, role) for role in PROTOCOL["roles"]]
             for future in as_completed(futures):
                 try: future.result()
