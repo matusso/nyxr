@@ -70,12 +70,12 @@ def planned_runs(family, protocol):
             for n in range(protocol["runs"])]
 
 
-def truth(target, source, request="TRUTH"):
+def truth(target, source, request="TRUTH", port=443):
     family = socket.AF_INET6 if ipaddress.ip_address(target).version == 6 else socket.AF_INET
     with socket.socket(family) as sock:
         sock.settimeout(10)
         sock.bind((source, 0))
-        sock.connect((target, 443))
+        sock.connect((target, port))
         sock.sendall((request + "\n").encode())
         data = b""
         while not data.endswith(b"\n"):

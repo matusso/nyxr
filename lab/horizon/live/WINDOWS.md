@@ -98,6 +98,47 @@ segment do not measure NAT traversal or imply network disconnection. The
 macOS source kernel's own RSTs are retained, unlike the Linux source's
 suppressed RSTs; compare the studies with that difference in mind.
 
+## Separately registered Windows clean and blocked study
+
+`windows-study-protocol.json` freezes 12 clean and three known-blocked reports
+per address family, with distinct IPv4/IPv6 seeds and denominators. The clean
+setting tests the previously observed native Windows SACK effect hypothesis.
+It is not a controlled SACK-disabled null: the helper records the `SackOpts`
+registry value if present but never changes it. The blocked setting adds a
+temporary inbound firewall **block** only for the measurement peer and TCP
+port 443. A separate peer-scoped TCP 8443 control port carries the fixed
+`TRUTH`, `BLOCK`, `UNBLOCK`, and `STOP` messages so the collector can verify
+native state while the measurement port is blocked. The blocked reports are
+expected to remain unresolved and are never counted as resolved nulls.
+
+Start the same reviewed helper in elevated PowerShell with `-StudyControl`
+and a 1,200-second bound. Use the same explicit private addresses as above:
+
+```powershell
+& .\windows-endpoint.ps1 -LocalAddress 192.168.254.130 -PeerAddress 192.168.254.1 -StudyControl -Seconds 1200
+```
+
+From macOS, collect IPv4 using the separately registered collector:
+
+```sh
+python3 lab/horizon/live/windows_study.py run --binary /tmp/nyxr-hz66-macos \
+  --output /tmp/hz66-windows-study-v4 --target 192.168.254.130 \
+  --source 192.168.254.1 --interface bridge101 --mac 00:0c:29:7d:91:cb
+```
+
+For IPv6, add the temporary source ULA and use the helper's
+`-AddTemporaryIPv6 -InterfaceIPv4` options as described above; collect to a
+different output directory with the two ULA addresses. Remove the source ULA
+after collection. Every run retains before/after native rule and TCP setting
+records, independent PCAPs, scanner output, raw HORIZON reports and child
+resource measurements. The collector requests `STOP` even after an error and
+records cleanup failure explicitly. If a guest process is forcibly killed,
+remove only rules with the printed fixture's exact `nyxr-hz66-` names, then
+check for remaining temporary addresses.
+
+Windows loss/jitter, a controlled Windows SACK null, independently held-out
+coverage, stationarity and population acceptance remain separate #66 gates.
+
 Offline re-analysis opens no network transport:
 
 ```sh

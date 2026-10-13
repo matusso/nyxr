@@ -1,0 +1,29 @@
+{
+  "version": "horizon-windows-native-clean-block/v1",
+  "purpose": "Separately registered native Windows clean SACK hypothesis and scoped firewall DROP controls",
+  "families": [4, 6],
+  "seed_start": {"4": 68000, "6": 68100},
+  "order": "12 clean then 3 blocked runs per family; IPv4 and IPv6 are separate collections",
+  "clean_runs_per_family": 12,
+  "blocked_runs_per_family": 3,
+  "replicates": 12,
+  "window_ms": 800,
+  "washout_ms": 300,
+  "packets_per_second": 3,
+  "max_packets": 48,
+  "max_duration_seconds": 90,
+  "alpha": 0.05,
+  "primary_outcome": "SACK negotiation difference",
+  "clean_expected": "difference",
+  "clean_basis": "Native Windows SACK support observed in prior independent captures; not an independently controlled null",
+  "blocked_expected": "unresolved",
+  "blocked_basis": "Peer-scoped native Windows inbound block rule on TCP 443; separate TCP 8443 control remains reachable",
+  "acceptance": "All planned runs remain in each denominator; clean effect numerical threshold requires >=11 correct of 12 (registered >=90%), zero invalid/missing; blocked runs should be unresolved, not reclassified as nulls",
+  "limitations": [
+    "No independently controlled Windows SACK-disabled null",
+    "One VM and kernel; no physically independent held-out or population accuracy claim",
+    "Directly attached virtual Ethernet; no NAT traversal or routed IPv6 claim",
+    "Firewall block is a known no-response check, not packet loss/jitter",
+    "Mac source child resources, not guest server CPU/RSS"
+  ]
+}

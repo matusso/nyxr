@@ -179,6 +179,10 @@ The [Windows IPv6 corpus](../corpus/2026-10-11-windows-ipv6-arm64/RESULTS.md)
 adds three verified runs on the same endpoint with temporary ULA setup and
 confirmed address/firewall cleanup. It does not independently configure SACK
 or provide controlled Windows nulls.
+The separate [Windows clean/block study](WINDOWS.md#separately-registered-windows-clean-and-blocked-study)
+registers 12 clean effect-hypothesis reports and three known firewall DROP
+checks per family with fixed native state controls. It does not turn a blocked
+endpoint into a resolved SACK null.
 
 The separate [FreeBSD controlled collector](BSD.md) supplies native SACK-enabled
 and SACK-disabled IPv4/IPv6 ground truth. Its
