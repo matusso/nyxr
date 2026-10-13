@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-12",
+  "protocol": "horizon-freebsd-vnet-config-reserved-sequential/v2",
+  "protocol_source_sha256": "c21b424dba24189166be443062eada606a7a73adc267f35def5fdab2e6dd5328",
+  "captured_protocol_sha256": "c21b424dba24189166be443062eada606a7a73adc267f35def5fdab2e6dd5328",
+  "guest": "FreeBSD 15.1-RELEASE-p4 ARM64; operator-owned Fusion VM",
+  "configured_guest_memory_mb": 2048,
+  "concurrent_fixtures": 1,
+  "binary_sha256": "951278fab4e04baf80d54cf74fab0cd96b6ae5a2e3b3898f02824f3137d22991",
+  "raw_file_count": 9161,
+  "native_helper_binary_sha256": "7fd04644307162bd75131a7c85e16c14fc250a3119389d8aa7dc916515c33ed3",
+  "native_helper_source_sha256": "49875f4dc165d15b8aaa67fd48a367599f9b8271b23b3e6b9c610198c81e01ba",
+  "archive_bytes": 9049768,
+  "archive_sha256": "497eec35c02987a29b878174978afc9ec682de65fe139a9ec032001bcd2a41ac",
+  "totals": {
+    "planned": 588,
+    "collected": 588,
+    "invalid": 0,
+    "missing": 0,
+    "unresolved": 212,
+    "correct": 388,
+    "valid": 588
+  },
+  "canonical_reports_replayed": 588,
+  "fixture_cleanup_verified_before_later_reboot": true,
+  "transport_cleanup": {
+    "source_alias_removed": true,
+    "helper_http_closed": true,
+    "temporary_ssh_key_expired": true,
+    "new_ssh_login_denied": true,
+    "temporary_ssh_key_removed": true,
+    "temporary_ssh_key_removal_basis": "Operator confirmed deletion in the BSD root session and grep found no matching line after reboot; access remains expired and denied"
+  },
+  "postrun_kernel_panic_and_reboot": true,
+  "postreboot_native_root_state_independently_verified": false,
+  "physically_independent_held_out": false,
+  "independence_established": false,
+  "interrupted_prior_study_separate_and_unpooled": true,
+  "causal_stability_fix_claimed": false,
+  "persistent_lab_changes": [
+    "Configured VM RAM 2048MB",
+    "GDB and dependency packages retained"
+  ]
+}
