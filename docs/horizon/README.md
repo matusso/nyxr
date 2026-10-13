@@ -76,8 +76,11 @@ See [Linux namespace lab instructions](../../lab/horizon/README.md).
 The [automated live baseline harness](../../lab/horizon/live/README.md) prepares
 isolated Linux/proxy/NAT/firewall cases in IPv4/IPv6 under clean and netem
 conditions, with frozen thresholds, independent captures and per-run resource
-accounting. Live Linux results and negative outcomes are recorded; sufficient
-independent null repetitions and Windows/BSD fixtures remain required for #66.
+accounting. Live Linux results and negative outcomes are recorded. Controlled
+FreeBSD IPv4/IPv6 null and impairment fixtures and exploratory Windows IPv4/IPv6
+results are linked from the [live lab instructions](../../lab/horizon/live/README.md).
+Controlled Windows nulls, independent coverage and scientific acceptance remain
+required for #66.
 Capture independently with `tcpdump`; the source kernel can generate its own
 RSTs and the target can retransmit. The traffic budget counts runner-emitted
 packets, not all kernel/target traffic.

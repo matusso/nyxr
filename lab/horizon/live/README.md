@@ -178,6 +178,17 @@ retains three verified runs and an initial three-run scanner-capture failure.
 The [Windows IPv6 corpus](../corpus/2026-10-11-windows-ipv6-arm64/RESULTS.md)
 adds three verified runs on the same endpoint with temporary ULA setup and
 confirmed address/firewall cleanup. It does not independently configure SACK
-or provide controlled Windows nulls, BSD or held-out
-coverage. Issue #66 stays open until those fixtures and the measured acceptance
-gates exist.
+or provide controlled Windows nulls.
+
+The separate [FreeBSD controlled collector](BSD.md) supplies native SACK-enabled
+and SACK-disabled IPv4/IPv6 ground truth. Its
+[2026-10-12 corpus](../corpus/2026-10-12-freebsd-arm64/RESULTS.md) retains 12
+verified clean baselines and a separate expired setup, including native
+restoration evidence. The [interrupted concurrent study](../corpus/2026-10-12-freebsd-vnet-failed-arm64/RESULTS.md)
+retains its native kernel panic, invalid and missing outcomes. Its separately
+registered [sequential study](../corpus/2026-10-12-freebsd-vnet-sequential-arm64/RESULTS.md)
+completed 588 valid reports with clean conditional numerical gates and 200
+unresolved loss-jitter reports. The VM panicked after collection and teardown;
+this shared-kernel study does not establish independence or a stability fix.
+Issue #66 stays open for controlled Windows nulls, broader independent coverage
+and scientific acceptance.

@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-12",
+  "protocol": "horizon-freebsd-vnet-config-reserved/v1",
+  "protocol_source_sha256": "431328acfcdbec0d7f6062e4c6ac2c57dd906a7587423eddaca2b2e4449264cd",
+  "captured_protocol_sha256": "4045ff3dc346a757de465cc95527dc618d70f93a6df6403cc110c06dcfc2b596",
+  "guest": "FreeBSD 15.1-RELEASE-p4 ARM64; operator-owned Fusion VM",
+  "configured_guest_memory_mb": 256,
+  "concurrent_fixtures": 2,
+  "binary_sha256": "951278fab4e04baf80d54cf74fab0cd96b6ae5a2e3b3898f02824f3137d22991",
+  "raw_file_count": 583,
+  "archive_bytes": 833181,
+  "archive_sha256": "4c444dca17bca8dd8f71f0acf6952910db8004108590136140f00d11ee77fee1",
+  "totals": {
+    "planned": 588,
+    "collected": 16,
+    "invalid": 4,
+    "missing": 572,
+    "valid": 12
+  },
+  "canonical_reports_replayed": 16,
+  "collection_completed": false,
+  "collection_error": "timed out",
+  "cleanup_verified": false,
+  "kernel_panic_and_reboot": true,
+  "post_reboot_restoration_recorded": true,
+  "causal_kernel_bug_identified": false,
+  "memory_dump_included": false,
+  "subsequent_study_separate_and_unpooled": true
+}
