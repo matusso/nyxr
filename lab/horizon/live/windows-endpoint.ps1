@@ -5,6 +5,7 @@ param(
     [Parameter(Mandatory=$true)][string]$PeerAddress,
     [switch]$AddTemporaryIPv6,
     [string]$InterfaceIPv4,
+    [switch]$StudyControl,
     [ValidateRange(60,1800)][int]$Seconds = 600
 )
 $ErrorActionPreference = 'Stop'
@@ -47,13 +48,22 @@ $setupRoutes = @(Get-NetRoute -InterfaceIndex $interfaceIndex | Select-Object De
 $ipv6Settings = if ($family -eq 'IPv6') { Get-NetIPInterface -InterfaceIndex $interfaceIndex -AddressFamily IPv6 } else { $null }
 $fixture = [guid]::NewGuid().ToString()
 $ruleName = 'nyxr-hz66-' + $fixture
+$controlRuleName = 'nyxr-hz66-control-' + $fixture
+$blockRuleName = 'nyxr-hz66-block-' + $fixture
 $listener = New-Object System.Net.Sockets.TcpListener($local,443)
+$controlListener = if ($StudyControl) { New-Object System.Net.Sockets.TcpListener($local,8443) } else { $null }
 $createdRule = $false
+$createdControlRule = $false
+$createdBlockRule = $false
 $createdAddress = $false
 $attemptedAddress = $false
 function Get-Truth {
     $os = Get-CimInstance Win32_OperatingSystem
     $rule = Get-NetFirewallRule -Name $ruleName -ErrorAction SilentlyContinue
+    $controlRule = Get-NetFirewallRule -Name $controlRuleName -ErrorAction SilentlyContinue
+    $blockRule = Get-NetFirewallRule -Name $blockRuleName -ErrorAction SilentlyContinue
+    $sackOpts = Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters' `
+        -Name SackOpts -ErrorAction SilentlyContinue
     [ordered]@{
         fixture = $fixture; utc = [DateTime]::UtcNow.ToString('o'); pid = $PID
         platform = 'Windows'; caption = $os.Caption; version = $os.Version
@@ -71,7 +81,10 @@ function Get-Truth {
         tcp_settings = @(Get-NetTCPSetting | Select-Object SettingName,AutoTuningLevelLocal,
             CongestionProvider,EcnCapability,Timestamps)
         tcp_global = (netsh interface tcp show global | Out-String)
-        sack_setting = 'Native Windows default; not independently configurable by this helper'
+        sack_setting = 'Native Windows TCP; this helper does not change SACK'
+        sackopts_registry_present = [bool]$sackOpts
+        sackopts_registry_value = if ($sackOpts) { $sackOpts.SackOpts } else { $null }
+        study_control = [bool]$StudyControl
         firewall_profiles = @(Get-NetFirewallProfile | Select-Object Name,Enabled,
             DefaultInboundAction,DefaultOutboundAction)
         fixture_rule_present = [bool]$rule
@@ -79,6 +92,18 @@ function Get-Truth {
         fixture_addresses = @($rule | Get-NetFirewallAddressFilter |
             Select-Object LocalAddress,RemoteAddress)
         fixture_ports = @($rule | Get-NetFirewallPortFilter |
+            Select-Object Protocol,LocalPort,RemotePort)
+        control_rule_present = [bool]$controlRule
+        control_rule = @($controlRule | Select-Object Name,Enabled,Direction,Action)
+        control_addresses = @($controlRule | Get-NetFirewallAddressFilter |
+            Select-Object LocalAddress,RemoteAddress)
+        control_ports = @($controlRule | Get-NetFirewallPortFilter |
+            Select-Object Protocol,LocalPort,RemotePort)
+        block_rule_present = [bool]$blockRule
+        block_rule = @($blockRule | Select-Object Name,Enabled,Direction,Action)
+        block_addresses = @($blockRule | Get-NetFirewallAddressFilter |
+            Select-Object LocalAddress,RemoteAddress)
+        block_ports = @($blockRule | Get-NetFirewallPortFilter |
             Select-Object Protocol,LocalPort,RemotePort)
     }
 }
@@ -98,16 +123,29 @@ try {
     }
     # Bind first: never replace an existing listener on the chosen address/port.
     $listener.Start()
+    if ($StudyControl) { $controlListener.Start() }
     New-NetFirewallRule -Name $ruleName -DisplayName $ruleName -Direction Inbound `
         -Action Allow -Protocol TCP -LocalAddress $LocalAddress -RemoteAddress $PeerAddress `
         -LocalPort 443 -Profile Any | Out-Null
     $createdRule = $true
+    if ($StudyControl) {
+        New-NetFirewallRule -Name $controlRuleName -DisplayName $controlRuleName -Direction Inbound `
+            -Action Allow -Protocol TCP -LocalAddress $LocalAddress -RemoteAddress $PeerAddress `
+            -LocalPort 8443 -Profile Any | Out-Null
+        $createdControlRule = $true
+    }
     $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
     Write-Host "HORIZON fixture $fixture listening on ${LocalAddress}:443 for $PeerAddress; expires in $Seconds seconds."
+    if ($StudyControl) { Write-Host 'Fixed study controls listening on port 8443.' }
     Write-Host 'Leave this console open. Ctrl+C stops it and removes its rule.'
     while ([DateTime]::UtcNow -lt $deadline) {
-        if (-not $listener.Pending()) { Start-Sleep -Milliseconds 25; continue }
-        $client = $listener.AcceptTcpClient()
+        $commandListener = if ($StudyControl) { $controlListener } else { $listener }
+        if (-not $commandListener.Pending()) {
+            if ($StudyControl -and $listener.Pending()) { $listener.AcceptTcpClient().Dispose() }
+            else { Start-Sleep -Milliseconds 25 }
+            continue
+        }
+        $client = $commandListener.AcceptTcpClient()
         try {
             if (-not $client.Client.RemoteEndPoint.Address.Equals($peer)) { continue }
             $stream = $client.GetStream()
@@ -122,9 +160,33 @@ try {
                 $request += [char]$character
             }
             if ($request.Trim() -eq 'TRUTH') { $response = Get-Truth }
+            elseif ($StudyControl -and $request.Trim() -eq 'BLOCK') {
+                if (-not $createdBlockRule) {
+                    New-NetFirewallRule -Name $blockRuleName -DisplayName $blockRuleName -Direction Inbound `
+                        -Action Block -Protocol TCP -LocalAddress $LocalAddress -RemoteAddress $PeerAddress `
+                        -LocalPort 443 -Profile Any | Out-Null
+                    $createdBlockRule = $true
+                }
+                $response = Get-Truth
+            }
+            elseif ($StudyControl -and $request.Trim() -eq 'UNBLOCK') {
+                if ($createdBlockRule) {
+                    Remove-NetFirewallRule -Name $blockRuleName
+                    $createdBlockRule = $false
+                }
+                $response = Get-Truth
+            }
             elseif ($request.Trim() -eq 'STOP') {
+                if ($createdBlockRule) {
+                    Remove-NetFirewallRule -Name $blockRuleName
+                    $createdBlockRule = $false
+                }
                 Remove-NetFirewallRule -Name $ruleName
                 $createdRule = $false
+                if ($createdControlRule) {
+                    Remove-NetFirewallRule -Name $controlRuleName
+                    $createdControlRule = $false
+                }
                 $response = Get-Truth
                 $deadline = [DateTime]::UtcNow
             } else { continue }
@@ -136,9 +198,16 @@ try {
     }
 } finally {
     $listener.Stop()
+    if ($StudyControl) { $controlListener.Stop() }
     $cleanupErrors = @()
+    if ($createdBlockRule) {
+        try { Remove-NetFirewallRule -Name $blockRuleName } catch { $cleanupErrors += $_.Exception.Message }
+    }
     if ($createdRule) {
         try { Remove-NetFirewallRule -Name $ruleName } catch { $cleanupErrors += $_.Exception.Message }
+    }
+    if ($createdControlRule) {
+        try { Remove-NetFirewallRule -Name $controlRuleName } catch { $cleanupErrors += $_.Exception.Message }
     }
     if ($attemptedAddress) {
         try {

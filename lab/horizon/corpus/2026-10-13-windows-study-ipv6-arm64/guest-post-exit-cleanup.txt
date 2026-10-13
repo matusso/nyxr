@@ -1,0 +1,10 @@
+Operator-provided read-only Windows PowerShell check after the native fixture exited
+(2026-10-13). This is a guest-console observation, not a collector-originated record.
+
+Command:
+$ip = Get-NetIPAddress -IPAddress fd66:66:11::2 -ErrorAction SilentlyContinue; $iface = Get-NetIPInterface -InterfaceIndex 10 -AddressFamily IPv6; [pscustomobject]@{TempAddressPresent=[bool]$ip;Dhcp=$iface.Dhcp;RouterDiscovery=$iface.RouterDiscovery}
+
+Output:
+TempAddressPresent    Dhcp RouterDiscovery
+------------------    ---- ---------------
+             False Enabled         Enabled
