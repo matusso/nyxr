@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-13",
+  "protocol": "horizon-windows-native-clean-block/v1",
+  "family": 6,
+  "protocol_source_sha256": "2d9202e17c874fdc19cb09a903602b0423a3e5b1fdfbf0c57893ab2a344ca8b2",
+  "captured_protocol_sha256": "ca052183069348c8f960f00ae5e29f8dddeed0feaff6b4895d026ecaf2bda28f",
+  "binary_sha256": "951278fab4e04baf80d54cf74fab0cd96b6ae5a2e3b3898f02824f3137d22991",
+  "source_platform": "macOS-27.0.1-arm64-arm-64bit",
+  "native_build": "26200",
+  "raw_file_count": 238,
+  "archive_bytes": 232173,
+  "archive_sha256": "635c1e955b483def8f667ae266e071e3637e73e22b79c817639fd4de835b5fea",
+  "canonical_reports_replayed": 15,
+  "strata": {
+    "clean": {
+      "planned": 12,
+      "collected": 12,
+      "valid": 12,
+      "invalid": 0,
+      "missing": 0,
+      "correct": 12,
+      "unresolved": 0,
+      "conditional_numerical_gate": true
+    },
+    "blocked": {
+      "planned": 3,
+      "collected": 3,
+      "valid": 3,
+      "invalid": 0,
+      "missing": 0,
+      "correct": 3,
+      "unresolved": 3,
+      "conditional_numerical_gate": false
+    }
+  },
+  "fixture_cleanup_verified": true,
+  "controlled_windows_sack_disabled_null": false,
+  "physically_independent_held_out": false,
+  "independence_established": false,
+  "issue_66_complete": false
+}
