@@ -55,7 +55,8 @@ or `GET /api/v1/scans/<id>`.
 | `transport` | string | `tcp`, `udp`, `icmp`, `arp`, `ndp`, `sctp` or `ip` |
 | `port` | integer | Port, when applicable |
 | `state` | string | Ports: `open`, `closed`, `filtered`, `open\|filtered`. Hosts: `responsive`, `no-response`. Also `unknown`, `unsupported` or `error` when a probe could not decide |
-| `confidence` | 0–100 | How strongly the evidence supports the state |
+| `confidence` | 0–100 | Rule score for this record's claim, not a calibrated probability |
+| `confidence_method`, `confidence_model` | string | `heuristic` and rule version for new observations; absent on legacy records |
 | `reason` | string | Why the state and confidence were assigned |
 | `probe` | string | The probe that produced it, for example `tcp-connect` or `ssh` |
 | `service`, `product`, `version` | string | Identified service, when matched |
@@ -64,7 +65,7 @@ or `GET /api/v1/scans/<id>`.
 | `rtt_ns` | integer | Round-trip time in nanoseconds |
 | `packets_tx`, `packets_rx` | integer | Packets sent and received for this observation |
 | `probes_attempted` | list | Service probes tried, in order |
-| `service_hypotheses` | list | Final protocol-family hypotheses: `family`, `probability` (0–1); planning estimates, separate from service confidence |
+| `service_hypotheses` | list | Final protocol-family hypotheses: `family`, `probability` (0–1), `method`, `model`; planning estimates, separate from service confidence |
 | `probe_decisions` | list | Selected probe, expected `information_gain` in bits, cost-adjusted `score`, and selection-time `hypotheses`; includes nested database/application/product planning |
 | `probe_updates` | list | Probe `outcome` (`matched`, `unmatched`, `inconclusive`), optional response `signal`, `before` and `after` hypotheses, `evidence_start` inclusive and `evidence_end` exclusive zero-based indices |
 | `probe_stop_reason` | string | Identification, exhaustion, insufficient gain, budget limit, cancellation or connection failure |
@@ -81,8 +82,15 @@ Samples preserve TTL/initial-TTL estimate, IPv4 DF/IP ID, window, flags,
 sequence/ACK, option bytes/order, optional MSS/window scale, SACK, timestamps,
 ECN and option validity. See [TCP/IP stack fingerprinting](../guide/tcp-stack-fingerprinting.md).
 Port confidence still describes port state; stack candidate confidence describes
-an OS-family hypothesis. Device attributes may include `device.os_family`,
+an OS-family hypothesis. Stack candidates also carry `method: heuristic` and a
+rule version. Device attributes may include `device.os_family`,
 `device.os_confidence`, or `device.os_conflict`, separate from class confidence.
+Products and versions are parser claims with retained exchanges; the record's
+confidence is not a separate product or version probability. Asset identity
+API results expose `link_confidence_method` and `link_confidence_model`, and
+candidate hypotheses carry their own method and model. A zero link score with
+`unavailable` means there is no numeric link estimate. HORIZON experiment
+probabilities are separate and never derived from these ordinary scores.
 
 NSE `script` records have `state: "reported"`, `probe: "nse/<script-id>"`, and
 the discovered port and transport. Host scripts use `transport: "host"` and

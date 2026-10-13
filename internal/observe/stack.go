@@ -22,6 +22,8 @@ type TCPStack struct {
 type StackCandidate struct {
 	Family     string   `json:"family"`
 	Confidence int      `json:"confidence"`
+	Method     string   `json:"method,omitempty"`
+	Model      string   `json:"model,omitempty"`
 	Reasons    []string `json:"reasons"`
 }
 

@@ -44,7 +44,11 @@ remain in the claims list. The graph stores safe hostname and leaf
 certificate clues, plus UPnP UUIDs extracted from SSDP, and reports shared
 clues as relationships. Clues shared by more than 16 identities are omitted
 from candidate generation because they are too broad. Candidate scores are
-conservative heuristics, not calibrated probabilities. `link_confidence` scores the current multi-address
+conservative heuristics, not calibrated probabilities. Certificate fingerprint
+and DNS name clues from the same certificate, and a potentially related
+hostname, contribute at most one score increment. UPnP and LLDP clues are
+counted separately. The current identity rule version is `nyxr-identity/v2`.
+`link_confidence` scores the current multi-address
 link; zero means no link was needed or established. A `blocked` hypothesis
 has conflicting strong evidence or a manual separation.
 

@@ -223,9 +223,9 @@ function detail(o) {
   if (attrs["http.title"]) parts.push(`title "${attrs["http.title"]}"`);
   if (o.kind === "script" && o.nse) parts.push((o.nse.output || "").split("\n")[0].slice(0, 160));
   if (o.kind === "device") parts.push(`${attrs["device.class"] || ""} (${(o.signals || []).length} signals)`);
-  if (attrs["device.os_family"]) parts.push(`${attrs["device.os_family"]}-like stack (${attrs["device.os_confidence"]}%)`);
+  if (attrs["device.os_family"]) parts.push(`${attrs["device.os_family"]}-like stack (heuristic score ${attrs["device.os_confidence"]}/100)`);
   if (attrs["device.os_conflict"]) parts.push(attrs["device.os_conflict"]);
-  if (o.tcp_stack) parts.push((o.tcp_stack.candidates || []).map(c => `${c.family}-like stack (${c.confidence}%)`).join(", ") || "unknown TCP stack");
+  if (o.tcp_stack) parts.push((o.tcp_stack.candidates || []).map(c => `${c.family}-like stack (heuristic score ${c.confidence}/100)`).join(", ") || "unknown TCP stack");
   if (o.mac) parts.push("MAC " + o.mac);
   parts.push(o.reason);
   return parts.filter(Boolean).join(" | ");
@@ -235,7 +235,7 @@ function obsRow(o, fresh) {
   const label = o.kind === "service" ? "svc " + (o.service || "unknown") : o.kind === "script" ? "nse " + (o.nse?.id || "script") : o.kind === "device" ? "device" : o.state;
   return h("tr", { class: fresh ? "new" : "" },
     h("td", {}, o.target), h("td", {}, port(o)), h("td", {}, state(label)),
-    h("td", {}, o.confidence + "%"), h("td", {}, fmtRTT(o.rtt_ns)),
+    h("td", { title: `${o.confidence_method || "heuristic"}: ${o.confidence_model || "legacy rule"}` }, `${o.confidence}/100 ${o.confidence_method || "heuristic"}`), h("td", {}, fmtRTT(o.rtt_ns)),
     h("td", { class: "wrap" }, detail(o),
       o.tcp_stack ? h("details", {}, h("summary", {}, "TCP/IP stack evidence"),
         h("p", { class: "muted" }, "OS families are heuristic claims about the responding stack; intermediaries can change headers."),
@@ -248,7 +248,7 @@ function obsRow(o, fresh) {
         table(["probe", "response", "leading hypothesis", "evidence"], o.probe_updates.map(u => {
           const leading = u.after?.[0];
           return h("tr", {}, [u.probe, u.outcome + (u.signal ? " (" + u.signal + ")" : ""),
-            leading ? `${leading.family} ${(100 * leading.probability).toFixed(1)}%` : "",
+            leading ? `${leading.family} ${(100 * leading.probability).toFixed(1)}% (${leading.method || "heuristic"})` : "",
             `${u.evidence_start + 1}–${u.evidence_end}`].map(value => h("td", {}, value)));
         })),
         h("p", { class: "muted" }, "Hypotheses guide probe selection; their scores are estimates."),
@@ -265,7 +265,7 @@ function printable(b64) {
   try { s = atob(b64); } catch { return b64; }
   return s.replace(/[^\x20-\x7e\n]/g, c => "\\x" + c.charCodeAt(0).toString(16).padStart(2, "0")).slice(0, 2048);
 }
-const obsHeaders = ["target", "port", "state", "conf", "rtt", "detail"];
+const obsHeaders = ["target", "port", "state", "evidence score", "rtt", "detail"];
 
 function scanRow(s) {
   return h("tr", {},
@@ -627,8 +627,8 @@ async function identitiesPage() {
 	  h("td", {}, [...new Set(asset.clues.filter(c => c.kind === "capture_interface" || c.kind === "vlan_id")
       .map(c => `${c.kind}: ${c.value}`))].join(" · ") || "-"),
 	  h("td", {}, asset.signals.some(s => s.active) ? [...new Set(asset.signals.filter(s => s.active).map(s => `${s.kind}: ${s.value}`))].join(" · ") : "No strong signal yet"),
-    h("td", {}, asset.link_confidence ? `${asset.link_confidence}%` : "No link"),
-    h("td", {}, (asset.hypotheses || []).map(x => `${x.other_id}: ${x.blocked ? "blocked" : x.confidence + "%"}`).join(" · ") || "-"),
+    h("td", {}, asset.link_confidence ? `${asset.link_confidence}/100 ${asset.link_confidence_method || "heuristic"}` : "No link"),
+    h("td", {}, (asset.hypotheses || []).map(x => `${x.other_id}: ${x.blocked ? "blocked" : x.confidence + "/100 heuristic"}`).join(" · ") || "-"),
     h("td", {}, fmtTime(asset.last_seen))));
   const addresses = [...new Set(graph.flatMap(asset => asset.addresses.map(a => a.address)))].sort();
   const addressSelect = () => h("select", {}, addresses.map(a => h("option", { value: a }, a)));
@@ -649,6 +649,7 @@ async function identitiesPage() {
   h("div", { class: "actions" }, h("button", { type: "submit", disabled: addresses.length < 2 }, "Record review"), message));
   return [h("h1", {}, `Asset identities (${graph.length})`),
     h("p", { class: "muted" }, "Addresses join only when a device-scoped signal matches. Open the scan history to inspect the source observations."),
+    h("p", { class: "muted" }, "Link and candidate scores are rule heuristics, not calibrated probabilities. Shared certificate and name clues count once; conflicting strong evidence blocks a candidate."),
     rows.length ? table(["asset ID", "addresses", "device profile", "observed network", "identity evidence", "link confidence", "competing candidates", "last seen"], rows)
       : h("p", { class: "muted" }, "No assets recorded yet."),
     h("h2", {}, "Review membership"), form,
@@ -672,7 +673,9 @@ async function identitiesPage() {
 
 async function servicesPage() {
   const obs = await api("/observations?kind=service&limit=2000");
-  return [h("h1", {}, `Services (${obs.length} observations)`), table(obsHeaders, obs.map(o => obsRow(o, false)))];
+  return [h("h1", {}, `Services (${obs.length} observations)`),
+    h("p", { class: "muted" }, "Evidence scores and planner percentages are engineering estimates. Open Detection path to see which exchanges changed a protocol hypothesis; product and version claims have no separate calibrated probability."),
+    table(obsHeaders, obs.map(o => obsRow(o, false)))];
 }
 
 async function profilesPage() {

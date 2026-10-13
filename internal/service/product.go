@@ -76,6 +76,8 @@ func (e *Engine) validateProduct(ctx context.Context, t Target, o *observe.Obser
 	p.observeExchange(o, name, ok, start, before, e)
 	if ok {
 		o.Attributes["envoy.confidence"] = strconv.Itoa(p.confidence(name))
+		o.Attributes["envoy.confidence_method"] = "heuristic"
+		o.Attributes["envoy.confidence_model"] = "nyxr-planner/v1"
 	}
 }
 

@@ -10,6 +10,8 @@ import (
 type IdentityHypothesis struct {
 	OtherID    string   `json:"other_id"`
 	Confidence int      `json:"confidence"`
+	Method     string   `json:"method,omitempty"`
+	Model      string   `json:"model,omitempty"`
 	Evidence   []string `json:"evidence"`
 	Blocked    bool     `json:"blocked"`
 }
@@ -116,21 +118,25 @@ func enrichIdentityHypotheses(ctx context.Context, s *Store, graph []IdentityAss
 		if !lok || !rok {
 			continue
 		}
-		score := 0
+		nameScore := 0
+		// Certificate name and fingerprint are nested evidence from one
+		// certificate. A hostname may also have come from that certificate.
+		// Credit the strongest one only; never add correlated clues.
 		if c.kinds["hostname"] {
-			score += 35
+			nameScore = 35
 		}
+		if c.kinds["certificate_sha256"] && nameScore < 25 {
+			nameScore = 25
+		}
+		if c.kinds["certificate_dns_name"] && nameScore < 10 {
+			nameScore = 10
+		}
+		score := nameScore
 		if c.kinds["upnp_uuid"] {
 			score += 45
 		}
 		if c.kinds["lldp_chassis_id"] {
 			score += 55
-		}
-		if c.kinds["certificate_sha256"] {
-			score += 25
-		}
-		if c.kinds["certificate_dns_name"] {
-			score += 10
 		}
 		if score > 70 {
 			score = 70
@@ -140,8 +146,8 @@ func enrichIdentityHypotheses(ctx context.Context, s *Store, graph []IdentityAss
 			score = 0
 		}
 		sort.Strings(c.evidence)
-		graph[li].Hypotheses = append(graph[li].Hypotheses, IdentityHypothesis{OtherID: right, Confidence: score, Evidence: c.evidence, Blocked: blocked})
-		graph[ri].Hypotheses = append(graph[ri].Hypotheses, IdentityHypothesis{OtherID: left, Confidence: score, Evidence: c.evidence, Blocked: blocked})
+		graph[li].Hypotheses = append(graph[li].Hypotheses, IdentityHypothesis{OtherID: right, Confidence: score, Method: "heuristic", Model: "nyxr-identity/v2", Evidence: c.evidence, Blocked: blocked})
+		graph[ri].Hypotheses = append(graph[ri].Hypotheses, IdentityHypothesis{OtherID: left, Confidence: score, Method: "heuristic", Model: "nyxr-identity/v2", Evidence: c.evidence, Blocked: blocked})
 	}
 	for i := range graph {
 		sort.Slice(graph[i].Hypotheses, func(a, b int) bool {

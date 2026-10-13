@@ -430,13 +430,13 @@ func plaintextToTLSError(response []byte) bool {
 func (p *probePlanner) probabilities() []observe.ServiceHypothesis {
 	if p.confirmedService != "" {
 		return []observe.ServiceHypothesis{
-			{Family: p.confirmedService, Probability: p.confirmedProbability},
-			{Family: "unknown", Probability: 1 - p.confirmedProbability},
+			{Family: p.confirmedService, Probability: p.confirmedProbability, Method: "heuristic", Model: "nyxr-planner/v1"},
+			{Family: "unknown", Probability: 1 - p.confirmedProbability, Method: "heuristic", Model: "nyxr-planner/v1"},
 		}
 	}
 	out := make([]observe.ServiceHypothesis, len(p.families))
 	for i, family := range p.families {
-		out[i] = observe.ServiceHypothesis{Family: family, Probability: p.prob[i]}
+		out[i] = observe.ServiceHypothesis{Family: family, Probability: p.prob[i], Method: "heuristic", Model: "nyxr-planner/v1"}
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Probability == out[j].Probability {

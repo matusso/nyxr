@@ -211,7 +211,8 @@ func TestIdentityCluesRelateWithoutMerging(t *testing.T) {
 	graph, err := s.IdentityGraph(ctx)
 	if err != nil || len(graph) != 2 || graph[0].GlobalID == graph[1].GlobalID ||
 		len(graph[0].Clues) != 2 || len(graph[1].Clues) != 2 ||
-		len(graph[0].Hypotheses) != 1 || graph[0].Hypotheses[0].Confidence != 35 || graph[0].Hypotheses[0].Blocked {
+		len(graph[0].Hypotheses) != 1 || graph[0].Hypotheses[0].Confidence != 25 ||
+		graph[0].Hypotheses[0].Method != "heuristic" || graph[0].Hypotheses[0].Model != "nyxr-identity/v2" || graph[0].Hypotheses[0].Blocked {
 		t.Fatalf("clue graph: %+v, %v", graph, err)
 	}
 	relations, err := s.IdentityRelations(ctx)
