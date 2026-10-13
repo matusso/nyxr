@@ -181,8 +181,11 @@ confirmed address/firewall cleanup. It does not independently configure SACK
 or provide controlled Windows nulls.
 The separate [Windows clean/block study](WINDOWS.md#separately-registered-windows-clean-and-blocked-study)
 registers 12 clean effect-hypothesis reports and three known firewall DROP
-checks per family with fixed native state controls. It does not turn a blocked
-endpoint into a resolved SACK null.
+checks per family with fixed native state controls. Its
+[IPv4 corpus](../corpus/2026-10-13-windows-study-ipv4-arm64/RESULTS.md)
+completed all 15 reports, with 12 correct clean differences and three correctly
+unresolved blocked results. It does not turn a blocked endpoint into a resolved
+SACK null.
 
 The separate [FreeBSD controlled collector](BSD.md) supplies native SACK-enabled
 and SACK-disabled IPv4/IPv6 ground truth. Its
