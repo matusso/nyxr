@@ -141,7 +141,9 @@ and [IPv6](../corpus/2026-10-13-windows-study-ipv6-arm64/RESULTS.md) clean/block
 studies each retain 12 valid clean differences and three valid unresolved
 known blocks, with zero missing or invalid reports. The IPv6 fixture rules and
 source temporary address were removed. The guest address cleanup check is
-recorded separately from the collector's rule cleanup.
+recorded separately from the collector's rule cleanup: the operator's read-only
+post-exit check found the address absent, with IPv6 DHCP and router discovery
+enabled as before setup.
 
 Windows loss/jitter, a controlled Windows SACK null, independently held-out
 coverage, stationarity and population acceptance remain separate #66 gates.

@@ -28,8 +28,11 @@ registry value was `absent` at the start and checked around every run.
 The blocked rule applied only to the measurement peer on TCP 443; a separate
 fixed control connection recorded its presence. Blocked reports are not
 reclassified as resolved nulls. Fixture firewall-rule cleanup was verified;
-the source temporary IPv6 address was also removed. A post-exit guest address
-check is recorded separately when available.
+the source temporary IPv6 address was also removed. The operator's read-only
+post-exit guest check found the temporary address absent, with IPv6 DHCP and
+router discovery enabled, matching the recorded pre-setup interface state.
+Its console output is retained in `guest-post-exit-cleanup.txt` and has separate
+operator provenance from collector-originated records.
 
 All 15 canonical reports replayed. The 238 raw files in
 `raw-corpus.tar.gz` passed SHA-256 checks; extracted frozen-source re-analysis

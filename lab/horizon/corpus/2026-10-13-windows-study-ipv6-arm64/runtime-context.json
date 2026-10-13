@@ -37,5 +37,13 @@
   "controlled_windows_sack_disabled_null": false,
   "physically_independent_held_out": false,
   "independence_established": false,
-  "issue_66_complete": false
+  "issue_66_complete": false,
+  "guest_post_exit_cleanup": {
+    "source": "operator-provided read-only PowerShell output",
+    "evidence_file": "guest-post-exit-cleanup.txt",
+    "temporary_ipv6_address_present": false,
+    "ipv6_dhcp": "Enabled",
+    "router_discovery": "Enabled",
+    "matches_recorded_pre_setup_interface_state": true
+  }
 }
