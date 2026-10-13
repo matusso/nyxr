@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-11",
+  "fixture": "Same operator-owned Windows 11 ARM64 build 26200 used for IPv4; native TCP IPv6 listener",
+  "setup": "Temporary /64 ULA aliases; no default gateway; direct virtual Ethernet; Windows SkipAsSource; DHCP state restored",
+  "cleanup": {
+    "guest_address_removed": true,
+    "guest_rule_removed": true,
+    "guest_dhcp_restored": true,
+    "source_address_removed": true,
+    "temporary_http_endpoint_closed": true
+  },
+  "binary_sha256": "951278fab4e04baf80d54cf74fab0cd96b6ae5a2e3b3898f02824f3137d22991",
+  "source_snapshot": "Go source copied at archival; dirty binary VCS metadata retained; no clean-commit reproducibility claim",
+  "raw_file_count": 363,
+  "archive_sha256": "2c77dfa50fa6af57303f0b91c14c41047aa4fa608d16ac478e77bc16ba40f2d5",
+  "archive_bytes": 536114
+}

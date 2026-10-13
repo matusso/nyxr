@@ -37,3 +37,5 @@ go.work.sum
 /nyxr-packetd
 /tests/performance/latest/
 /tests/performance/latest-linux/
+/lab/horizon/live/__pycache__/
+/lab/horizon/live/results/

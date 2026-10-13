@@ -3,12 +3,21 @@
 `hz-001.yaml` is the unprivileged synthetic fixture. See
 `docs/horizon/README.md` for commands, analysis and limitations.
 
+The [live baseline harness](live/README.md) adds an automated isolated Linux
+namespace matrix (IPv4/IPv6, null controls, proxy, IPv4 NAT, firewall and netem),
+pre-registered false-positive thresholds, independent captures, resource
+measurements and offline analysis. Its default run is a smoke test. Live
+Linux collection and exploratory repeated null trials are recorded in the
+[2026-10-10 corpus](corpus/2026-10-10-linux-arm64/RESULTS.md). Statistical
+acceptance and Windows/BSD ground truth remain separate gates.
+
 ## Optional live Linux topology
 
 Requires root on an isolated lab host with `ip`, `tc`, Python and `tcpdump`.
 Do not reuse existing interfaces/namespaces with these names. The procedure
-is prepared for validation; **it was not run on the macOS development host**.
-Live ground-truth acceptance remains GitHub issue #66.
+is a manual alternative to the automated harness; **this manual procedure was
+not run on the macOS development host**. The automated harness was exercised
+inside an isolated Linux Docker VM; broad acceptance remains GitHub issue #66.
 
 ```sh
 sudo ip netns add hz-target

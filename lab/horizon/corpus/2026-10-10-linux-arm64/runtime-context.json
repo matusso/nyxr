@@ -1,0 +1,10 @@
+{
+  "recorded_during_null_repetitions": true,
+  "docker_server_version": "29.8.2",
+  "vm_cpu_count": 18,
+  "vm_memory_bytes": 8317267968,
+  "architecture": "aarch64",
+  "kernel": "7.0.14-linuxkit",
+  "cgroup_cpu_max": "max 100000",
+  "cgroup_memory_max": "max"
+}

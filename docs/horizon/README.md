@@ -67,9 +67,17 @@ Direct raw I/O uses the same platform backend; omit `--packetd` when the CLI
 has the required privileges. The source must be assigned to the interface.
 Unmapped Npcap adapters require `--source-mac`. Ethernet IPv4/IPv6 TCP replies and ICMP errors are supported; loopback is not a raw Ethernet lab.
 macOS/Windows live behavior depends on existing BPF/Npcap capabilities.
-**No privileged live lab was validated on the macOS development host.**
+The [2026-10-10 isolated Linux corpus](../../lab/horizon/corpus/2026-10-10-linux-arm64/RESULTS.md)
+validates live collection in a Docker Linux VM hosted on macOS. It does not
+validate macOS BPF or Windows Npcap, cross-platform ground truth, or a population
+false-positive rate.
 
 See [Linux namespace lab instructions](../../lab/horizon/README.md).
+The [automated live baseline harness](../../lab/horizon/live/README.md) prepares
+isolated Linux/proxy/NAT/firewall cases in IPv4/IPv6 under clean and netem
+conditions, with frozen thresholds, independent captures and per-run resource
+accounting. Live Linux results and negative outcomes are recorded; sufficient
+independent null repetitions and Windows/BSD fixtures remain required for #66.
 Capture independently with `tcpdump`; the source kernel can generate its own
 RSTs and the target can retransmit. The traffic budget counts runner-emitted
 packets, not all kernel/target traffic.
