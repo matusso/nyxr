@@ -72,6 +72,26 @@ Native snapshots include physical memory and boot time. The second fixture is
 still configuration-reserved on the same kernel, with no physical-independence
 or population acceptance claim.
 
+The [sequential execution](../corpus/2026-10-12-freebsd-vnet-sequential-arm64/RESULTS.md)
+sealed all 588 planned reports. All passed native truth, canonical replay,
+independent capture and resource checks, with zero backend/capture drops. The
+240 clean nulls and 48 clean effects were correct; the eight clean strata pass
+their *conditional numerical* gates. Under loss-jitter, 73 null and 15 effect
+reports resolved correctly while 200 remained unresolved. All 12 known DROP
+checks were unresolved as expected. There were no false SACK differences.
+The shared VM/source cannot establish IID sampling or physical independence;
+loss-jitter strata fail their numerical gates. Issue #66 remains open.
+
+The guest's native teardown and artifact upload completed successfully after
+measurement, but the VM panicked and rebooted about one minute later. The
+second panic is retained as a separate post-run negative outcome. The prior
+memory/concurrency changes did not establish durable stability or fix the
+kernel fault. The temporary source IPv6 alias and helper server expired and
+were confirmed gone. The restricted SSH key expired and no longer authorized
+login. After reboot, the operator removed its guest-side line and confirmed no
+matching entry remained. Subsequent root state cannot be inferred solely from
+pre-reboot snapshots.
+
     PYTHONDONTWRITEBYTECODE=1 python3 lab/horizon/live/bsd_study_sequential.py run \
       --binary /path/to/nyxr --output /tmp/new-bsd-sequential-study \
       --interface bridge101 --fixtures /path/to/verified-fixtures.json
