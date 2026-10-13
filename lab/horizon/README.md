@@ -11,9 +11,10 @@ Linux collection and exploratory repeated null trials are recorded in the
 [2026-10-10 corpus](corpus/2026-10-10-linux-arm64/RESULTS.md). Controlled BSD
 ground truth and exploratory Windows IPv4/IPv6 evidence are documented in the
 [live lab instructions](live/README.md). A separate
-[Windows IPv4 clean/block study](corpus/2026-10-13-windows-study-ipv4-arm64/RESULTS.md)
-records 12 valid clean effect-hypothesis reports and three valid known DROP
-checks. Controlled Windows SACK-disabled nulls, independent
+[Windows IPv4](corpus/2026-10-13-windows-study-ipv4-arm64/RESULTS.md) and
+[IPv6](corpus/2026-10-13-windows-study-ipv6-arm64/RESULTS.md) clean/block
+studies each record 12 valid clean effect-hypothesis reports and three valid
+known DROP checks. Controlled Windows SACK-disabled nulls, independent
 coverage and scientific acceptance remain separate gates.
 
 ## Optional live Linux topology

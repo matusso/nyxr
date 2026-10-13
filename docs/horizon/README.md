@@ -78,7 +78,7 @@ isolated Linux/proxy/NAT/firewall cases in IPv4/IPv6 under clean and netem
 conditions, with frozen thresholds, independent captures and per-run resource
 accounting. Live Linux results and negative outcomes are recorded. Controlled
 FreeBSD IPv4/IPv6 null and impairment fixtures, exploratory Windows IPv4/IPv6
-results, and a completed Windows IPv4 clean/firewall-block study are linked from
+results, and completed Windows IPv4/IPv6 clean/firewall-block studies are linked from
 the [live lab instructions](../../lab/horizon/live/README.md).
 Controlled Windows nulls, independent coverage and scientific acceptance remain
 required for #66.
