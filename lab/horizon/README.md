@@ -8,8 +8,10 @@ namespace matrix (IPv4/IPv6, null controls, proxy, IPv4 NAT, firewall and netem)
 pre-registered false-positive thresholds, independent captures, resource
 measurements and offline analysis. Its default run is a smoke test. Live
 Linux collection and exploratory repeated null trials are recorded in the
-[2026-10-10 corpus](corpus/2026-10-10-linux-arm64/RESULTS.md). Statistical
-acceptance and Windows/BSD ground truth remain separate gates.
+[2026-10-10 corpus](corpus/2026-10-10-linux-arm64/RESULTS.md). Controlled BSD
+ground truth and exploratory Windows IPv4/IPv6 evidence are documented in the
+[live lab instructions](live/README.md). Controlled Windows nulls, independent
+coverage and scientific acceptance remain separate gates.
 
 ## Optional live Linux topology
 
