@@ -78,6 +78,7 @@ func Handler(cfg ServerConfig) http.Handler {
 	api.HandleFunc("GET /api/v1/stats", s.stats)
 	api.HandleFunc("GET /api/v1/profiles", s.profiles)
 	api.HandleFunc("POST /api/v1/plan", s.plan)
+	api.HandleFunc("POST /api/v1/protocol-definitions/reload", s.reloadProtocolDefinitions)
 	api.HandleFunc("GET /api/v1/scans", s.listScans)
 	api.HandleFunc("POST /api/v1/scans", s.createScan)
 	api.HandleFunc("GET /api/v1/scans/{id}", s.getScan)
@@ -239,6 +240,30 @@ func (s *server) plan(w http.ResponseWriter, r *http.Request) {
 		plan.PCAPNG = filepath.Base(plan.PCAPNG)
 	}
 	writeJSON(w, http.StatusOK, plan)
+}
+
+func (s *server) reloadProtocolDefinitions(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.Token == "" || s.cfg.Manager == nil {
+		writeError(w, http.StatusForbidden, "protocol reload requires an authenticated operator server")
+		return
+	}
+	var request map[string]json.RawMessage
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&request); err != nil || request == nil || len(request) != 0 {
+		writeError(w, http.StatusBadRequest, "reload requires an empty JSON object")
+		return
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "reload requires exactly one empty JSON object")
+		return
+	}
+	snapshot, err := s.cfg.Manager.ReloadProtocolRegistry()
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"version": snapshot.Version, "definitions": len(snapshot.Definitions)})
 }
 
 func (s *server) createScan(w http.ResponseWriter, r *http.Request) {

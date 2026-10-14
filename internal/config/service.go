@@ -49,6 +49,7 @@ type Service struct {
 	NmapProbesFile  string
 	DefinitionFiles []string
 	Definitions     []service.ProtocolDefinition
+	RegistryVersion uint64
 }
 
 // ServicePlan summarizes the stage for --dry-run.
@@ -60,6 +61,7 @@ type ServicePlan struct {
 	Rate                int      `json:"rate"`
 	NmapProbes          string   `json:"nmap_service_probes,omitempty"`
 	ProtocolDefinitions []string `json:"protocol_definitions,omitempty"`
+	RegistryVersion     uint64   `json:"protocol_registry_version,omitempty"`
 }
 
 // Plan returns nil when the stage is disabled.
@@ -68,12 +70,13 @@ func (s Service) Plan() *ServicePlan {
 		return nil
 	}
 	return &ServicePlan{Probes: s.Probes, Fallback: s.Fallback, Timeout: s.Timeout.String(),
-		Workers: s.Workers, Rate: s.Rate, NmapProbes: s.NmapProbesFile, ProtocolDefinitions: s.DefinitionFiles}
+		Workers: s.Workers, Rate: s.Rate, NmapProbes: s.NmapProbesFile, ProtocolDefinitions: s.DefinitionFiles,
+		RegistryVersion: s.RegistryVersion}
 }
 
 // Engine converts the stage into the service package configuration.
 func (s Service) Engine() service.Config {
-	return service.Config{Probes: s.Probes, Fallback: s.Fallback, Timeout: s.Timeout, Workers: s.Workers, Rate: s.Rate, Definitions: s.Definitions}
+	return service.Config{Probes: s.Probes, Fallback: s.Fallback, Timeout: s.Timeout, Workers: s.Workers, Rate: s.Rate, Definitions: s.Definitions, RegistryVersion: s.RegistryVersion}
 }
 
 // defaultService applies when a profile without its own service settings is
@@ -153,15 +156,16 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 			if relative && absPath != absBase && !strings.HasPrefix(absPath, basePrefix) {
 				return Service{}, fmt.Errorf("protocol definition %s escapes base directory", path)
 			}
-			definition, err := service.LoadProtocolFile(absPath)
-			if err != nil {
-				return Service{}, fmt.Errorf("protocol definition %s: %w", absPath, err)
-			}
-			if definition.Transport == "tcp" && !cfg.TCP || definition.Transport == "udp" && !cfg.UDP {
-				return Service{}, fmt.Errorf("protocol definition %s requires %s scanning", absPath, definition.Transport)
-			}
 			files = append(files, absPath)
-			definitions = append(definitions, definition)
+		}
+		definitions, err = service.LoadProtocolRegistry(files)
+		if err != nil {
+			return Service{}, err
+		}
+		for _, definition := range definitions {
+			if definition.Transport == "tcp" && !cfg.TCP || definition.Transport == "udp" && !cfg.UDP {
+				return Service{}, fmt.Errorf("protocol %s requires %s scanning", definition.Name, definition.Transport)
+			}
 		}
 	}
 	if cfg.UDP && !cfg.TCP && len(definitions) == 0 {

@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"github.com/matusso/nyxr/internal/horizon/model"
 	"github.com/matusso/nyxr/internal/packetd"
 	"github.com/matusso/nyxr/internal/packetio"
+	"github.com/matusso/nyxr/internal/service"
 )
 
 func serveUsage(out io.Writer) {
@@ -35,6 +37,7 @@ Flags:
   --db file            SQLite database for scans and results (default ~/.nyxr/nyxr.db)
   --packetd socket     nyxr-packetd Unix socket for raw packet I/O
   --evidence-dir dir   directory for pcapng captures requested through the API
+  --protocol-registry files  comma-separated operator-owned protocol YAML files
   --token-file file    require this bearer token (or set NYXR_API_TOKEN)
   --max-scans int      concurrent scans (default 1)
   --allow-packet-send  enable single-frame send/resend from the web UI (requires --packetd)
@@ -57,6 +60,7 @@ func runServe(args []string, out io.Writer) error {
 	dbFlag := dbFlags{path: fs.String("db", "", "SQLite database")}
 	packetdSocket := fs.String("packetd", "", "packetd socket")
 	evidenceDir := fs.String("evidence-dir", "", "pcapng directory")
+	protocolRegistry := fs.String("protocol-registry", "", "operator-owned protocol YAML files")
 	tokenFile := fs.String("token-file", "", "bearer token file")
 	maxScans := fs.Int("max-scans", 1, "concurrent scans")
 	horizonSim := fs.String("horizon-simulate", "", "synthetic HORIZON API scenario")
@@ -139,6 +143,9 @@ func runServe(args []string, out io.Writer) error {
 	if token != "" && len(token) < 16 {
 		return errors.New("API token must be at least 16 characters")
 	}
+	if *protocolRegistry != "" && token == "" {
+		return errors.New("--protocol-registry requires --token-file or NYXR_API_TOKEN for reload authentication")
+	}
 	host, _, err := net.SplitHostPort(*listen)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
@@ -152,6 +159,25 @@ func runServe(args []string, out io.Writer) error {
 			return err
 		}
 	}
+	var registry *service.Registry
+	if *protocolRegistry != "" {
+		var paths []string
+		for _, path := range strings.Split(*protocolRegistry, ",") {
+			path = strings.TrimSpace(path)
+			if path == "" {
+				return errors.New("empty protocol registry path")
+			}
+			abs, err := filepath.Abs(path)
+			if err != nil {
+				return err
+			}
+			paths = append(paths, abs)
+		}
+		registry, err = service.NewRegistry(paths)
+		if err != nil {
+			return err
+		}
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -160,7 +186,7 @@ func runServe(args []string, out io.Writer) error {
 		return err
 	}
 	defer store.Close()
-	mcfg := api.ManagerConfig{Store: store, EvidenceDir: *evidenceDir, MaxRunning: *maxScans}
+	mcfg := api.ManagerConfig{Store: store, EvidenceDir: *evidenceDir, MaxRunning: *maxScans, ProtocolRegistry: registry}
 	if *packetdSocket != "" {
 		mcfg.OpenLive = packetd.Opener(*packetdSocket)
 	}

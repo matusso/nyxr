@@ -3,8 +3,11 @@ package service
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"strings"
 	"testing"
@@ -73,7 +76,7 @@ func TestProtocolDSLStatefulFramingBranchAndEvidence(t *testing.T) {
 
 func TestProtocolDSLRejectsUnsafeOrAmbiguousDefinitions(t *testing.T) {
 	for _, src := range []string{
-		strings.Replace(framedDSL, "schema: nyxr/protocol/v1", "schema: nyxr/protocol/v2", 1),
+		strings.Replace(framedDSL, "schema: nyxr/protocol/v1", "schema: nyxr/protocol/v3", 1),
 		strings.Replace(framedDSL, "ports: [5432]", "ports: [0]", 1),
 		strings.Replace(framedDSL, "max_bytes: 64", "max_bytes: 65536", 1),
 		strings.Replace(framedDSL, "on_match: identity", "on_match: missing", 1),
@@ -164,6 +167,28 @@ steps:
 	o := e.Interrogate(context.Background(), Target{Addr: netip.MustParseAddr("127.0.0.1"), Port: 9001})
 	if o.Service != "repeated" || o.Attributes["repeated.rounds"] != "2" || string(o.Evidence[0].Request) != "PP" || string(o.Evidence[0].Response) != "RR" {
 		t.Fatalf("repeat did not preserve state: %+v", o)
+	}
+}
+
+func TestProtocolDSLTLSFirstReusesTCPExecutor(t *testing.T) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("HELLO"))
+	}))
+	srv.StartTLS()
+	defer srv.Close()
+	port := uint16(srv.Listener.Addr().(*net.TCPAddr).Port)
+	d, err := ParseProtocol(strings.NewReader(fmt.Sprintf("schema: nyxr/protocol/v2\nprotocol: tls_first\ntransport: tcp\nports: [%d]\nsteps:\n  - tls: true\n  - send: {text: \"GET / HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\"}\n  - receive: {max_bytes: 1024}\n  - expect: {prefix: 'HTTP/1.1 200'}\n", port)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := Start(context.Background(), Config{Definitions: []ProtocolDefinition{d}, Timeout: 2 * time.Second, Workers: 1}, func(observe.Observation) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	o := e.Interrogate(context.Background(), Target{Addr: netip.MustParseAddr("127.0.0.1"), Port: port})
+	if o.Service != "tls_first" || o.TLS == nil || o.Attributes["protocol.schema"] != "nyxr/protocol/v2" || len(o.Evidence) != 1 || o.Evidence[0].Matched != "dsl/tls_first" {
+		t.Fatalf("TLS-first DSL result: %+v", o)
 	}
 }
 

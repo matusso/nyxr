@@ -1,0 +1,32 @@
+schema: nyxr/protocol-fixtures/v1
+provenance: Synthetic frame responses authored for issue 79; no live target or production corpus.
+cases:
+  - name: matched
+    kind: positive
+    protocol: demo_frame
+    exchanges:
+      - {request_hex: '50494e47', response_hex: '00064f4b7631'}
+    service: demo_frame
+    fields: {demo.version: '1', protocol.schema: nyxr/protocol/v2}
+    confidence_min: 1
+  - name: different-magic
+    kind: negative
+    protocol: demo_frame
+    exchanges:
+      - {request_hex: '50494e47', response_hex: '00064e4f7631'}
+    service: ''
+  - name: short-frame
+    kind: truncated
+    protocol: demo_frame
+    exchanges:
+      - {request_hex: '50494e47', response_hex: '00064f4b'}
+    service: ''
+    error: true
+  - name: extra-trailing-bytes
+    kind: noisy
+    protocol: demo_frame
+    exchanges:
+      - {request_hex: '50494e47', response_hex: '00084f4b76310d0a'}
+    service: demo_frame
+    fields: {demo.version: '1'}
+    confidence_min: 1

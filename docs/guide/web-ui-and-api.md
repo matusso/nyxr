@@ -178,6 +178,7 @@ trails are planned; see the [Roadmap](../roadmap.md#phase-9--enterprise-hardenin
 | `--max-scans` | 1 | Concurrent scans |
 | `--evidence-dir` | | Directory for API pcapng captures |
 | `--packetd` | | nyxr-packetd socket for raw scans, capture and live packets |
+| `--protocol-registry` | | Operator-selected protocol definition files; `POST /api/v1/protocol-definitions/reload` with `{}` validates and publishes a new version for future scans |
 | `--allow-packet-send` | off | Enable frame transmission from the packets page |
 | `--allow-privileged` | off | Allow running as root or with raw-socket capabilities |
 

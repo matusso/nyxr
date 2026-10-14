@@ -8,9 +8,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"fmt"
 	"math/big"
 	"net"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,8 +39,11 @@ func TestDTLSProbe(t *testing.T) {
 	}
 	defer listener.Close()
 	go func() {
-		conn, acceptErr := listener.Accept()
-		if acceptErr == nil {
+		for i := 0; i < 2; i++ {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
 			_ = conn.(*dtls.Conn).HandshakeContext(context.Background())
 			_ = conn.Close()
 		}
@@ -51,5 +56,14 @@ func TestDTLSProbe(t *testing.T) {
 	}
 	if o.TLS == nil || len(o.TLS.Certificates) != 1 || o.TLS.Certificates[0].Subject == "" {
 		t.Fatalf("DTLS certificate: %+v", o.TLS)
+	}
+	d, err := ParseProtocol(strings.NewReader(fmt.Sprintf("schema: nyxr/protocol/v2\nprotocol: dtls\ntransport: udp\nports: [%d]\nsteps:\n  - dtls: true\n", port)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e = &Engine{cfg: Config{Timeout: 3 * time.Second, Definitions: []ProtocolDefinition{d}}, pacer: newPacer(0), enabled: map[string]bool{}}
+	o = e.Interrogate(context.Background(), Target{Addr: netip.MustParseAddr("127.0.0.1"), Port: port, Transport: "udp", State: "open|filtered"})
+	if o.Service != "dtls" || o.Attributes["protocol.schema"] != "nyxr/protocol/v2" || o.TLS == nil || o.Evidence[0].Matched != "dsl/dtls" {
+		t.Fatalf("DTLS DSL adapter: %+v", o)
 	}
 }

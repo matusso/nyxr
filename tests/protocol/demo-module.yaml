@@ -1,0 +1,8 @@
+schema: nyxr/protocol/v2
+module: demo-frame
+provenance: Synthetic framing helper authored for issue 79.
+steps:
+  - send: {text: PING}
+  - receive:
+      max_bytes: 64
+      length: {offset: 0, bytes: 2, order: big, add: -2}

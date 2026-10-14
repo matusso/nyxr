@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/binary"
@@ -23,19 +24,25 @@ import (
 // ProtocolDefinition is an immutable, validated nyxr/protocol/v1 state machine.
 // A definition is loaded for each scan, so editing a file needs no rebuild.
 type ProtocolDefinition struct {
-	Name, Transport string
-	Ports           []uint16
-	Timeout         time.Duration
-	steps           []protocolStep
+	Name, Transport, Schema  string
+	Provenance, SourceSHA256 string
+	Ports                    []uint16
+	Timeout                  time.Duration
+	steps                    []protocolStep
 }
 
 type protocolDocument struct {
-	Schema    string         `yaml:"schema"`
-	Protocol  string         `yaml:"protocol"`
-	Transport string         `yaml:"transport"`
-	Ports     []uint16       `yaml:"ports"`
-	Timeout   string         `yaml:"timeout"`
-	Steps     []protocolStep `yaml:"steps"`
+	Schema     string         `yaml:"schema"`
+	Protocol   string         `yaml:"protocol"`
+	Module     string         `yaml:"module"`
+	Extends    string         `yaml:"extends"`
+	Modules    []string       `yaml:"modules"`
+	Transport  string         `yaml:"transport"`
+	Ports      []uint16       `yaml:"ports"`
+	Timeout    string         `yaml:"timeout"`
+	Provenance string         `yaml:"provenance"`
+	Steps      []protocolStep `yaml:"steps"`
+	sourceHash string
 }
 
 type payloadSpec struct {
@@ -55,6 +62,7 @@ type lengthSpec struct {
 	Offset int    `yaml:"offset"`
 	Bytes  int    `yaml:"bytes"`
 	Order  string `yaml:"order"`
+	Add    *int   `yaml:"add"`
 }
 
 type receiveSpec struct {
@@ -73,6 +81,9 @@ type protocolStep struct {
 	Receive  *receiveSpec      `yaml:"receive"`
 	Expect   *expectSpec       `yaml:"expect"`
 	StartTLS bool              `yaml:"start_tls"`
+	TLS      bool              `yaml:"tls"`
+	DTLS     bool              `yaml:"dtls"`
+	QUIC     bool              `yaml:"quic"`
 	Extract  map[string]string `yaml:"extract"`
 	Set      map[string]string `yaml:"set"`
 	Repeat   *repeatSpec       `yaml:"repeat"`
@@ -101,18 +112,49 @@ func LoadProtocolFile(path string) (ProtocolDefinition, error) {
 }
 
 func ParseProtocol(r io.Reader) (ProtocolDefinition, error) {
+	d, err := decodeProtocol(r)
+	if err != nil {
+		return ProtocolDefinition{}, err
+	}
+	if d.Extends != "" || len(d.Modules) != 0 || d.Module != "" {
+		return ProtocolDefinition{}, errors.New("protocol dependencies require a registry")
+	}
+	return compileProtocol(d)
+}
+
+func decodeProtocol(r io.Reader) (protocolDocument, error) {
 	var d protocolDocument
-	dec := yaml.NewDecoder(io.LimitReader(r, 1<<20+1))
+	data, err := io.ReadAll(io.LimitReader(r, 1<<20+1))
+	if err != nil {
+		return protocolDocument{}, err
+	}
+	if len(data) > 1<<20 {
+		return protocolDocument{}, errors.New("protocol definition exceeds 1 MiB")
+	}
+	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(&d); err != nil {
-		return ProtocolDefinition{}, err
+		return protocolDocument{}, err
 	}
 	var extra any
 	if err := dec.Decode(&extra); err != io.EOF {
-		return ProtocolDefinition{}, errors.New("protocol file must contain exactly one YAML document")
+		return protocolDocument{}, errors.New("protocol file must contain exactly one YAML document")
 	}
-	if d.Schema != "nyxr/protocol/v1" || !regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`).MatchString(d.Protocol) {
-		return ProtocolDefinition{}, errors.New("protocol requires schema nyxr/protocol/v1 and a lowercase name")
+	d.sourceHash = fmt.Sprintf("%x", sha256.Sum256(data))
+	return d, nil
+}
+
+var protocolNameRE = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
+
+func compileProtocol(d protocolDocument) (ProtocolDefinition, error) {
+	if (d.Schema != "nyxr/protocol/v1" && d.Schema != "nyxr/protocol/v2") || !protocolNameRE.MatchString(d.Protocol) {
+		return ProtocolDefinition{}, errors.New("protocol requires schema nyxr/protocol/v1 or nyxr/protocol/v2 and a lowercase name")
+	}
+	if d.Schema == "nyxr/protocol/v1" && (d.Extends != "" || len(d.Modules) != 0 || d.Module != "") {
+		return ProtocolDefinition{}, errors.New("v1 does not support inheritance or modules")
+	}
+	if len(d.Provenance) > 256 {
+		return ProtocolDefinition{}, errors.New("protocol provenance exceeds 256 bytes")
 	}
 	if d.Transport != "tcp" && d.Transport != "udp" {
 		return ProtocolDefinition{}, errors.New("protocol transport must be tcp or udp")
@@ -146,13 +188,31 @@ func ParseProtocol(r io.Reader) (ProtocolDefinition, error) {
 			labels[s.Label] = i + 1
 		}
 		actions := 0
-		for _, active := range []bool{s.Send != nil, s.Receive != nil, s.Expect != nil, s.StartTLS, s.Extract != nil, s.Set != nil, s.Repeat != nil} {
+		for _, active := range []bool{s.Send != nil, s.Receive != nil, s.Expect != nil, s.StartTLS, s.TLS, s.DTLS, s.QUIC, s.Extract != nil, s.Set != nil, s.Repeat != nil} {
 			if active {
 				actions++
 			}
 		}
 		if actions != 1 {
 			return ProtocolDefinition{}, fmt.Errorf("step %d requires exactly one action", i+1)
+		}
+		if d.Schema == "nyxr/protocol/v1" && (s.TLS || s.DTLS || s.QUIC) {
+			return ProtocolDefinition{}, fmt.Errorf("step %d: transport actions require v2", i+1)
+		}
+		if s.TLS && d.Transport != "tcp" || (s.DTLS || s.QUIC) && d.Transport != "udp" {
+			return ProtocolDefinition{}, fmt.Errorf("step %d: transport action does not match %s", i+1, d.Transport)
+		}
+		if s.TLS && i != 0 {
+			return ProtocolDefinition{}, fmt.Errorf("step %d: tls must be the first step", i+1)
+		}
+		if s.DTLS || s.QUIC {
+			if len(d.Steps) != 1 {
+				return ProtocolDefinition{}, fmt.Errorf("step %d: dtls/quic must be the only step", i+1)
+			}
+			if s.DTLS && d.Protocol != "dtls" || s.QUIC && d.Protocol != "quic" {
+				return ProtocolDefinition{}, fmt.Errorf("step %d: native transport identity must be named dtls or quic", i+1)
+			}
+			hasExpect = true // the native handshake supplies observed identity
 		}
 		if s.Send != nil {
 			var err error
@@ -167,6 +227,11 @@ func ParseProtocol(r io.Reader) (ProtocolDefinition, error) {
 			}
 			if l := s.Receive.Length; l != nil && (l.Bytes != 1 && l.Bytes != 2 && l.Bytes != 4 || l.Offset < 0 || l.Offset+l.Bytes > s.Receive.MaxBytes || l.Order != "big" && l.Order != "little") {
 				return ProtocolDefinition{}, fmt.Errorf("step %d: invalid length field", i+1)
+			}
+			if l := s.Receive.Length; l != nil && l.Add != nil {
+				if d.Schema != "nyxr/protocol/v2" || *l.Add < -4096 || *l.Add > 4096 {
+					return ProtocolDefinition{}, fmt.Errorf("step %d: invalid v2 length arithmetic", i+1)
+				}
 			}
 		}
 		if s.StartTLS && d.Transport != "tcp" {
@@ -225,7 +290,8 @@ func ParseProtocol(r io.Reader) (ProtocolDefinition, error) {
 			return ProtocolDefinition{}, fmt.Errorf("step %d: repeat requires an earlier label and count 2..4", i+1)
 		}
 	}
-	return ProtocolDefinition{Name: d.Protocol, Transport: d.Transport, Ports: d.Ports, Timeout: timeout, steps: d.Steps}, nil
+	return ProtocolDefinition{Name: d.Protocol, Transport: d.Transport, Schema: d.Schema, Provenance: d.Provenance,
+		SourceSHA256: d.sourceHash, Ports: d.Ports, Timeout: timeout, steps: d.Steps}, nil
 }
 
 func decodePayload(p payloadSpec) ([]byte, error) {
@@ -297,6 +363,23 @@ func (s protocolStep) matches(response []byte) bool {
 
 func (e *Engine) probeProtocol(ctx context.Context, t Target, d ProtocolDefinition, o *observe.Observation) bool {
 	name := "dsl/" + d.Name
+	if len(d.steps) == 1 && (d.steps[0].DTLS || d.steps[0].QUIC) {
+		probeCtx, cancel := context.WithTimeout(ctx, min(e.cfg.Timeout, d.Timeout))
+		defer cancel()
+		firstEvidence := len(o.Evidence)
+		matched := false
+		if d.steps[0].DTLS {
+			matched = e.probeDTLS(probeCtx, t, o)
+		} else {
+			matched = e.probeQUIC(probeCtx, t, o)
+		}
+		if matched {
+			o.Probe = name
+			o.Evidence[firstEvidence].Matched = name
+			e.protocolMetadata(d, o)
+		}
+		return matched
+	}
 	limit := min(e.cfg.Timeout, d.Timeout)
 	ev := observe.Evidence{Probe: name, Layer: d.Transport, Started: time.Now().UTC()}
 	if err := e.pacer.wait(ctx); err != nil {
@@ -339,7 +422,7 @@ func (e *Engine) probeProtocol(ctx context.Context, t Target, d ProtocolDefiniti
 			_, err = writeProtocol(active, s.data)
 		case s.Receive != nil:
 			last, err = receiveProtocol(active, s.Receive)
-			if len(last) > 0 && (errors.Is(err, os.ErrDeadlineExceeded) || errors.Is(err, io.EOF)) {
+			if s.Receive.Length == nil && len(last) > 0 && (errors.Is(err, os.ErrDeadlineExceeded) || errors.Is(err, io.EOF)) {
 				err = nil
 			}
 			_ = active.SetReadDeadline(end)
@@ -349,7 +432,14 @@ func (e *Engine) probeProtocol(ctx context.Context, t Target, d ProtocolDefiniti
 				break
 			}
 			tc := tls.Client(active, &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS10}) // identify peer; do not assert trust
-			err = tc.HandshakeContext(ctx)
+			err = tc.HandshakeContext(dctx)
+			if err == nil {
+				o.TLS = summarizeTLS(tc.ConnectionState())
+				active = tc
+			}
+		case s.TLS:
+			tc := tls.Client(active, &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS10}) // discovery records identity, not trust
+			err = tc.HandshakeContext(dctx)
 			if err == nil {
 				o.TLS = summarizeTLS(tc.ConnectionState())
 				active = tc
@@ -407,9 +497,26 @@ func (e *Engine) probeProtocol(ctx context.Context, t Target, d ProtocolDefiniti
 	if matched && err == nil {
 		ev.Matched = name
 		o.Service, o.Probe, o.Reason = d.Name, name, "protocol DSL response matched"
+		e.protocolMetadata(d, o)
 	}
 	o.Evidence = append(o.Evidence, ev)
 	return matched && err == nil
+}
+
+func (e *Engine) protocolMetadata(d ProtocolDefinition, o *observe.Observation) {
+	if o.Attributes == nil {
+		o.Attributes = map[string]string{}
+	}
+	o.Attributes["protocol.schema"] = d.Schema
+	if d.SourceSHA256 != "" {
+		o.Attributes["protocol.definition_sha256"] = d.SourceSHA256
+	}
+	if d.Provenance != "" {
+		o.Attributes["protocol.provenance"] = d.Provenance
+	}
+	if e.cfg.RegistryVersion != 0 {
+		o.Attributes["protocol.registry_version"] = fmt.Sprint(e.cfg.RegistryVersion)
+	}
 }
 
 func writeProtocol(c net.Conn, data []byte) (int, error) {
@@ -433,8 +540,8 @@ func receiveProtocol(c net.Conn, s *receiveSpec) ([]byte, error) {
 	}
 	l := s.Length
 	head := make([]byte, l.Offset+l.Bytes)
-	if _, err := io.ReadFull(c, head); err != nil {
-		return head, err
+	if n, err := io.ReadFull(c, head); err != nil {
+		return head[:n], err
 	}
 	var n uint32
 	b := head[l.Offset:]
@@ -457,11 +564,15 @@ func receiveProtocol(c net.Conn, s *receiveSpec) ([]byte, error) {
 			n = binary.BigEndian.Uint32(b)
 		}
 	}
-	if n > uint32(s.MaxBytes-len(head)) {
+	wanted := int64(n)
+	if l.Add != nil {
+		wanted += int64(*l.Add)
+	}
+	if wanted < 0 || wanted > int64(s.MaxBytes-len(head)) {
 		return head, errors.New("response length exceeds protocol limit")
 	}
-	frame := make([]byte, len(head)+int(n))
+	frame := make([]byte, len(head)+int(wanted))
 	copy(frame, head)
-	_, err := io.ReadFull(c, frame[len(head):])
-	return frame, err
+	nread, err := io.ReadFull(c, frame[len(head):])
+	return frame[:len(head)+nread], err
 }
