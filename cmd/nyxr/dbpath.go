@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -79,7 +80,9 @@ func openStore(ctx context.Context, path string) (*storage.Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	store, err := storage.Open(ctx, path)
+	store, err := storage.OpenNotify(ctx, path, func(from, to int) {
+		fmt.Fprintf(os.Stderr, "nyxr: upgrading %s from schema %d to %d; this one-time step can take minutes on a large database, do not interrupt\n", path, from, to)
+	})
 	if err != nil {
 		return nil, err
 	}

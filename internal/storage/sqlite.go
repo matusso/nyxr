@@ -240,6 +240,13 @@ type Store struct{ db *sql.DB }
 
 // Open creates or upgrades the database at path.
 func Open(ctx context.Context, path string) (*Store, error) {
+	return OpenNotify(ctx, path, nil)
+}
+
+// OpenNotify is Open with a callback invoked before an existing database is
+// upgraded. Upgrades backfill every stored observation, which can take
+// minutes on a large database.
+func OpenNotify(ctx context.Context, path string, upgrading func(from, to int)) (*Store, error) {
 	if path == "" || strings.ContainsAny(path, "?#") {
 		return nil, errors.New("database path is required and must not contain '?' or '#'")
 	}
@@ -252,7 +259,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		return nil, err
 	}
 	s := &Store{db: db}
-	if err := s.migrate(ctx); err != nil {
+	if err := s.migrate(ctx, upgrading); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -268,7 +275,7 @@ func (s *Store) SchemaVersion(ctx context.Context) (int, error) {
 	return v, err
 }
 
-func (s *Store) migrate(ctx context.Context) error {
+func (s *Store) migrate(ctx context.Context, upgrading func(from, to int)) error {
 	if _, err := s.db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -278,6 +285,9 @@ func (s *Store) migrate(ctx context.Context) error {
 	}
 	if current > len(migrations) {
 		return fmt.Errorf("database schema version %d is newer than this nyxr (%d)", current, len(migrations))
+	}
+	if upgrading != nil && current > 0 && current < len(migrations) {
+		upgrading(current, len(migrations))
 	}
 	for v := current + 1; v <= len(migrations); v++ {
 		tx, err := s.db.BeginTx(ctx, nil)
