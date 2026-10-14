@@ -181,6 +181,9 @@ Query and maintain the scan database.
 | `--identities` | Correlated asset IDs, addresses and identity evidence |
 | `--identity-events` | Durable membership changes; accepts `--address IP` |
 | `--topology` | LLDP neighbors imported from captures |
+| `--topology-timeline` | Versioned address/interface/VLAN sightings and TTL-bounded LLDP adjacency; `--limit` bounds results |
+| `--topology-review FILE` | Record one reviewed interface assignment or separation from JSON |
+| `--at RFC3339` | With `--topology-timeline`, show claims valid at one instant |
 | `--import-pcap FILE` | Import passive sightings from pcap or pcapng |
 | `--capture-interface NAME` | Label the interface for `--import-pcap` |
 | `--import-identifiers FILE` | Import scoped Kubernetes/cloud identifiers from a JSON array |

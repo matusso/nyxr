@@ -619,7 +619,7 @@ async function assetsPage() {
 async function identitiesPage() {
   const [graph, relations, reviews, events, topology] = await Promise.all([
     api("/assets/identities"), api("/assets/identity-relations"),
-    api("/assets/identity-reviews"), api("/assets/identity-events"), api("/assets/topology")]);
+    api("/assets/identity-reviews"), api("/assets/identity-events"), api("/assets/topology/timeline?limit=100")]);
   const rows = graph.map(asset => h("tr", {},
     h("td", {}, h("strong", {}, asset.id), h("small", {}, asset.global_id)),
     h("td", {}, asset.addresses.map(a => a.address).join(", ")),
@@ -647,6 +647,33 @@ async function identitiesPage() {
   } }, h("label", {}, "First address"), a, h("label", {}, "Second address"), b,
   h("label", {}, "Decision"), decision, h("label", {}, "Reason"), note,
   h("div", { class: "actions" }, h("button", { type: "submit", disabled: addresses.length < 2 }, "Record review"), message));
+  const interfaceIDs = [...new Set(topology.claims.map(c => c.interface_id))].sort();
+  const topologyAddress = addressSelect();
+  const topologyInterface = h("select", {}, interfaceIDs.map(id => h("option", { value: id }, id)));
+  const topologyDecision = h("select", {}, ["join", "separate"].map(v => h("option", { value: v }, v)));
+  const topologyVLAN = h("input", { type: "number", min: "0", max: "4094", value: "0" });
+  const localStamp = date => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const topologyFrom = h("input", { type: "datetime-local", value: localStamp(new Date()), required: true });
+  const topologyUntil = h("input", { type: "datetime-local", value: localStamp(new Date(Date.now() + 3600000)), required: true });
+  const topologyNote = h("input", { type: "text", maxlength: "500", placeholder: "Evidence and reason", required: true });
+  const topologyMessage = h("span", { class: "muted" });
+  const topologyForm = h("form", { class: "grid", onsubmit: async ev => {
+    ev.preventDefault();
+    topologyMessage.textContent = "Saving…";
+    try {
+      await api("/assets/topology/reviews", { body: {
+        address: topologyAddress.value, interface_id: topologyInterface.value,
+        decision: topologyDecision.value, vlan_id: Number(topologyVLAN.value),
+        valid_from: new Date(topologyFrom.value).toISOString(),
+        valid_until: new Date(topologyUntil.value).toISOString(), note: topologyNote.value,
+      } });
+      await route();
+    } catch (error) { topologyMessage.textContent = error.message; }
+  } }, h("label", {}, "Address"), topologyAddress, h("label", {}, "Observed interface"), topologyInterface,
+  h("label", {}, "Decision"), topologyDecision, h("label", {}, "VLAN (0 if unspecified)"), topologyVLAN,
+  h("label", {}, "Valid from"), topologyFrom, h("label", {}, "Valid until"), topologyUntil,
+  h("label", {}, "Evidence and reason"), topologyNote,
+  h("div", { class: "actions" }, h("button", { type: "submit", disabled: !interfaceIDs.length }, "Record topology review"), topologyMessage));
   return [h("h1", {}, `Asset identities (${graph.length})`),
     h("p", { class: "muted" }, "Addresses join only when a device-scoped signal matches. Open the scan history to inspect the source observations."),
     h("p", { class: "muted" }, "Link and candidate scores are rule heuristics, not calibrated probabilities. Shared certificate and name clues count once; conflicting strong evidence blocks a candidate."),
@@ -657,10 +684,29 @@ async function identitiesPage() {
     h("h2", {}, "Shared clues"), relations.length ? table(["identity", "related identity", "clue", "value"],
       relations.map(r => h("tr", {}, h("td", {}, r.left_id), h("td", {}, r.right_id), h("td", {}, r.kind), h("td", {}, r.value))))
       : h("p", { class: "muted" }, "No shared identity clues."),
-    h("h2", {}, "LLDP neighbors"), topology.length ? table(["capture interface", "VLAN", "chassis", "port", "management address", "identity"],
-      topology.slice(0, 100).map(link => h("tr", {}, h("td", {}, link.local_interface || "-"), h("td", {}, link.vlan_id || "-"),
-        h("td", {}, link.chassis_id), h("td", {}, link.port_id), h("td", {}, link.management_address || "-"),
-        h("td", {}, link.identity_id || "-")))) : h("p", { class: "muted" }, "No LLDP neighbors imported."),
+    h("h2", {}, "Temporal topology"),
+    h("p", { class: "muted" }, "Address and VLAN sightings are proven at the packet time only. LLDP links expire at their advertised TTL. Earlier unobserved ownership is unknown; conflicting claims stay separate."),
+    topology.claims.length ? table(["observed", "interface", "address", "VLAN", "identity then", "evidence", "status"],
+      topology.claims.map(claim => h("tr", {}, h("td", {}, fmtTime(claim.valid_from)),
+        h("td", {}, claim.interface_id), h("td", {}, claim.address), h("td", {}, claim.vlan_id || "-"),
+        h("td", {}, claim.identity_id || "unknown"), h("td", {}, claim.source.artifactID),
+        h("td", {}, claim.overridden ? "reviewed separation" : claim.conflict ? "conflict" : claim.validity))))
+      : h("p", { class: "muted" }, "No address/interface sightings retained."),
+    h("h2", {}, "Review interface membership"), topologyForm,
+    h("p", { class: "muted" }, "A reviewed join or separation has a finite valid interval. It does not merge device identities or erase packet evidence."),
+    topology.reviews.length ? table(["valid from", "valid until", "address", "interface", "VLAN", "decision", "reason", "status"],
+      topology.reviews.map(r => h("tr", {}, h("td", {}, fmtTime(r.valid_from)), h("td", {}, fmtTime(r.valid_until)),
+        h("td", {}, r.address), h("td", {}, r.interface_id), h("td", {}, r.vlan_id || "-"),
+        h("td", {}, r.decision), h("td", {}, r.note), h("td", {}, r.conflict ? "conflict" : "reviewed"))))
+      : h("p", { class: "muted" }, "No interface membership reviews yet."),
+    h("h2", {}, "LLDP neighbors"), topology.adjacencies.length ? table(["observed", "valid until", "capture interface", "VLAN", "chassis", "port", "management address", "identity then", "evidence"],
+      topology.adjacencies.map(link => h("tr", {}, h("td", {}, fmtTime(link.observed_at)),
+        h("td", {}, fmtTime(link.valid_until)), h("td", {}, link.local_interface || "unknown"),
+        h("td", {}, link.vlan_id || "-"), h("td", {}, link.chassis_id), h("td", {}, link.port_id),
+        h("td", {}, link.management_address || "-"), h("td", {}, link.identity_id || "unknown"),
+        h("td", {}, link.conflict ? "conflict · " + link.evidence_status : link.evidence_status))))
+      : h("p", { class: "muted" }, "No LLDP neighbors retained."),
+    topology.truncated ? h("p", { class: "muted" }, "Showing the newest 100 sightings. Use the API or CLI to inspect more.") : null,
     h("h2", {}, "Membership changes"), events.length ? table(["address", "from", "to", "cause", "time"],
       events.slice(-50).reverse().map(e => h("tr", {}, h("td", {}, e.address), h("td", {}, e.from_identity || "-"),
         h("td", {}, e.to_identity || "-"), h("td", {}, e.cause), h("td", {}, fmtTime(e.recorded_at)))))

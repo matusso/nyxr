@@ -191,6 +191,48 @@ var migrations = []string{
 	);
 	CREATE INDEX observation_sources_artifact ON observation_sources(artifact_id);
 	ALTER TABLE packet_flows ADD COLUMN capture_artifact_id TEXT NOT NULL DEFAULT '';`,
+	`CREATE TABLE topology_claims (
+		observation_id INTEGER PRIMARY KEY REFERENCES observations(id) ON DELETE CASCADE,
+		scan_id TEXT NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+		observed_at TEXT NOT NULL,
+		interface_id TEXT NOT NULL,
+		address TEXT NOT NULL,
+		vlan_id INTEGER NOT NULL DEFAULT 0,
+		source_artifact_id TEXT NOT NULL,
+		source_kind TEXT NOT NULL
+	);
+	CREATE INDEX topology_claims_time ON topology_claims(observed_at, observation_id);
+	CREATE INDEX topology_claims_address ON topology_claims(address, observed_at);
+	CREATE INDEX topology_claims_interface ON topology_claims(interface_id);
+	CREATE INDEX IF NOT EXISTS identity_membership_events_valid_time ON identity_membership_events(address, observed_at, id);
+	ALTER TABLE passive_links ADD COLUMN ttl_seconds INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE passive_links ADD COLUMN frame_index INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE passive_links ADD COLUMN frame_hash TEXT NOT NULL DEFAULT '';
+	ALTER TABLE passive_links ADD COLUMN valid_until TEXT NOT NULL DEFAULT '';
+	ALTER TABLE passive_links ADD COLUMN source_artifact_id TEXT NOT NULL DEFAULT '';
+	UPDATE passive_links SET valid_until = observed_at;
+	CREATE TABLE passive_link_sources (
+		link_id INTEGER PRIMARY KEY REFERENCES passive_links(id) ON DELETE CASCADE,
+		artifact_id TEXT NOT NULL,
+		source BLOB NOT NULL
+	);
+	CREATE INDEX passive_link_sources_artifact ON passive_link_sources(artifact_id);`,
+	`CREATE TABLE topology_reviews (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		address TEXT NOT NULL,
+		interface_id TEXT NOT NULL,
+		vlan_id INTEGER NOT NULL DEFAULT 0,
+		decision TEXT NOT NULL CHECK(decision IN ('join', 'separate')),
+		valid_from TEXT NOT NULL,
+		valid_until TEXT NOT NULL,
+		note TEXT NOT NULL,
+		decided_at TEXT NOT NULL,
+		source_artifact_id TEXT NOT NULL,
+		source BLOB NOT NULL,
+		CHECK(valid_from < valid_until)
+	);
+	CREATE INDEX topology_reviews_time ON topology_reviews(valid_from, valid_until, id);
+	CREATE INDEX topology_reviews_address ON topology_reviews(address, valid_from);`,
 }
 
 // Store is safe for concurrent use.
@@ -263,6 +305,12 @@ func (s *Store) migrate(ctx context.Context) error {
 			if err := backfillSources(ctx, tx); err != nil {
 				_ = tx.Rollback()
 				return fmt.Errorf("migration %d sources: %w", v, err)
+			}
+		}
+		if v == 8 {
+			if err := backfillTopologyClaims(ctx, tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("migration %d topology backfill: %w", v, err)
 			}
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)`, v, ts(time.Now())); err != nil {
@@ -367,6 +415,9 @@ func (s *Store) AddObservations(ctx context.Context, batch []observe.Observation
 			return err
 		}
 		if err := storeIdentityClues(ctx, tx, id, assetID, o); err != nil {
+			return err
+		}
+		if err := storeTopologyClaim(ctx, tx, id, o); err != nil {
 			return err
 		}
 		for i, ev := range o.Evidence {

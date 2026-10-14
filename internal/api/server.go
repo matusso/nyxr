@@ -94,6 +94,8 @@ func Handler(cfg ServerConfig) http.Handler {
 	api.HandleFunc("GET /api/v1/assets/identity-reviews", s.identityReviews)
 	api.HandleFunc("POST /api/v1/assets/identity-reviews", s.reviewIdentity)
 	api.HandleFunc("GET /api/v1/assets/topology", s.topology)
+	api.HandleFunc("GET /api/v1/assets/topology/timeline", s.topologyTimeline)
+	api.HandleFunc("POST /api/v1/assets/topology/reviews", s.reviewTopology)
 	api.HandleFunc("GET /api/v1/observations", s.observations)
 	api.HandleFunc("POST /api/v1/evidence/resolve", s.resolveSource)
 	api.HandleFunc("GET /api/v1/packets/watch", s.watchPackets)
@@ -587,6 +589,54 @@ func (s *server) topology(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, links)
+}
+
+func (s *server) topologyTimeline(w http.ResponseWriter, r *http.Request) {
+	limit := 500
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 1000 {
+			writeError(w, http.StatusBadRequest, "limit must be 1..1000")
+			return
+		}
+		limit = parsed
+	}
+	var at time.Time
+	if raw := r.URL.Query().Get("at"); raw != "" {
+		var err error
+		at, err = time.Parse(time.RFC3339Nano, raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "at must be RFC3339 time")
+			return
+		}
+	}
+	timeline, err := s.cfg.Store.TopologyTimeline(r.Context(), limit, at)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, timeline)
+}
+
+func (s *server) reviewTopology(w http.ResponseWriter, r *http.Request) {
+	var input storage.TopologyReviewInput
+	decoder := json.NewDecoder(io.LimitReader(r.Body, 4096))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid topology review JSON")
+		return
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "one topology review is required")
+		return
+	}
+	review, err := s.cfg.Store.ReviewTopology(r.Context(), input)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, review)
 }
 
 // scanEvents streams Server-Sent Events: buffered history first, then live

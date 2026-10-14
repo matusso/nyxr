@@ -196,6 +196,9 @@ Flags:
   --identities         group addresses by strong device identity signals
   --identity-events    show the durable address membership audit
   --topology           show LLDP neighbors from imported captures
+  --topology-timeline  show observed interface/address/VLAN and LLDP valid time
+  --at RFC3339         with --topology-timeline, claims valid at this instant
+  --topology-review file  record one reviewed interface assignment (JSON)
   --import-pcap file   import passive sightings from pcap or pcapng
   --import-identifiers file  import scoped Kubernetes/cloud inventory IDs (JSON)
   --kube-api url       collect node UIDs and addresses from a Kubernetes API
@@ -224,6 +227,9 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 	identitiesFlag := fs.Bool("identities", false, "list correlated asset identities")
 	eventsFlag := fs.Bool("identity-events", false, "list identity membership events")
 	topologyFlag := fs.Bool("topology", false, "list passive LLDP neighbors")
+	timelineFlag := fs.Bool("topology-timeline", false, "list temporal topology evidence")
+	atFlag := fs.String("at", "", "topology valid-time instant (RFC3339)")
+	topologyReviewFlag := fs.String("topology-review", "", "record reviewed interface assignment JSON")
 	importFlag := fs.String("import-pcap", "", "import passive pcap or pcapng")
 	identifiersFlag := fs.String("import-identifiers", "", "import scoped inventory identifiers")
 	kubeAPIFlag := fs.String("kube-api", "", "Kubernetes API HTTPS origin")
@@ -247,6 +253,9 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 	}
 	if fs.NArg() != 0 {
 		return errors.New("history takes no positional arguments")
+	}
+	if *atFlag != "" && !*timelineFlag {
+		return errors.New("--at requires --topology-timeline")
 	}
 	if (*importFlag != "" && (*identifiersFlag != "" || *kubeAPIFlag != "")) || (*identifiersFlag != "" && *kubeAPIFlag != "") {
 		return errors.New("choose one import source")
@@ -274,6 +283,31 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 	enc := json.NewEncoder(out)
 
 	switch {
+	case *topologyReviewFlag != "":
+		file, err := os.Open(*topologyReviewFlag)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		decoder := json.NewDecoder(io.LimitReader(file, 4096))
+		decoder.DisallowUnknownFields()
+		var input storage.TopologyReviewInput
+		if err := decoder.Decode(&input); err != nil {
+			return fmt.Errorf("topology review file: %w", err)
+		}
+		var trailing any
+		if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+			return errors.New("topology review file must contain one JSON object")
+		}
+		review, err := store.ReviewTopology(ctx, input)
+		if err != nil {
+			return err
+		}
+		if *jsonFlag {
+			return enc.Encode(review)
+		}
+		_, err = fmt.Fprintf(out, "recorded topology review %d\n", review.ID)
+		return err
 	case *kubeAPIFlag != "":
 		identifiers, err := collectKubernetesNodes(ctx, *kubeAPIFlag, *kubeTokenFlag, *kubeCAFlag, *kubeScopeFlag)
 		if err != nil {
@@ -352,6 +386,44 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 		rows := [][]string{header(style, "INTERFACE", "VLAN", "CHASSIS", "PORT", "ADDRESS", "IDENTITY")}
 		for _, link := range links {
 			rows = append(rows, []string{link.LocalInterface, fmt.Sprint(link.VLANID), link.ChassisID, link.PortID, link.ManagementAddress, link.IdentityID})
+		}
+		return style.Table(out, rows)
+	case *timelineFlag:
+		if *limitFlag < 1 || *limitFlag > 1000 {
+			return errors.New("topology timeline limit must be 1..1000")
+		}
+		var at time.Time
+		if *atFlag != "" {
+			at, err = time.Parse(time.RFC3339Nano, *atFlag)
+			if err != nil {
+				return fmt.Errorf("at must be RFC3339 time: %w", err)
+			}
+		}
+		timeline, err := store.TopologyTimeline(ctx, *limitFlag, at)
+		if err != nil {
+			return err
+		}
+		if *jsonFlag {
+			return enc.Encode(timeline)
+		}
+		rows := [][]string{header(style, "TIME", "KIND", "INTERFACE", "ADDRESS/CHASSIS", "VLAN", "IDENTITY", "VALID UNTIL")}
+		for _, claim := range timeline.Claims {
+			label := "address"
+			if claim.Conflict {
+				label = "conflict"
+			}
+			rows = append(rows, []string{claim.ValidFrom.Format(time.RFC3339), label, claim.InterfaceID,
+				claim.Address, fmt.Sprint(claim.VLANID), claim.IdentityID, claim.ValidUntil.Format(time.RFC3339)})
+		}
+		for _, link := range timeline.Adjacencies {
+			rows = append(rows, []string{link.ObservedAt.Format(time.RFC3339), "LLDP", link.LocalInterface,
+				link.ChassisID + "/" + link.PortID, fmt.Sprint(link.VLANID), link.IdentityID,
+				link.ValidUntil.Format(time.RFC3339)})
+		}
+		for _, review := range timeline.Reviews {
+			rows = append(rows, []string{review.ValidFrom.Format(time.RFC3339), "manual " + review.Decision,
+				review.InterfaceID, review.Address, fmt.Sprint(review.VLANID), "-",
+				review.ValidUntil.Format(time.RFC3339)})
 		}
 		return style.Table(out, rows)
 	case *olderFlag != 0 || *keepFlag != 0:

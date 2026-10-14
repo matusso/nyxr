@@ -100,7 +100,9 @@ All paths are under `/api/v1`.
 | `GET /assets/identity-relations` | Shared weak clues between current identities |
 | `GET /assets/identity-reviews` | Manual review audit log |
 | `POST /assets/identity-reviews` | Record `{address_a,address_b,decision,note}`; decision is `join`, `separate`, or `clear` |
-| `GET /assets/topology` | Imported LLDP neighbors, with current identity when management address matches |
+| `GET /assets/topology` | Imported LLDP neighbors, with identity resolved at observation time when evidence permits |
+| `GET /assets/topology/timeline?at=RFC3339&limit=500` | `nyxr/topology/v1alpha1` address/interface/VLAN point claims and TTL-bounded LLDP adjacency; limit 1–1000 |
+| `POST /assets/topology/reviews` | Record a finite, audited interface join/separation interval without changing asset identity |
 | `GET /observations` | Observations across scans |
 | `GET /packets/watch?interface=eth0` | Live Ethernet frames as Server-Sent Events; requires `--packetd` |
 | `POST /packets/send` | Submit one hex-encoded Ethernet frame; requires `--packetd --allow-packet-send` |

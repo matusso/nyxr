@@ -16,7 +16,58 @@ import (
 	"time"
 
 	"github.com/matusso/nyxr/internal/observe"
+	"github.com/matusso/nyxr/internal/storage"
 )
+
+func TestHistoryTopologyTimeline(t *testing.T) {
+	db := filepath.Join(t.TempDir(), "topology.db")
+	s, err := storage.Open(context.Background(), db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Date(2026, 10, 14, 10, 0, 0, 0, time.UTC)
+	if err := s.BeginScan(context.Background(), observe.Scan{ID: "topology", Profile: "test", Started: at, Status: "running"}); err != nil {
+		t.Fatal(err)
+	}
+	o := observe.Observation{Kind: observe.KindHost, Timestamp: at, Target: netip.MustParseAddr("192.0.2.5"),
+		Transport: "passive", State: "observed", Probe: "pcap-passive", MAC: "02:01:02:03:04:05",
+		Fields: map[string]string{"vlan.id": "42"}}
+	o.Stamp("topology")
+	if err := s.AddObservations(context.Background(), []observe.Observation{o}); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Close()
+	var out bytes.Buffer
+	if err := run([]string{"history", "--db", db, "--topology-timeline", "--json"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	var timeline storage.TemporalTopology
+	if err := json.Unmarshal(out.Bytes(), &timeline); err != nil || len(timeline.Claims) != 1 ||
+		timeline.Claims[0].VLANID != 42 || timeline.Schema != storage.TopologySchema {
+		t.Fatalf("CLI timeline: %+v %v", timeline, err)
+	}
+	reviewFile := filepath.Join(t.TempDir(), "review.json")
+	reviewJSON, _ := json.Marshal(storage.TopologyReviewInput{Address: "192.0.2.5",
+		InterfaceID: timeline.Claims[0].InterfaceID, Decision: "join", ValidFrom: at,
+		ValidUntil: at.Add(time.Hour), Note: "reviewed switch record"})
+	if err := os.WriteFile(reviewFile, reviewJSON, 0600); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if err := run([]string{"history", "--db", db, "--topology-review", reviewFile, "--json"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), `"decision":"join"`) {
+		t.Fatalf("CLI review: %s", out.String())
+	}
+	out.Reset()
+	if err := run([]string{"history", "--db", db, "--topology-timeline", "--at", at.Add(time.Second).Format(time.RFC3339), "--json"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(out.Bytes(), &timeline); err != nil || len(timeline.Claims) != 0 || len(timeline.Reviews) != 1 {
+		t.Fatalf("CLI valid time: %+v %v", timeline, err)
+	}
+}
 
 func TestServiceDryRunIncludesStage(t *testing.T) {
 	var out bytes.Buffer

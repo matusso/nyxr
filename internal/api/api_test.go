@@ -72,6 +72,32 @@ func TestIdentityGraphAPI(t *testing.T) {
 	if res.StatusCode != http.StatusOK || json.Unmarshal(body, &graph) != nil || len(graph) != 1 || len(graph[0].Addresses) != 2 || len(graph[0].Signals) != 2 {
 		t.Fatalf("identity list: %d %s", res.StatusCode, body)
 	}
+	res, body = e.do(t, "GET", "/api/v1/assets/topology/timeline?limit=10", "")
+	var timeline storage.TemporalTopology
+	if res.StatusCode != http.StatusOK || json.Unmarshal(body, &timeline) != nil ||
+		timeline.Schema != storage.TopologySchema || len(timeline.Claims) != 2 ||
+		timeline.Claims[0].IdentityID != graph[0].ID {
+		t.Fatalf("topology timeline: %d %s", res.StatusCode, body)
+	}
+	reviewJSON, _ := json.Marshal(storage.TopologyReviewInput{Address: "192.0.2.5",
+		InterfaceID: timeline.Claims[0].InterfaceID, Decision: "join", ValidFrom: now.Add(-time.Second),
+		ValidUntil: now.Add(time.Hour), Note: "operator switch record"})
+	res, body = e.do(t, "POST", "/api/v1/assets/topology/reviews", string(reviewJSON))
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("topology review: %d %s", res.StatusCode, body)
+	}
+	res, body = e.do(t, "GET", "/api/v1/assets/topology/timeline", "")
+	if res.StatusCode != http.StatusOK || json.Unmarshal(body, &timeline) != nil || len(timeline.Reviews) != 1 {
+		t.Fatalf("topology review timeline: %d %s", res.StatusCode, body)
+	}
+	res, _ = e.do(t, "GET", "/api/v1/assets/topology/timeline?limit=1001", "")
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unbounded topology request: %d", res.StatusCode)
+	}
+	res, _ = e.do(t, "GET", "/api/v1/assets/topology/timeline?at=invalid", "")
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("invalid topology time: %d", res.StatusCode)
+	}
 	res, body = e.do(t, "GET", "/api/v1/assets/identities/"+graph[0].ID, "")
 	if res.StatusCode != http.StatusOK || !strings.Contains(string(body), graph[0].ID) {
 		t.Fatalf("identity detail: %d %s", res.StatusCode, body)
@@ -98,6 +124,11 @@ func TestIdentityGraphAPI(t *testing.T) {
 	res, body = e.do(t, "GET", "/api/v1/assets/identities", "")
 	if json.Unmarshal(body, &graph) != nil || len(graph) != 2 {
 		t.Fatalf("reviewed graph: %d %s", res.StatusCode, body)
+	}
+	res, body = e.do(t, "GET", "/api/v1/assets/topology/timeline", "")
+	if res.StatusCode != http.StatusOK || json.Unmarshal(body, &timeline) != nil ||
+		len(timeline.Claims) != 2 || timeline.Claims[0].IdentityID != events[1].ToIdentity {
+		t.Fatalf("manual review rewrote historical topology: %d %s", res.StatusCode, body)
 	}
 	res, body = e.do(t, "GET", "/api/v1/assets/identity-reviews", "")
 	var reviews []storage.IdentityReview
