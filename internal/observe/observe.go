@@ -40,29 +40,33 @@ const (
 // that justify it. The discovery fields keep their original JSON names so
 // existing consumers of nyxr output continue to work.
 type Observation struct {
-	ID              string        `json:"observation_id,omitempty"`
-	Source          *SourceRef    `json:"source,omitempty"`
-	ClaimStatus     string        `json:"claim_status,omitempty"`
-	Schema          string        `json:"schema,omitempty"`
-	Kind            string        `json:"kind,omitempty"`
-	ScanID          string        `json:"scan_id,omitempty"`
-	Timestamp       time.Time     `json:"timestamp"`
-	Target          netip.Addr    `json:"target"`
-	Transport       string        `json:"transport"`
-	Port            uint16        `json:"port,omitempty"`
-	State           string        `json:"state"`
-	Confidence      int           `json:"confidence"`
-	Reason          string        `json:"reason"`
-	Probe           string        `json:"probe"`
-	Service         string        `json:"service,omitempty"`
-	Product         string        `json:"product,omitempty"`
-	Version         string        `json:"version,omitempty"`
-	Fingerprint     string        `json:"fingerprint,omitempty"`
-	MAC             string        `json:"mac,omitempty"`
-	RTT             time.Duration `json:"rtt_ns"`
-	PacketsTX       int           `json:"packets_tx"`
-	PacketsRX       int           `json:"packets_rx"`
-	ProbesAttempted []string      `json:"probes_attempted,omitempty"`
+	ID          string     `json:"observation_id,omitempty"`
+	Source      *SourceRef `json:"source,omitempty"`
+	ClaimStatus string     `json:"claim_status,omitempty"`
+	Schema      string     `json:"schema,omitempty"`
+	Kind        string     `json:"kind,omitempty"`
+	ScanID      string     `json:"scan_id,omitempty"`
+	Timestamp   time.Time  `json:"timestamp"`
+	Target      netip.Addr `json:"target"`
+	Transport   string     `json:"transport"`
+	Port        uint16     `json:"port,omitempty"`
+	State       string     `json:"state"`
+	Confidence  int        `json:"confidence"`
+	// ConfidenceMethod describes the numeric score's interpretation. Existing
+	// scores are rule weights, not measured probabilities of correctness.
+	ConfidenceMethod string        `json:"confidence_method,omitempty"`
+	ConfidenceModel  string        `json:"confidence_model,omitempty"`
+	Reason           string        `json:"reason"`
+	Probe            string        `json:"probe"`
+	Service          string        `json:"service,omitempty"`
+	Product          string        `json:"product,omitempty"`
+	Version          string        `json:"version,omitempty"`
+	Fingerprint      string        `json:"fingerprint,omitempty"`
+	MAC              string        `json:"mac,omitempty"`
+	RTT              time.Duration `json:"rtt_ns"`
+	PacketsTX        int           `json:"packets_tx"`
+	PacketsRX        int           `json:"packets_rx"`
+	ProbesAttempted  []string      `json:"probes_attempted,omitempty"`
 	// ServiceHypotheses is the planner's posterior over protocol families.
 	// It is separate from Confidence, which describes the validated claim.
 	ServiceHypotheses []ServiceHypothesis `json:"service_hypotheses,omitempty"`
@@ -86,6 +90,8 @@ type Observation struct {
 type ServiceHypothesis struct {
 	Family      string  `json:"family"`
 	Probability float64 `json:"probability"`
+	Method      string  `json:"method,omitempty"`
+	Model       string  `json:"model,omitempty"`
 }
 
 // ProbeDecision explains why the planner selected an active exchange.
@@ -141,6 +147,10 @@ func (o *Observation) Stamp(scanID string) {
 		if o.Port == 0 {
 			o.Kind = KindHost
 		}
+	}
+	if o.ConfidenceMethod == "" && (o.Kind == KindHost || o.Kind == KindPort || o.Kind == KindService || o.Kind == KindDevice || o.Kind == KindScript) {
+		o.ConfidenceMethod = "heuristic"
+		o.ConfidenceModel = "nyxr-rules/v1"
 	}
 }
 

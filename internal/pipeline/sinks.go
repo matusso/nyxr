@@ -60,8 +60,9 @@ func (s *TextSink) Observation(o observe.Observation) error {
 	}
 	if o.Kind == observe.KindDevice {
 		line := s.style.Device(o.Target.String(), o.Attributes["device.class"], o.Confidence, len(o.Signals))
+		line += " [heuristic score]"
 		if family := o.Attributes["device.os_family"]; family != "" {
-			line += fmt.Sprintf(" (%s-like stack, %s%%)", family, o.Attributes["device.os_confidence"])
+			line += fmt.Sprintf(" (%s-like stack, heuristic score %s/100)", family, o.Attributes["device.os_confidence"])
 		}
 		if conflict := o.Attributes["device.os_conflict"]; conflict != "" {
 			line += " (" + conflict + ")"
@@ -77,12 +78,13 @@ func (s *TextSink) Observation(o observe.Observation) error {
 		if f := o.TCPStack; f != nil {
 			if len(f.Candidates) > 0 {
 				c := f.Candidates[0]
-				reason += fmt.Sprintf(" (%s-like stack, %d%%)", c.Family, c.Confidence)
+				reason += fmt.Sprintf(" (%s-like stack, heuristic score %d/100)", c.Family, c.Confidence)
 			} else {
 				reason += " (unknown TCP stack: " + f.Signature + ")"
 			}
 		}
 		line := s.style.Discovery(o.Target.String(), o.Port, o.Transport, o.State, o.Confidence, reason)
+		line += " [heuristic score]"
 		_, err := fmt.Fprintln(s.w, line)
 		return err
 	}
@@ -123,7 +125,7 @@ func (s *TextSink) Observation(o observe.Observation) error {
 		details = append(details, o.Reason)
 	}
 	head := s.style.ServiceHead(o.Target.String(), o.Port, o.Transport, name, o.Confidence)
-	_, err := fmt.Fprintf(s.w, "%s %s\n", head, s.style.JoinDetails(details))
+	_, err := fmt.Fprintf(s.w, "%s %s [heuristic score]\n", head, s.style.JoinDetails(details))
 	return err
 }
 

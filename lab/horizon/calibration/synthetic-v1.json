@@ -1,0 +1,18 @@
+{
+  "schema": "nyxr/calibration/v1",
+  "id": "horizon-shared-synthetic-ordinary-v1",
+  "cases": [
+    {"id":"t-proto-ssh","split":"tuning","group":"t-ssh","kind":"protocol","model":"nyxr-planner/v1","label_source":"synthetic:framed-ssh","evidence_ref":"fixture:t-ssh/response","truth":"ssh","prediction":"ssh","score":0.95,"packets_tx":2,"duration_ns":5000000},
+    {"id":"t-proto-null","split":"tuning","group":"t-null","kind":"protocol","model":"nyxr-planner/v1","label_source":"synthetic:no-response","evidence_ref":"fixture:t-null/response","truth":"unknown","prediction":"unknown","packets_tx":2,"duration_ns":10000000},
+    {"id":"t-device-industrial","split":"tuning","group":"t-modbus","kind":"device","model":"nyxr-rules/v1","label_source":"synthetic:modbus-and-mac","evidence_ref":"fixture:t-modbus/signals","truth":"industrial device","prediction":"industrial device","score":0.65,"packets_tx":3,"duration_ns":6000000},
+    {"id":"t-os-linux","split":"tuning","group":"t-linux","kind":"os","model":"nyxr-tcp-stack/v1","label_source":"synthetic:linux-options","evidence_ref":"fixture:t-linux/synack","truth":"Linux","prediction":"Linux","score":0.70,"packets_tx":1,"duration_ns":3000000},
+    {"id":"t-link-cert","split":"tuning","group":"t-cert","kind":"asset_link","model":"nyxr-identity/v2","label_source":"synthetic:shared-certificate-distinct-assets","evidence_ref":"fixture:t-cert/clues","truth":"separate","prediction":"unknown","packets_tx":0,"duration_ns":0},
+    {"id":"t-state-open","split":"tuning","group":"t-port","kind":"port_state","model":"nyxr-rules/v1","label_source":"synthetic:validated-synack","evidence_ref":"fixture:t-port/synack","truth":"open","prediction":"open","score":1,"packets_tx":1,"duration_ns":2000000},
+    {"id":"h-proto-http","split":"holdout","group":"h-http","kind":"protocol","model":"nyxr-planner/v1","label_source":"synthetic:http-response","evidence_ref":"fixture:h-http/response","truth":"http","prediction":"http","score":0.94,"packets_tx":2,"duration_ns":5000000},
+    {"id":"h-proto-miss","split":"holdout","group":"h-db","kind":"protocol","model":"nyxr-planner/v1","label_source":"synthetic:database-silent","evidence_ref":"fixture:h-db/response","truth":"postgresql","prediction":"unknown","packets_tx":2,"duration_ns":10000000},
+    {"id":"h-device-miss","split":"holdout","group":"h-iot","kind":"device","model":"nyxr-rules/v1","label_source":"synthetic:single-signal-iot","evidence_ref":"fixture:h-iot/signals","truth":"IoT device","prediction":"unknown","packets_tx":1,"duration_ns":5000000},
+    {"id":"h-os-false","split":"holdout","group":"h-proxy","kind":"os","model":"nyxr-tcp-stack/v1","label_source":"synthetic:proxy-stack","evidence_ref":"fixture:h-proxy/synack","truth":"Windows","prediction":"Linux","score":0.70,"packets_tx":1,"duration_ns":3000000},
+    {"id":"h-link-miss","split":"holdout","group":"h-link","kind":"asset_link","model":"nyxr-identity/v2","label_source":"synthetic:shared-verified-key","evidence_ref":"fixture:h-link/key","truth":"same","prediction":"unknown","packets_tx":0,"duration_ns":0},
+    {"id":"h-state-filtered","split":"holdout","group":"h-firewall","kind":"port_state","model":"nyxr-rules/v1","label_source":"synthetic:firewall-drop","evidence_ref":"fixture:h-firewall/timeout","truth":"filtered","prediction":"filtered","score":0.5,"packets_tx":1,"duration_ns":10000000}
+  ]
+}

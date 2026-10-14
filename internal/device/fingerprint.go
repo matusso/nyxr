@@ -132,6 +132,8 @@ func (c *Collector) Results() []observe.Observation {
 					attrs["device.os_conflict"] = "TCP stack and application OS evidence disagree"
 				} else {
 					attrs["device.os_family"], attrs["device.os_confidence"] = family, strconv.Itoa(score)
+					attrs["device.os_confidence_method"] = "heuristic"
+					attrs["device.os_confidence_model"] = "nyxr-tcp-stack/v1"
 				}
 			}
 		} else if len(s.stackOS) > 1 {

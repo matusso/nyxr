@@ -227,7 +227,7 @@ func classify(s observe.StackSample) []observe.StackCandidate {
 	if family == "" {
 		return nil
 	}
-	return []observe.StackCandidate{{Family: family, Confidence: confidence, Reasons: []string{
+	return []observe.StackCandidate{{Family: family, Confidence: confidence, Method: "heuristic", Model: "nyxr-tcp-stack/v1", Reasons: []string{
 		"native SYN/ACK option-order rule", fmt.Sprintf("estimated initial TTL %d (observed %d)", s.InitialTTL, s.TTL),
 		"MSS, SACK and window scaling observed; OS versions and intermediary roles remain unverified"}}}
 }

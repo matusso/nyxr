@@ -490,18 +490,20 @@ type IdentitySignal struct {
 
 // IdentityAsset groups address inventory under one persistent asset ID.
 type IdentityAsset struct {
-	ID             string               `json:"id"`
-	GlobalID       string               `json:"global_id"`
-	PortableIDs    []string             `json:"portable_ids"`
-	LinkConfidence int                  `json:"link_confidence"`
-	Hypotheses     []IdentityHypothesis `json:"hypotheses"`
-	Profile        IdentityProfile      `json:"profile"`
-	FirstSeen      time.Time            `json:"first_seen"`
-	LastSeen       time.Time            `json:"last_seen"`
-	Addresses      []Asset              `json:"addresses"`
-	Signals        []IdentitySignal     `json:"signals"`
-	Clues          []IdentityClue       `json:"clues"`
-	Topology       []PassiveLink        `json:"topology"`
+	ID                   string               `json:"id"`
+	GlobalID             string               `json:"global_id"`
+	PortableIDs          []string             `json:"portable_ids"`
+	LinkConfidence       int                  `json:"link_confidence"`
+	LinkConfidenceMethod string               `json:"link_confidence_method"`
+	LinkConfidenceModel  string               `json:"link_confidence_model,omitempty"`
+	Hypotheses           []IdentityHypothesis `json:"hypotheses"`
+	Profile              IdentityProfile      `json:"profile"`
+	FirstSeen            time.Time            `json:"first_seen"`
+	LastSeen             time.Time            `json:"last_seen"`
+	Addresses            []Asset              `json:"addresses"`
+	Signals              []IdentitySignal     `json:"signals"`
+	Clues                []IdentityClue       `json:"clues"`
+	Topology             []PassiveLink        `json:"topology"`
 }
 
 // IdentityGraph returns the current address membership and the exact stored
@@ -618,6 +620,13 @@ func (s *Store) IdentityGraph(ctx context.Context) ([]IdentityAsset, error) {
 	}
 	if err := enrichIdentityHypotheses(ctx, s, graph); err != nil {
 		return nil, err
+	}
+	for i := range graph {
+		graph[i].LinkConfidenceMethod = "unavailable"
+		if graph[i].LinkConfidence > 0 {
+			graph[i].LinkConfidenceMethod = "heuristic"
+			graph[i].LinkConfidenceModel = "nyxr-identity/v2"
+		}
 	}
 	if err := s.enrichIdentityProfiles(ctx, graph); err != nil {
 		return nil, err

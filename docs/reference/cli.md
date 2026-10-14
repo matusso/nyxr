@@ -10,6 +10,7 @@ nyxr history [--db file] [flags]       list or query stored scans, assets and ev
 nyxr probe import file [--json]        import and summarize an nmap-service-probes file
 nyxr probe validate file [--json]      validate a Nyxr Protocol DSL file
 nyxr horizon resolve|replay|explain|references|verify-capture    bounded HZ-001 experiments and offline evidence
+nyxr calibration evaluate --dataset FILE   evaluate labeled ordinary claims offline
 nyxr serve [--db file] [flags]         serve the REST API and web UI (unprivileged)
 nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
 nyxr version                           print the version
@@ -21,6 +22,15 @@ nyxr help                              show this help
 when output is not a terminal.
 
 Run `nyxr <command> -h` for the built-in help of any command.
+
+## nyxr calibration
+
+`evaluate --dataset FILE` reads a bounded, versioned labeled dataset and
+prints JSON diagnostics by split, claim kind and rule version. The report
+includes exact dataset SHA-256, false and missed matches, unknowns, packet and
+time cost, ten-bin calibration error and Brier score when numeric scores are
+available. These diagnostics do not convert heuristic scores into validated
+probabilities. See the [shared fixture guide](../../lab/horizon/calibration/README.md).
 
 ## nyxr horizon
 

@@ -161,7 +161,10 @@ the documented [Envoy GET /server_info](https://www.envoyproxy.io/docs/envoy/lat
 over the observed HTTP transport and checks the build-version format, lifecycle
 state, command-line-options object and uptime. A validated response reports
 `Envoy Proxy`, extracts its version, and records `envoy.validation` and
-`envoy.confidence` derived from the product hypothesis update. Generic JSON,
+`envoy.confidence` derived from the product hypothesis update. The product
+score also carries `envoy.confidence_method: heuristic` and
+`envoy.confidence_model: nyxr-planner/v1`; it is not a measured probability.
+Generic JSON,
 an HTTP error, a timeout or a missing admin endpoint cannot strengthen the
 header claim. This follow-up requires the HTTP probe to be enabled and fits
 within the same target budget.

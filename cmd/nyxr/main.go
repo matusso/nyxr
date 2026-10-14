@@ -60,6 +60,8 @@ func run(args []string, out io.Writer) error {
 		return runProbe(args[1:], out, style)
 	case "horizon":
 		return runHorizon(args[1:], out)
+	case "calibration":
+		return runCalibration(args[1:], out)
 	case "version":
 		_, err := fmt.Fprintln(out, version)
 		return err
@@ -102,6 +104,7 @@ Usage:
   nyxr probe import file [--json]        import and summarize an nmap-service-probes file
   nyxr probe validate file [--json]      validate a Nyxr Protocol DSL file
   nyxr horizon resolve|replay|explain|references    run bounded HZ-001 trials or inspect evidence
+  nyxr calibration evaluate --dataset file        evaluate labeled ordinary claims offline
   nyxr serve [--db file] [flags]         serve the REST API and web UI (unprivileged)
   nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
   nyxr version                           print the version
