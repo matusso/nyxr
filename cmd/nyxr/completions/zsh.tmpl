@@ -116,6 +116,9 @@ _nyxr() {
 						'--identities[group addresses by strong device identity signals]' \
 						'--identity-events[show identity membership audit]' \
 						'--topology[show imported LLDP neighbors]' \
+						'--topology-timeline[show temporal interface and LLDP evidence]' \
+						'--topology-review=[record reviewed interface assignment]:JSON file:_files' \
+						'--at=[topology valid-time instant]:RFC3339 time:' \
 						'--import-pcap=[import passive pcap or pcapng]:capture file:_files' \
 						'--import-identifiers=[import scoped inventory IDs]:JSON file:_files' \
 						'--kube-api=[Kubernetes API HTTPS origin]:URL:' \

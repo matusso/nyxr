@@ -112,6 +112,36 @@ func (s *Store) ResolveSource(ctx context.Context, ref observe.SourceRef) (Sourc
 	if err := ref.Validate(); err != nil {
 		return r, err
 	}
+	if ref.Owner == "next-gen" && ref.SourceSchema == topologyReviewSchema {
+		return s.resolveTopologyReview(ctx, ref)
+	}
+	if ref.Owner == "next-gen" && ref.SourceSchema == lldpFrameSchema {
+		var source []byte
+		err := s.db.QueryRowContext(ctx, `SELECT source FROM passive_link_sources WHERE artifact_id = ? LIMIT 1`, ref.ArtifactID).Scan(&source)
+		if errors.Is(err, sql.ErrNoRows) {
+			r.Reason = "LLDP frame source is pruned or not retained in this store"
+			return r, nil
+		}
+		if err != nil {
+			return r, err
+		}
+		var frame struct {
+			ScanID string `json:"scan_id"`
+		}
+		if err := json.Unmarshal(source, &frame); err != nil {
+			return r, err
+		}
+		if ref.RunID != "" && ref.RunID != frame.ScanID {
+			r.Reason = "source run provenance mismatch"
+			return r, nil
+		}
+		if _, err := observe.ResolveSource(source, ref); err != nil {
+			r.Reason = err.Error()
+			return r, nil
+		}
+		r.Status, r.Artifact = "available", source
+		return r, nil
+	}
 	if ref.Owner != "next-gen" || ref.SourceSchema != observe.SchemaVersion {
 		r.Reason = "source is owned by an external artifact provider"
 		return r, nil
