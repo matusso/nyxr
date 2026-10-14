@@ -1,0 +1,10 @@
+schema: nyxr/protocol/v2
+protocol: demo_frame
+provenance: Synthetic example authored for issue 79; no live validation.
+transport: tcp
+ports: [9001]
+timeout: 1s
+modules: [demo-frame]
+steps:
+  - expect: {prefix: OK, offset: 2}
+  - extract: {demo.version: 'OKv([0-9]+)'}

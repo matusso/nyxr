@@ -8,10 +8,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"fmt"
 	"math/big"
 	"net"
 	"net/http"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,5 +69,14 @@ func TestQUICHTTP3Probe(t *testing.T) {
 	}
 	if len(o.Evidence) < 2 {
 		t.Fatalf("missing QUIC and HTTP/3 evidence: %+v", o.Evidence)
+	}
+	d, err := ParseProtocol(strings.NewReader(fmt.Sprintf("schema: nyxr/protocol/v2\nprotocol: quic\ntransport: udp\nports: [%d]\nsteps:\n  - quic: true\n", port)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e = &Engine{cfg: Config{Timeout: 3 * time.Second, Definitions: []ProtocolDefinition{d}}, pacer: newPacer(0), enabled: map[string]bool{}}
+	o = e.Interrogate(context.Background(), Target{Addr: netip.MustParseAddr("127.0.0.1"), Port: port, Transport: "udp", State: "open|filtered"})
+	if o.Service != "http3" || o.Attributes["protocol.schema"] != "nyxr/protocol/v2" || o.TLS == nil || o.Evidence[0].Matched != "dsl/quic" {
+		t.Fatalf("QUIC DSL adapter: %+v", o)
 	}
 }

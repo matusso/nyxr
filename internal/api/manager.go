@@ -13,6 +13,7 @@ import (
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/pipeline"
+	"github.com/matusso/nyxr/internal/service"
 	"github.com/matusso/nyxr/internal/storage"
 )
 
@@ -33,7 +34,8 @@ type ManagerConfig struct {
 	MaxRunning int
 	// Pipeline adjusts pipeline options before a run; tests use it to
 	// replace discovery.
-	Pipeline func(*pipeline.Options)
+	Pipeline         func(*pipeline.Options)
+	ProtocolRegistry *service.Registry
 }
 
 // Manager runs scans through the same Request.Resolve and pipeline mapping
@@ -81,6 +83,18 @@ func (m *Manager) Resolve(req config.Request) (config.Resolved, error) {
 	if err != nil {
 		return r, err
 	}
+	if m.cfg.ProtocolRegistry != nil && r.Service.Enabled {
+		snapshot := m.cfg.ProtocolRegistry.Snapshot()
+		for _, d := range snapshot.Definitions {
+			if d.Transport == "tcp" && r.Config.TCP || d.Transport == "udp" && r.Config.UDP {
+				r.Service.Definitions = append(r.Service.Definitions, d)
+			}
+		}
+		r.Service.RegistryVersion = snapshot.Version
+		if err := r.Service.ValidateFor(r.Config); err != nil {
+			return r, err
+		}
+	}
 	c := r.Config
 	if c.Profile == "research" {
 		// Malformed and forged packets stay behind an operator at the CLI
@@ -102,6 +116,15 @@ func (m *Manager) Resolve(req config.Request) (config.Resolved, error) {
 		r.PCAPNG = filepath.Join(m.cfg.EvidenceDir, r.PCAPNG)
 	}
 	return r, nil
+}
+
+// ReloadProtocolRegistry recompiles the operator-configured files and atomically
+// publishes them for future scans. Running scans keep their resolved snapshot.
+func (m *Manager) ReloadProtocolRegistry() (service.RegistrySnapshot, error) {
+	if m.cfg.ProtocolRegistry == nil {
+		return service.RegistrySnapshot{}, errors.New("protocol registry is not configured")
+	}
+	return m.cfg.ProtocolRegistry.Reload()
 }
 
 // Start resolves and launches a scan, returning its initial summary.

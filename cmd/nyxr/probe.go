@@ -13,8 +13,9 @@ import (
 )
 
 func probeUsage(out io.Writer) {
-	fmt.Fprint(out, `Usage: nyxr probe import file [--json]
-       nyxr probe validate file [--json]
+	fmt.Fprint(out, `Usage: nyxr probe import [--json] file
+	       nyxr probe validate [--json] file [more files...]
+	       nyxr probe fixtures [--json] cases.yaml definition.yaml [more definitions...]
 
 Import an nmap-service-probes file into nyxr's match model and print a summary.
 The file is read at runtime and never bundled into nyxr; its data is licensed
@@ -54,12 +55,57 @@ func runProbe(args []string, out io.Writer, style *ui.Styler) error {
 		return runProbeImport(args[1:], out, style)
 	case "validate":
 		return runProbeValidate(args[1:], out)
+	case "fixtures":
+		return runProbeFixtures(args[1:], out)
 	case "help", "-h", "--help":
 		probeUsage(out)
 		return nil
 	default:
 		return fmt.Errorf("unknown probe subcommand %q (try nyxr probe validate)", args[0])
 	}
+}
+
+func runProbeFixtures(args []string, out io.Writer) error {
+	fs := flag.NewFlagSet("probe fixtures", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	jsonFlag := fs.Bool("json", false, "machine-readable results")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() < 2 {
+		return errors.New("probe fixtures requires a fixture YAML file and protocol YAML files")
+	}
+	definitions, err := service.LoadProtocolRegistry(fs.Args()[1:])
+	if err != nil {
+		return err
+	}
+	results, err := service.RunProtocolFixtures(definitions, fs.Arg(0))
+	if err != nil {
+		return err
+	}
+	failed := false
+	for _, result := range results {
+		failed = failed || !result.Passed
+	}
+	if *jsonFlag {
+		if err := json.NewEncoder(out).Encode(results); err != nil {
+			return err
+		}
+	} else {
+		for _, result := range results {
+			status := "PASS"
+			if !result.Passed {
+				status = "FAIL"
+			}
+			if _, err := fmt.Fprintf(out, "%s %s (%s): %s\n", status, result.Name, result.Kind, result.Detail); err != nil {
+				return err
+			}
+		}
+	}
+	if failed {
+		return errors.New("protocol fixtures failed")
+	}
+	return nil
 }
 
 func runProbeValidate(args []string, out io.Writer) error {
@@ -69,18 +115,29 @@ func runProbeValidate(args []string, out io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if fs.NArg() != 1 {
-		return errors.New("probe validate requires exactly one protocol YAML file")
+	if fs.NArg() == 0 {
+		return errors.New("probe validate requires protocol YAML files")
 	}
-	d, err := service.LoadProtocolFile(fs.Arg(0))
+	definitions, err := service.LoadProtocolRegistry(fs.Args())
 	if err != nil {
 		return err
 	}
 	if *jsonFlag {
-		return json.NewEncoder(out).Encode(map[string]any{"protocol": d.Name, "transport": d.Transport, "ports": d.Ports, "timeout": d.Timeout.String()})
+		var summaries []map[string]any
+		for _, d := range definitions {
+			summaries = append(summaries, map[string]any{"schema": d.Schema, "protocol": d.Name, "transport": d.Transport, "ports": d.Ports, "timeout": d.Timeout.String()})
+		}
+		if len(summaries) == 1 {
+			return json.NewEncoder(out).Encode(summaries[0])
+		}
+		return json.NewEncoder(out).Encode(summaries)
 	}
-	_, err = fmt.Fprintf(out, "%s/%s: valid on %d ports (%s timeout)\n", d.Name, d.Transport, len(d.Ports), d.Timeout)
-	return err
+	for _, d := range definitions {
+		if _, err := fmt.Fprintf(out, "%s/%s: valid on %d ports (%s timeout)\n", d.Name, d.Transport, len(d.Ports), d.Timeout); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func runProbeImport(args []string, out io.Writer, style *ui.Styler) error {

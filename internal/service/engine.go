@@ -95,7 +95,8 @@ type Config struct {
 	// NULL-probe rules. It sends no additional traffic.
 	Nmap *nmapdb.Database
 	// Definitions are validated protocol state machines loaded for this scan.
-	Definitions []ProtocolDefinition
+	Definitions     []ProtocolDefinition
+	RegistryVersion uint64
 }
 
 // Validate reports an unusable configuration.

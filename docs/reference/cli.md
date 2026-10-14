@@ -126,7 +126,7 @@ Guide: [Research packets](../guide/research-packets.md).
 | `--service-workers N` | Concurrent service probe workers |
 | `--service-rate N` | New service connections per second (`0` = unlimited) |
 | `--nmap-service-probes FILE` | Match banners against a local `nmap-service-probes` file |
-| `--protocol-definitions FILES` | Load comma-separated local `nyxr/protocol/v1` YAML definitions for TCP or UDP service identification |
+| `--protocol-definitions FILES` | Load comma-separated local `nyxr/protocol/v1` or `v2` YAML definitions and modules for TCP or UDP service identification |
 | `--nse-scripts LIST` | Run selected installed NSE scripts in Nmap's `safe` category on open ports |
 | `--nse-timeout DURATION` | Maximum Nmap time per host (default `30s`) |
 | `--fingerprint` | Classify devices; collect native TCP/IP stack evidence in raw SYN mode |
@@ -210,7 +210,11 @@ summary.
 
 ## nyxr probe validate
 
-Validate a local `nyxr/protocol/v1` YAML file and print its transport, ports, and timeout. `--json` prints a machine-readable summary. See the [Protocol DSL guide](../guide/protocol-dsl.md).
+Validate one or more local `nyxr/protocol/v1` or `v2` YAML files together, resolving named modules and inheritance. `--json` prints a machine-readable summary. See the [Protocol DSL guide](../guide/protocol-dsl.md).
+
+## nyxr probe fixtures
+
+Run an offline YAML fixture corpus against the listed protocol files: `nyxr probe fixtures [--json] cases.yaml definition.yaml [more definitions...]`. The runner checks service, fields, confidence bounds, and evidence errors for positive, negative, truncated, and noisy cases.
 
 ## nyxr serve
 
@@ -222,6 +226,7 @@ Serve the REST API, live scan events and the web UI, unprivileged.
 | `--db FILE` | `~/.nyxr/nyxr.db` | SQLite database |
 | `--packetd SOCKET` | | nyxr-packetd socket for raw packet I/O |
 | `--evidence-dir DIR` | | Directory for pcapng captures requested through the API |
+| `--protocol-registry FILES` | | Comma-separated operator-owned protocol files, atomically reloadable through the API |
 | `--token-file FILE` | | Require this bearer token (or set `NYXR_API_TOKEN`) |
 | `--max-scans N` | 1 | Concurrent scans |
 | `--allow-packet-send` | off | Enable single-frame send and resend from the web UI (requires `--packetd`) |
