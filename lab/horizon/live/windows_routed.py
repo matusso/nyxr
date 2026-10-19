@@ -1,7 +1,7 @@
 """Native Windows endpoint behind a routed FreeBSD hop, with a SackOpts null attempt.
 
 The guest runs windows-endpoint.ps1 -StudyControl; the router runs bsd-router.sh,
-reachable only through an SSH forced command accepting TRUTH/CLEAN/IMPAIR/DROP.
+reachable only through an SSH forced command accepting TRUTH/CLEAN/DROP.
 Each phase/family is a separate collection with its own frozen denominator.
 """
 import argparse
@@ -26,7 +26,7 @@ import windows_study
 HERE = Path(__file__).resolve().parent
 PROTOCOL = json.loads((HERE / "windows-routed-protocol.json").read_text())
 PHASES = sorted(PROTOCOL["phases"], key=lambda name: PROTOCOL["phases"][name]["order"])
-REQUESTS = {"clean": "CLEAN", "loss-jitter": "IMPAIR", "drop": "DROP"}
+REQUESTS = {"clean": "CLEAN", "drop": "DROP"}
 for key in ("replicates", "window_ms", "washout_ms", "packets_per_second", "max_packets", "max_duration_seconds",
             "alpha", "confidence", "maximum_false_positive_rate", "null_runs_per_stratum"):
     if lab.PROTOCOL[key] != PROTOCOL[key]:
@@ -66,7 +66,7 @@ def topology(family):
 
 
 def router(args, request):
-    if request not in ("TRUTH", "CLEAN", "IMPAIR", "DROP"):
+    if request not in ("TRUTH", "CLEAN", "DROP"):
         raise ValueError("unregistered router control")
     text = subprocess.run(["ssh", "-i", args.router_key, "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes",
         "-o", f"UserKnownHostsFile={args.router_known_hosts}", "-o", "ConnectTimeout=10",
@@ -91,7 +91,7 @@ def sysctl(state, name):
 
 
 def router_rules(state):
-    section = state["text"].split("--- ipfw\n", 1)[1].split("--- pipe\n", 1)[0]
+    section = state["text"].split("--- ipfw\n", 1)[1].split("--- modules\n", 1)[0]
     rules = collections.defaultdict(list)
     for line in section.splitlines():
         match = re.match(r"(\d{5})\s+(\d+)\s+(\d+)\s+(.*)$", line.strip())
@@ -121,25 +121,19 @@ def validate_router(state, condition, fixture=None, boottime=None, interface=Non
     if any(len(value) != 1 for number, value in rules.items() if number != 65535):
         raise ValueError("router rule number duplicated")
     owned = {number: value[0] for number, value in rules.items() if number != 65535}
-    shaped = {"clean": set(), "loss-jitter": {60066, 60067}, "drop": {60066, 60067}}[condition]
-    if set(owned) != {60064, 60065} | shaped:
+    denied = {"clean": set(), "drop": {60066, 60067}}[condition]
+    if set(owned) != {60064, 60065} | denied:
         raise ValueError("router rules exceed registered set")
-    action = {"loss-jitter": "pipe 6066", "drop": "deny"}
     for family, numbers in ((4, (60064, 60066)), (6, (60065, 60067))):
         scope = PROTOCOL["topology"][str(family)]
         clause = f"tcp from {scope['target']} 443 to {scope['source']} out xmit {state['interface']} tcpflags syn,ack"
         if owned[numbers[0]]["rule"] != "count " + clause:
             raise ValueError("router path counter scope differs")
-        if numbers[1] in shaped and owned[numbers[1]]["rule"] != f"{action[condition]} {clause}":
-            raise ValueError("router shaping rule exceeds explicit response scope")
-    pipes = state["text"].split("--- pipe\n", 1)[1]
-    if condition == "loss-jitter":
-        if not re.search(r"\b0?6066:\s+100\.000\s+Mbit/s\b", pipes) or not re.search(r"\bplr\s+0\.050000\b", pipes):
-            raise ValueError("router dummynet bandwidth/loss differs")
-        if not re.search(r'profile:\s+name\s+"nyxr66-uniform-15-25"\s+loss\s+1\.000000\s+samples\s+128\b', pipes):
-            raise ValueError("router dummynet delay profile differs")
-    elif re.search(r"\b0?6066:", pipes):
-        raise ValueError("unexpected router pipe")
+        if numbers[1] in denied and owned[numbers[1]]["rule"] != "deny " + clause:
+            raise ValueError("router drop rule exceeds explicit response scope")
+    # v1's dummynet shaping panicked this router; v2 forwards without it.
+    if re.search(r"\bdummynet\.ko\b", state["text"].split("--- modules\n", 1)[1]):
+        raise ValueError("router dummynet loaded")
     return state["fixture"]
 
 
@@ -313,14 +307,14 @@ def analyze(out, binary):
             for name in ("truth-before", "truth-after"):
                 validate_windows(truths[name], entry, scope, manifest["target_mac"], manifest["fixture"],
                                  manifest["windows_boot_utc"], manifest.get("sackopts_change_utc"))
-            path_rule, shaping_rule = (60064, 60066) if family == 4 else (60065, 60067)
+            path_rule, drop_rule = (60064, 60066) if family == 4 else (60065, 60067)
             row["routed_synack_packets"] = counter(truths["router-after"], path_rule) - counter(truths["router-before"], path_rule)
             if row["routed_synack_packets"] <= 0:
                 raise ValueError("Windows replies did not traverse the registered router path")
             if entry["condition"] != "clean":
-                row["shaped_packets"] = counter(truths["router-after"], shaping_rule) - counter(truths["router-before"], shaping_rule)
-                if row["shaped_packets"] <= 0:
-                    raise ValueError("Windows replies did not traverse the registered shaping rule")
+                row["dropped_packets"] = counter(truths["router-after"], drop_rule) - counter(truths["router-before"], drop_rule)
+                if row["dropped_packets"] <= 0:
+                    raise ValueError("Windows replies did not traverse the registered drop rule")
             envelope = json.loads((directory / "horizon" / "report.json").read_text())
             replay = json.loads(lab.command(binary, "horizon", "replay", str(directory / "horizon" / "report.json")))
             if replay != envelope:

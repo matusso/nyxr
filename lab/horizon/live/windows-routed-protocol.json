@@ -1,6 +1,11 @@
 {
-  "version": "horizon-windows-routed-controlled/v1",
-  "purpose": "Native Windows endpoint behind a routed FreeBSD hop: Windows loss/jitter, routed IPv4/IPv6 coverage and a pre-registered SackOpts controlled-null attempt",
+  "version": "horizon-windows-routed-controlled/v2",
+  "purpose": "Native Windows endpoint behind a routed FreeBSD hop: routed IPv4/IPv6 clean and DROP coverage and a pre-registered SackOpts controlled-null attempt",
+  "supersedes": {
+    "version": "horizon-windows-routed-controlled/v1",
+    "reason": "The FreeBSD router panicked (vm_fault in the IPv4 forwarding path) within a minute of dummynet loss/jitter shaping, at 11:37 on em0 and 13:38 on vmx0 on 2026-10-19. v1 stopped after 7 of 27 native IPv4 runs; its outcomes remain recorded separately and are not pooled.",
+    "change": "No dummynet pipe or profile and no loss-jitter condition; the router only forwards, counts and (for DROP) denies"
+  },
   "families": [4, 6],
   "topology": {
     "4": {"source": "10.66.21.1", "router_source_side": "10.66.21.3", "router_target_side": "10.66.22.3", "target": "10.66.22.2", "prefix_length": 24},
@@ -11,17 +16,17 @@
     "native": {
       "order": 1,
       "sackopts": null,
-      "seed_start": {"4": 69000, "6": 69100},
+      "seed_start": {"4": 70000, "6": 70100},
       "blocks": 12,
-      "per_block": {"clean": 1, "loss-jitter": 1},
+      "per_block": {"clean": 1},
       "drop_runs": 3,
-      "expected": {"clean": "difference", "loss-jitter": "difference", "drop": "unresolved"},
+      "expected": {"clean": "difference", "drop": "unresolved"},
       "basis": "Native Windows SACK support (registry SackOpts absent) observed in prior studies; hypothesis, not an independent toggle"
     },
     "feasibility": {
       "order": 2,
       "sackopts": 0,
-      "seed_start": {"4": 69200, "6": 69210},
+      "seed_start": {"4": 70200, "6": 70210},
       "clean_runs": 3,
       "expected": {"clean": "no-difference"},
       "stopping_rule": "Phase null runs only if all six feasibility reports are valid, every one is no-difference, and no SYN-ACK in any arm carries SACK-permitted. Otherwise the SackOpts control is declared ineffective, phase null is not executed and its planned reports are recorded as not executed by the stopping rule."
@@ -29,23 +34,23 @@
     "null": {
       "order": 3,
       "sackopts": 0,
-      "seed_start": {"4": 69300, "6": 69500},
+      "seed_start": {"4": 70300, "6": 70400},
       "blocks": 12,
-      "per_block": {"clean": 5, "loss-jitter": 5},
+      "per_block": {"clean": 5},
       "drop_runs": 0,
-      "expected": {"clean": "no-difference", "loss-jitter": "no-difference"},
+      "expected": {"clean": "no-difference"},
       "conditional_on": "feasibility stopping rule"
     },
     "restore": {
       "order": 4,
       "sackopts": null,
-      "seed_start": {"4": 69700, "6": 69710},
+      "seed_start": {"4": 70500, "6": 70510},
       "clean_runs": 1,
       "expected": {"clean": "difference"}
     }
   },
   "sackopts_control": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters SackOpts DWORD 0, set before a full restart and deleted before a second restart; native truth must show the registry value and a boot time later than the recorded change",
-  "order_seed": 69000,
+  "order_seed": 70000,
   "replicates": 12,
   "window_ms": 800,
   "washout_ms": 300,
@@ -59,14 +64,11 @@
   "effect_runs_per_stratum": 12,
   "minimum_clean_effect_accuracy": 0.9,
   "primary_outcome": "SACK negotiation difference",
-  "impairment": {
-    "delay_profile": "128 empirical uniform samples interpolated from 15 to 25 ms (bsd-delay-profile.txt)",
-    "loss_probability": 0.05,
-    "bandwidth_mbit_per_second": 100,
-    "scope": "Only forwarded TCP443 SYN-ACKs from the Windows target to the explicit source, on the router's outgoing interface; control TCP8443 and probes are forwarded unshaped",
-    "pipe": 6066,
+  "router": {
+    "modules": ["ipfw"],
+    "scope": "Count rules on forwarded TCP443 SYN-ACKs from the Windows target to the explicit source, on the router's outgoing interface; DROP adds a deny rule with the same scope. Control TCP8443 and probes are forwarded without rules",
     "count_rules": [60064, 60065],
-    "rules": [60066, 60067],
+    "drop_rules": [60066, 60067],
     "rule_set": 30
   },
   "diagnostics": {
@@ -77,9 +79,9 @@
   "limitations": [
     "Same Windows 11 VM and FreeBSD VM as earlier studies; a fresh routed configuration, not physically independent held-out hardware",
     "Exact binomial bounds and numerical gates are conditional on IID Bernoulli sampling, which this experiment cannot establish",
-    "Strict complete-pair inference stays unresolved under loss; all planned invalid, missing, unresolved and not-executed outcomes remain in denominators",
+    "No Windows loss/jitter stratum: dummynet shaping on this FreeBSD 15.1 ARM64 VM panicked the router (v1); Linux netem and FreeBSD VNET dummynet strata remain the only impairment evidence",
+    "All planned invalid, missing, unresolved and not-executed outcomes remain in denominators",
     "Routed IPv4/IPv6 through one FreeBSD hop without NAT; the Linux corpus supplies NAT/proxy fixtures",
-    "Impairment is FreeBSD dummynet on the forwarded reply path, not Linux netem and not a Windows-native impairment",
     "macOS source kernel RSTs remain enabled; captures on the shared segment include both forwarded legs",
     "Resources measure macOS scanner/runner children, not Windows or router CPU/RSS"
   ]
