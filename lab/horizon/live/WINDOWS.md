@@ -16,7 +16,7 @@ on port 443. It creates a uniquely named inbound firewall rule restricted to
 that local address, port and the source's single address. It neither
 disables the firewall nor changes global TCP features. `finally` removes its
 rule and closes its listener. A deadline bounds the helper to 600 seconds by
-default. Do not forcibly kill its console: bypassing `finally` can leave the
+default and at most six hours. Do not forcibly kill its console: bypassing `finally` can leave the
 rule behind. If that happens, remove only the printed `nyxr-hz66-<UUID>` rule
 with `Remove-NetFirewallRule -Name '<exact printed name>'` in an elevated
 console.
@@ -155,3 +155,59 @@ python3 lab/horizon/live/windows.py analyze --binary /tmp/nyxr-hz66-macos \
   --output /tmp/hz66-windows-new-study
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s lab/horizon/live
 ```
+
+## Routed Windows study with a SackOpts null attempt
+
+`windows-routed-protocol.json` registers `horizon-windows-routed-controlled/v1`.
+The source (`10.66.21.1`, `fd66:66:21::1`) and the Windows target
+(`10.66.22.2`, `fd66:66:22::2`) use distinct prefixes on the private Fusion
+segment. Each side routes the other prefix through the FreeBSD VM
+(`.3`/`::3` on both prefixes), so every measurement packet is forwarded at
+layer 3. IPv4 and IPv6 run as separate collections, each with its own frozen
+denominator; there is no NAT.
+
+`bsd-router.sh setup` records the router state, loads IPFW with an accept
+default, adds the four router aliases, enables forwarding, disables ICMP
+redirects and installs two count rules on forwarded TCP443 SYN-ACKs to the
+source. Measurement runs reach it through an SSH forced command
+(`command="/root/hz66-router.sh control"`) that accepts only `TRUTH`, `CLEAN`,
+`IMPAIR` and `DROP`. `IMPAIR` uses the BSD study's empirical 15–25ms profile,
+5% loss and 100Mbit/s cap; `DROP` denies the same replies. Only forwarded
+SYN-ACKs from TCP443 are shaped. Probes and the fixed TCP8443 control channel
+are forwarded unshaped. `teardown` removes the rules, pipe, aliases and newly
+loaded modules and restores the recorded sysctls and tunable.
+
+`windows-routed-setup.ps1` adds the Windows target addresses and routes in
+ActiveStore, records the prior IPv6 DHCP state and removes exactly those
+objects on `Teardown`. `SetSackOpts` creates
+`Tcpip\Parameters\SackOpts = 0` and records the change time. `ClearSackOpts`
+deletes it. A full restart follows each change. The unchanged helper runs with
+`-StudyControl`, and its native truth now also reports the boot time. The
+collector checks every truth snapshot against the registered SackOpts value,
+a boot later than the recorded change, the Windows route through the router,
+and the router fixture, condition, rule scope and boot time. It requires the
+router counters to increase for every run.
+
+The phases run in order. `native` (SackOpts absent): 12 clean and 12
+loss-jitter effect-hypothesis runs in 12 randomized blocks, then three known
+DROP checks. `feasibility` (SackOpts 0): three clean runs. `null` runs only if
+all six feasibility reports are valid no-difference outcomes and no SYN-ACK in
+either arm carries SACK-permitted: 60 clean and 60 loss-jitter nulls per
+family. Otherwise the control is declared ineffective and its 240 reports
+remain recorded as not executed under the stopping rule. `restore` (SackOpts
+deleted again): one clean run per family.
+
+```sh
+python3 lab/horizon/live/windows_routed.py run --binary /path/to/nyxr \
+  --output /tmp/routed-native-v4 --phase native --family 4 --interface bridge101 \
+  --router 192.168.254.131 --router-key /path/to/forced-command-key \
+  --router-known-hosts /path/to/known_hosts --router-mac <router MAC> \
+  --target-mac <Windows MAC>
+python3 lab/horizon/live/windows_routed.py combine --binary /path/to/nyxr \
+  --output /tmp/routed-*
+```
+
+SackOpts phases also need `--sackopts-record` (the JSON written by the setup
+script). `null` additionally needs `--feasibility` with both feasibility
+outputs. The macOS source aliases and routes require root; remove them after
+collection.

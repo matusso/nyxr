@@ -6,7 +6,7 @@ param(
     [switch]$AddTemporaryIPv6,
     [string]$InterfaceIPv4,
     [switch]$StudyControl,
-    [ValidateRange(60,1800)][int]$Seconds = 600
+    [ValidateRange(60,21600)][int]$Seconds = 600
 )
 $ErrorActionPreference = 'Stop'
 $local = [System.Net.IPAddress]::Parse($LocalAddress)
@@ -68,6 +68,7 @@ function Get-Truth {
         fixture = $fixture; utc = [DateTime]::UtcNow.ToString('o'); pid = $PID
         platform = 'Windows'; caption = $os.Caption; version = $os.Version
         build = $os.BuildNumber; architecture = $os.OSArchitecture
+        last_boot_utc = $os.LastBootUpTime.ToUniversalTime().ToString('o')
         local_address = $LocalAddress; peer_address = $PeerAddress; port = 443
         temporary_address_created = $createdAddress
         setup_addresses_before = $setupAddresses; setup_routes_before = $setupRoutes

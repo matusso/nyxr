@@ -1,0 +1,86 @@
+{
+  "version": "horizon-windows-routed-controlled/v1",
+  "purpose": "Native Windows endpoint behind a routed FreeBSD hop: Windows loss/jitter, routed IPv4/IPv6 coverage and a pre-registered SackOpts controlled-null attempt",
+  "families": [4, 6],
+  "topology": {
+    "4": {"source": "10.66.21.1", "router_source_side": "10.66.21.3", "router_target_side": "10.66.22.3", "target": "10.66.22.2", "prefix_length": 24},
+    "6": {"source": "fd66:66:21::1", "router_source_side": "fd66:66:21::3", "router_target_side": "fd66:66:22::3", "target": "fd66:66:22::2", "prefix_length": 64},
+    "basis": "Source and Windows target use distinct prefixes on one virtual Ethernet segment; each side routes the other prefix through the FreeBSD router, so forwarding is at layer 3 even though the frames share a segment"
+  },
+  "phases": {
+    "native": {
+      "order": 1,
+      "sackopts": null,
+      "seed_start": {"4": 69000, "6": 69100},
+      "blocks": 12,
+      "per_block": {"clean": 1, "loss-jitter": 1},
+      "drop_runs": 3,
+      "expected": {"clean": "difference", "loss-jitter": "difference", "drop": "unresolved"},
+      "basis": "Native Windows SACK support (registry SackOpts absent) observed in prior studies; hypothesis, not an independent toggle"
+    },
+    "feasibility": {
+      "order": 2,
+      "sackopts": 0,
+      "seed_start": {"4": 69200, "6": 69210},
+      "clean_runs": 3,
+      "expected": {"clean": "no-difference"},
+      "stopping_rule": "Phase null runs only if all six feasibility reports are valid, every one is no-difference, and no SYN-ACK in any arm carries SACK-permitted. Otherwise the SackOpts control is declared ineffective, phase null is not executed and its planned reports are recorded as not executed by the stopping rule."
+    },
+    "null": {
+      "order": 3,
+      "sackopts": 0,
+      "seed_start": {"4": 69300, "6": 69500},
+      "blocks": 12,
+      "per_block": {"clean": 5, "loss-jitter": 5},
+      "drop_runs": 0,
+      "expected": {"clean": "no-difference", "loss-jitter": "no-difference"},
+      "conditional_on": "feasibility stopping rule"
+    },
+    "restore": {
+      "order": 4,
+      "sackopts": null,
+      "seed_start": {"4": 69700, "6": 69710},
+      "clean_runs": 1,
+      "expected": {"clean": "difference"}
+    }
+  },
+  "sackopts_control": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters SackOpts DWORD 0, set before a full restart and deleted before a second restart; native truth must show the registry value and a boot time later than the recorded change",
+  "order_seed": 69000,
+  "replicates": 12,
+  "window_ms": 800,
+  "washout_ms": 300,
+  "packets_per_second": 3,
+  "max_packets": 48,
+  "max_duration_seconds": 90,
+  "alpha": 0.05,
+  "confidence": 0.95,
+  "maximum_false_positive_rate": 0.05,
+  "null_runs_per_stratum": 60,
+  "effect_runs_per_stratum": 12,
+  "minimum_clean_effect_accuracy": 0.9,
+  "primary_outcome": "SACK negotiation difference",
+  "impairment": {
+    "delay_profile": "128 empirical uniform samples interpolated from 15 to 25 ms (bsd-delay-profile.txt)",
+    "loss_probability": 0.05,
+    "bandwidth_mbit_per_second": 100,
+    "scope": "Only forwarded TCP443 SYN-ACKs from the Windows target to the explicit source, on the router's outgoing interface; control TCP8443 and probes are forwarded unshaped",
+    "pipe": 6066,
+    "count_rules": [60064, 60065],
+    "rules": [60066, 60067],
+    "rule_set": 30
+  },
+  "diagnostics": {
+    "split_half_rtt_relative_drift_flag": 0.25,
+    "absolute_lag_one_rtt_correlation_flag": 0.3,
+    "meaning": "Descriptive temporal flags only; lack of flags cannot establish IID or stationarity"
+  },
+  "limitations": [
+    "Same Windows 11 VM and FreeBSD VM as earlier studies; a fresh routed configuration, not physically independent held-out hardware",
+    "Exact binomial bounds and numerical gates are conditional on IID Bernoulli sampling, which this experiment cannot establish",
+    "Strict complete-pair inference stays unresolved under loss; all planned invalid, missing, unresolved and not-executed outcomes remain in denominators",
+    "Routed IPv4/IPv6 through one FreeBSD hop without NAT; the Linux corpus supplies NAT/proxy fixtures",
+    "Impairment is FreeBSD dummynet on the forwarded reply path, not Linux netem and not a Windows-native impairment",
+    "macOS source kernel RSTs remain enabled; captures on the shared segment include both forwarded legs",
+    "Resources measure macOS scanner/runner children, not Windows or router CPU/RSS"
+  ]
+}
