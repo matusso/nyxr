@@ -187,6 +187,16 @@ checks per family with fixed native state controls. Its
 completed all 15 reports, with 12 correct clean differences and three correctly
 unresolved blocked results per family. Neither turns a blocked endpoint into a resolved
 SACK null.
+The [routed Windows study](WINDOWS.md#routed-windows-study-with-a-sackopts-null-attempt)
+puts the same endpoint behind a FreeBSD layer-3 hop. Its
+[v2 corpus](../corpus/2026-10-19-windows-routed-arm64/RESULTS.md) completed all
+38 executed reports. Routed IPv4/IPv6 had 12/12 correct clean differences and
+3/3 unresolved router DROP checks per family. The registered `SackOpts = 0`
+control was ineffective on Windows 11 build 26200, so its 120 planned nulls
+were not executed under the stopping rule. The
+[interrupted v1 corpus](../corpus/2026-10-19-windows-routed-v1-failed-arm64/RESULTS.md)
+retains the router kernel panics under dummynet loss/jitter shaping that ended
+the Windows impairment stratum.
 
 The separate [FreeBSD controlled collector](BSD.md) supplies native SACK-enabled
 and SACK-disabled IPv4/IPv6 ground truth. Its
@@ -198,5 +208,8 @@ registered [sequential study](../corpus/2026-10-12-freebsd-vnet-sequential-arm64
 completed 588 valid reports with clean conditional numerical gates and 200
 unresolved loss-jitter reports. The VM panicked after collection and teardown;
 this shared-kernel study does not establish independence or a stability fix.
-Issue #66 stays open for controlled Windows nulls, broader independent coverage
-and scientific acceptance.
+Issue #66 closes on this corpus with its negative outcomes stated. Native
+Windows SACK could not be disabled, so there is no controlled Windows null.
+There is no Windows loss/jitter stratum, and independence or stationarity is
+not established. Conditional numerical null gates are met only by the FreeBSD
+sequential study's four clean strata.

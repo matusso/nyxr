@@ -196,6 +196,13 @@ value, a boot later than the recorded change, the Windows route through the
 router, and the router fixture, condition, rule scope, boot time and absence
 of dummynet. It requires the router counters to increase for every run.
 
+Results: the [v2 corpus](../corpus/2026-10-19-windows-routed-arm64/RESULTS.md)
+has all native and restore reports correct. The SackOpts control was
+ineffective on build 26200: feasibility still showed treatment-only SACK. The
+null phase was therefore not executed. The
+[v1 corpus](../corpus/2026-10-19-windows-routed-v1-failed-arm64/RESULTS.md)
+retains the router panics.
+
 The phases run in order. `native` (SackOpts absent): 12 clean effect-hypothesis
 runs, then three known DROP checks. `feasibility` (SackOpts 0): three clean
 runs. `null` runs only if all six feasibility reports are valid no-difference
