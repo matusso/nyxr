@@ -33,6 +33,12 @@ for key in ("replicates", "window_ms", "washout_ms", "packets_per_second", "max_
         raise RuntimeError(f"routed protocol {key} differs from the shared experiment settings")
 
 
+def interface_routes(interface):
+    """Only the measurement segment's routes; the full table exposes unrelated networks."""
+    return "\n".join(line for line in lab.command("netstat", "-rn").splitlines()
+                     if interface in line.split() or not line.strip() or line.endswith(":") or line.startswith("Destination"))
+
+
 def plan(phase, family):
     spec = PROTOCOL["phases"][phase]
     rng = random.Random(PROTOCOL["order_seed"] + 10 * spec["order"] + family)
@@ -216,7 +222,7 @@ def collect(args):
     lab.save(out / "manifest.json", manifest)  # Denominator frozen before traffic.
     lab.save(out / "environment.json", {"platform": platform.platform(), "nyxr_sha256": lab.digest(Path(binary)),
         "buildinfo": lab.command("go", "version", "-m", binary), "interface": lab.command("ifconfig", args.interface),
-        "routes": lab.command("netstat", "-rn"), "collector_sha256": lab.digest(Path(__file__)),
+        "routes": interface_routes(args.interface), "collector_sha256": lab.digest(Path(__file__)),
         "helper_sha256": lab.digest(HERE / "windows-endpoint.ps1"),
         "router_sha256": lab.digest(HERE / "bsd-router.sh"),
         "setup_sha256": lab.digest(HERE / "windows-routed-setup.ps1")})
