@@ -1,0 +1,39 @@
+{
+  "archive_bytes": 163329,
+  "archive_sha256": "c018b857e5a33ae5180dfed343b2d09af229b352e0c132d1f26916b6f9466a5c",
+  "binary_sha256": "54546122338b610c67a97f478b60daabb68de37440c5f13d22063685c0f6a152",
+  "canonical_reports_replayed": 6,
+  "collector_source_sha256": "10d281d41701e5414b11bbd012014775a9b3e9a479468eb2ed184a62c29fd208",
+  "date": "2026-10-19",
+  "native_build": "26200",
+  "outcome": "stopped by router kernel panic during loss-jitter run 4",
+  "path_redaction": {
+    "files": [
+      "logs/native-v4.log",
+      "native-v4/environment.json",
+      "native-v4/manifest.json",
+      "native-v4/summary.json",
+      "native-v4/windows-routed-native-v4-clean-00-0/horizon/resources.json",
+      "native-v4/windows-routed-native-v4-clean-00-0/scan/resources.json",
+      "native-v4/windows-routed-native-v4-clean-01-0/horizon/resources.json",
+      "native-v4/windows-routed-native-v4-clean-01-0/scan/resources.json",
+      "native-v4/windows-routed-native-v4-clean-02-0/horizon/resources.json",
+      "native-v4/windows-routed-native-v4-clean-02-0/scan/resources.json",
+      "native-v4/windows-routed-native-v4-loss-jitter-00-0/horizon/resources.json",
+      "native-v4/windows-routed-native-v4-loss-jitter-00-0/scan/resources.json",
+      "native-v4/windows-routed-native-v4-loss-jitter-01-0/horizon/resources.json",
+      "native-v4/windows-routed-native-v4-loss-jitter-01-0/scan/resources.json",
+      "native-v4/windows-routed-native-v4-loss-jitter-02-0/horizon/resources.json",
+      "native-v4/windows-routed-native-v4-loss-jitter-02-0/scan/resources.json",
+      "native-v4/windows-routed-native-v4-loss-jitter-03-0/horizon/resources.json",
+      "native-v4/windows-routed-native-v4-loss-jitter-03-0/scan/resources.json"
+    ],
+    "rule": "operator-local path prefixes replaced by /tmp/hz66 and <repo>"
+  },
+  "protocol": "horizon-windows-routed-controlled/v1",
+  "protocol_source_sha256": "e783c6b122c47cd14b91aa9654db459c816152f6476fffcc27da8729b4b52223",
+  "raw_file_count": 174,
+  "router": "FreeBSD 15.1-RELEASE-p4 arm64; em0 (attempts 1-2) then vmx0 (this run)",
+  "source_commit": "fd37fa6",
+  "verification": "all raw hashes checked after extraction; frozen-source re-analysis reproduced every stored summary"
+}
