@@ -30,7 +30,12 @@ prints JSON diagnostics by split, claim kind and rule version. The report
 includes exact dataset SHA-256, false and missed matches, unknowns, packet and
 time cost, ten-bin calibration error and Brier score when numeric scores are
 available. These diagnostics do not convert heuristic scores into validated
-probabilities. See the [shared fixture guide](../../lab/horizon/calibration/README.md).
+probabilities. Reports also include distinct fixture-group counts and conditional
+95% Wilson intervals for rates, separately by environment stratum. Measured v2
+datasets require a frozen case registration, separate truth references and
+packet/time provenance; incomplete plans are rejected. V1 diagnostic fixtures
+remain supported. See the [shared fixture guide](../../lab/horizon/calibration/README.md)
+for formats, collection steps and the limitations of conditional intervals.
 
 ## nyxr horizon
 
