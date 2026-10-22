@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"maps"
+	"time"
 
 	"github.com/matusso/nyxr/internal/observe"
 )
@@ -22,7 +25,10 @@ func (f probeFunc) Execute(ctx context.Context, t Target, o *observe.Observation
 
 // executeProbe is the common execution boundary for native and declarative
 // machines. Scheduling, inference and transcripts stay outside the parsers.
-func (e *Engine) executeProbe(ctx context.Context, t Target, name string, redisHint bool, o *observe.Observation) bool {
+// Parsers read hostile input, so a panic in one is contained here: the
+// partial claim is rolled back, its exchanges are kept, and the panic is
+// recorded as a probe error instead of terminating the process.
+func (e *Engine) executeProbe(ctx context.Context, t Target, name string, redisHint bool, o *observe.Observation) (matched bool) {
 	if ctx.Err() != nil {
 		return false
 	}
@@ -74,7 +80,20 @@ func (e *Engine) executeProbe(ctx context.Context, t Target, name string, redisH
 			}
 		}
 	}
-	return machine != nil && machine.Execute(ctx, t, o)
+	if machine == nil {
+		return false
+	}
+	saved := *o
+	saved.Attributes, saved.Fields = maps.Clone(o.Attributes), maps.Clone(o.Fields)
+	defer func() {
+		if r := recover(); r != nil {
+			evidence := o.Evidence
+			*o = saved
+			o.Evidence = append(evidence, observe.Evidence{Probe: name, Started: time.Now().UTC(), Error: fmt.Sprintf("probe panic: %v", r)})
+			matched = false
+		}
+	}()
+	return machine.Execute(ctx, t, o)
 }
 
 func (e *Engine) probeBudget(o *observe.Observation) bool {
