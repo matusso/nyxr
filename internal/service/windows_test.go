@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"net"
 	"net/netip"
 	"testing"
@@ -164,6 +165,27 @@ func TestRDPNegotiation(t *testing.T) {
 			}
 			if tc.wantFailureText != "" && o.Attributes["rdp.negotiation_failure"] != tc.wantFailureText {
 				t.Errorf("rdp.negotiation_failure = %q, want %q", o.Attributes["rdp.negotiation_failure"], tc.wantFailureText)
+			}
+		})
+	}
+}
+
+// A connection confirm shorter than the fixed 7-byte X.224 CC header must be
+// rejected rather than sliced past its end.
+func TestRDPShortConnectionConfirm(t *testing.T) {
+	for _, n := range []int{6, 7, 8, 9, 10} {
+		t.Run(fmt.Sprintf("tpkt-%d", n), func(t *testing.T) {
+			e := identityEngine(t, ProbeRDP, func(c net.Conn) {
+				if _, err := readTPKT(c); err != nil {
+					return
+				}
+				frame := make([]byte, n)
+				frame[0], frame[3], frame[5] = 0x03, byte(n), 0xD0
+				_, _ = c.Write(frame)
+			})
+			o := e.Interrogate(context.Background(), Target{Addr: netip.MustParseAddr("127.0.0.1"), Port: 3389})
+			if o.Service == "rdp" {
+				t.Fatalf("truncated confirm identified as RDP: %+v", o)
 			}
 		})
 	}

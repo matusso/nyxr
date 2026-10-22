@@ -567,8 +567,9 @@ func (e *Engine) probeRDP(ctx context.Context, t Target, o *observe.Observation)
 		e.finish(&ev, rc, err)
 		return false
 	}
-	// A valid X.224 Connection Confirm (code 0xD0) identifies RDP.
-	if len(resp) < 2 || resp[1]&0xF0 != 0xD0 {
+	// A valid X.224 Connection Confirm (code 0xD0) identifies RDP. Its fixed
+	// header is 7 bytes; anything shorter is malformed and must not be sliced.
+	if len(resp) < 7 || resp[1]&0xF0 != 0xD0 {
 		e.finish(&ev, rc, fmt.Errorf("not an X.224 connection confirm"))
 		return false
 	}
