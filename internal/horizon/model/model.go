@@ -23,6 +23,7 @@ type Spec struct {
 	CrossPort       bool      `json:"crossPort,omitempty" yaml:"crossPort,omitempty"`
 	Scope           Scope     `json:"scope" yaml:"scope"`
 	ChangedVariable string    `json:"changedVariable" yaml:"changedVariable"`
+	Confounders     []string  `json:"confounders,omitempty" yaml:"confounders,omitempty"`
 	Control         Sequence  `json:"control" yaml:"control"`
 	Treatment       Sequence  `json:"treatment" yaml:"treatment"`
 	Execution       Execution `json:"execution" yaml:"execution"`
@@ -59,6 +60,7 @@ type Execution struct {
 	RandomizedOrder bool  `json:"randomizedOrder" yaml:"randomizedOrder"`
 	Seed            int64 `json:"seed" yaml:"seed,omitempty"`
 	WashoutMS       int   `json:"washoutMs" yaml:"washoutMs,omitempty"`
+	ReferenceEvery  int   `json:"referenceEvery,omitempty" yaml:"referenceEvery,omitempty"`
 }
 type Limits struct {
 	MaxReceiveFrames   int `json:"maxReceiveFrames,omitempty" yaml:"maxReceiveFrames,omitempty"`
@@ -193,7 +195,70 @@ type Report struct {
 	BackendDrops       uint64           `json:"backendDrops"`
 	Trials             []Trial          `json:"trials"`
 	Comparison         Comparison       `json:"comparison"`
+	Environment        *Environment     `json:"environment,omitempty"`
 	Limitations        []string         `json:"limitations"`
+}
+
+// Environment is a deterministic post-run quality assessment. Its flags are
+// observations about the run, never statements about the target's mechanism.
+type Environment struct {
+	Version      string     `json:"version"`
+	Treatment    string     `json:"treatment"`
+	Confounders  []string   `json:"confounders"`
+	QualityFlags []string   `json:"qualityFlags"`
+	GatingFlags  []string   `json:"gatingFlags"`
+	Responses    Responses  `json:"responses"`
+	Drift        Drift      `json:"drift"`
+	Carryover    Carryover  `json:"carryover"`
+	Stability    Stability  `json:"stability"`
+	Clock        ClockCheck `json:"clock"`
+	Latency      Latency    `json:"latency"`
+}
+type Responses struct {
+	FirstHalf          int     `json:"firstHalf"`
+	FirstHalfAnswered  int     `json:"firstHalfAnswered"`
+	SecondHalf         int     `json:"secondHalf"`
+	SecondHalfAnswered int     `json:"secondHalfAnswered"`
+	ThrottlingPValue   float64 `json:"throttlingPValue"`
+	References         int     `json:"references"`
+	ReferencesAnswered int     `json:"referencesAnswered"`
+}
+type Drift struct {
+	Samples            int    `json:"samples"`
+	FirstHalfMedianNS  *int64 `json:"firstHalfMedianNs"`
+	SecondHalfMedianNS *int64 `json:"secondHalfMedianNs"`
+}
+type Carryover struct {
+	ControlFirstPairs        int     `json:"controlFirstPairs"`
+	ControlFirstDiscordant   int     `json:"controlFirstDiscordant"`
+	TreatmentFirstPairs      int     `json:"treatmentFirstPairs"`
+	TreatmentFirstDiscordant int     `json:"treatmentFirstDiscordant"`
+	PValue                   float64 `json:"pValue"`
+}
+type Stability struct {
+	CompletePairs        int `json:"completePairs"`
+	ResponseClassChanges int `json:"responseClassChanges"`
+	TTLChanges           int `json:"ttlChanges"`
+	OtherOptionChanges   int `json:"otherOptionChanges"`
+}
+type ClockCheck struct {
+	TimedEvidence       int   `json:"timedEvidence"`
+	UnknownPrecision    int   `json:"unknownPrecision"`
+	MaxResolutionNS     int64 `json:"maxResolutionNs"`
+	UnstableTrials      int   `json:"unstableTrials"`
+	InvalidTimingTrials int   `json:"invalidTimingTrials"`
+}
+
+// Latency is descriptive userspace RTT. Intervals are distribution-free order
+// statistic bounds for a median, assuming independent pairs; nil is unavailable.
+type Latency struct {
+	ControlMedianNS   *int64  `json:"controlMedianNs"`
+	TreatmentMedianNS *int64  `json:"treatmentMedianNs"`
+	PairedSamples     int     `json:"pairedSamples"`
+	PairedMedianNS    *int64  `json:"pairedDifferenceMedianNs"`
+	PairedLowerNS     *int64  `json:"pairedDifferenceLowerNs"`
+	PairedUpperNS     *int64  `json:"pairedDifferenceUpperNs"`
+	Confidence        float64 `json:"confidence"`
 }
 
 // Envelope provides corruption detection, not authentication or a signature.

@@ -447,6 +447,7 @@ func TestMinimizedPayloadAndLegacyReplay(t *testing.T) {
 	// Re-create the original additive-compatible report shape and old features.
 	r.CaptureArtifact = nil
 	r.CorrelationVersion = ""
+	r.Environment = nil
 	for i := range r.Trials {
 		for j := range r.Trials[i].Evidence {
 			e := &r.Trials[i].Evidence[j]

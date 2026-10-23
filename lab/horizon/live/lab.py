@@ -134,6 +134,9 @@ class Topology:
             self.ip(index, "addr", "add", ipv4, "dev", link)
             self.ip(index, "-6", "addr", "add", ipv6, "dev", link, "nodad")
             self.ip(index, "link", "set", link, "up")
+            # Kernel SYN/ACKs on veth otherwise carry partial (offloaded) TCP
+            # checksums, which HORIZON correlation rejects as invalid.
+            self.ns(index, "ethtool", "-K", link, "tx", "off")
         if routed:
             self.sysctl(1, "net.ipv4.ip_forward=1", "net.ipv6.conf.all.forwarding=1")
             self.ip(0, "route", "add", "10.78.0.0/24", "via", "10.77.0.2")
@@ -196,6 +199,8 @@ class Topology:
                 "links": json.loads(self.ip(index, "-j", "-s", "link")),
                 "qdiscs": self.ns(index, "tc", "-s", "qdisc", "show"),
                 "sack": self.ns(index, "sysctl", "net.ipv4.tcp_sack"),
+                "tx_checksum_offload": {link: self.ns(index, "ethtool", "-k", link).split("tx-checksumming:")[1].split()[0]
+                                        for link in ("front", "back") if f'"{link}"' in self.ip(index, "-j", "link", "show")},
                 "firewall_v4": self.ns(index, "iptables-save", "-c"),
                 "firewall_v6": self.ns(index, "ip6tables-save", "-c"),
             }
@@ -237,7 +242,7 @@ def experiment(target, seed):
 def collect(args):
     if platform.system() != "Linux" or os.geteuid() != 0:
         raise RuntimeError("live collection requires root on an isolated Linux host/container")
-    for tool in ("ip", "tc", "tcpdump", "iptables", "ip6tables", "sysctl"):
+    for tool in ("ip", "tc", "tcpdump", "iptables", "ip6tables", "sysctl", "ethtool"):
         if not shutil.which(tool):
             raise RuntimeError(f"missing {tool}")
     binary = str(Path(args.binary).resolve())

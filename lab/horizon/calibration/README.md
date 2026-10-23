@@ -1,5 +1,10 @@
 # Ordinary confidence evaluation fixtures
 
+`hz-phase3-protocol.json` is separate: it pre-registers the HORIZON Phase 3
+decision-rule calibration run by `nyxr horizon calibrate` (see
+[environmental controls](../../../docs/horizon/environment-controls.md)).
+The rest of this page covers ordinary confidence fixtures.
+
 This directory extends the shared HORIZON #66 lab with labeled ordinary
 protocol, device, stack, port-state and identity cases. It does **not** change
 HORIZON experimental statistics or provide a live accuracy claim.

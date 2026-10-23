@@ -1,0 +1,33 @@
+/private/tmp/claude-501/-Users-burso-Stuff-matusso-nyxr/c0793720-f14e-4ad5-b8b7-71fa3a800314/scratchpad/bin/nyxr-linux: go1.27.3
+	path	github.com/matusso/nyxr/cmd/nyxr
+	mod	github.com/matusso/nyxr	v0.17.2-0.20261023112348-6a0a57484b9e+dirty	
+	dep	github.com/dustin/go-humanize	v1.0.1	h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
+	dep	github.com/google/uuid	v1.6.0	h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
+	dep	github.com/gopacket/gopacket	v1.7.3	h1:KTze+fpeKEaI7aWkJUL9Sq7r1b0zkcuBzTl5l0uPUh8=
+	dep	github.com/mattn/go-isatty	v0.0.24	h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI=
+	dep	github.com/pion/dtls/v3	v3.1.10	h1:HWC+QCZitP/ApADS/6+g7UIw2YmLgoK3CsynnjPJgMo=
+	dep	github.com/pion/logging	v0.2.4	h1:tTew+7cmQ+Mc1pTBLKH2puKsOvhm32dROumOZ655zB8=
+	dep	github.com/pion/transport/v5	v5.0.0	h1:XWdfCnG6oLaTp07Sr4lbyWVs+MXuaD3eggUsSn6LK90=
+	dep	github.com/quic-go/qpack	v0.6.0	h1:g7W+BMYynC1LbYLSqRt8PBg5Tgwxn214ZZR34VIOjz8=
+	dep	github.com/quic-go/quic-go	v0.63.0	h1:LIFGHI4PFUhhw2dDD1ARHdCff143ffMHwZtbnbuJ78A=
+	dep	github.com/remyoudompheng/bigfft	v0.0.0-20230129092748-24d4a6f8daec	h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
+	dep	golang.org/x/crypto	v0.54.0	h1:YLIA59K4fiNzHzjnZt2tUJQjQtUWfWbeHBqKtk3eScw=
+	dep	golang.org/x/net	v0.56.0	h1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o=
+	dep	golang.org/x/sys	v0.48.0	h1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=
+	dep	golang.org/x/term	v0.46.0	h1:3+OXuTbaKDgwk8jTi3aSLHRlmWqHEUDUtxnbFigO4YE=
+	dep	golang.org/x/text	v0.40.0	h1:Ub2Z6/xjgF1WrYQz2nuITOEegKFtiIy+rieRJ5lHZKs=
+	dep	gopkg.in/yaml.v3	v3.0.1	h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
+	dep	modernc.org/libc	v1.77.1	h1:Ct8j47QtiZ1Enj2DtFXQtUqrPCAjdCmPjtCuvrYQ0Hs=
+	dep	modernc.org/mathutil	v1.7.1	h1:GCZVGXdaN8gTqB1Mf/usp1Y/hSqgI2vAGGP4jZMCxOU=
+	dep	modernc.org/memory	v1.12.1	h1:nFMiWrpStgZczNl6XI9GnIk/rWhYIyHGUaR04pGbp9g=
+	dep	modernc.org/sqlite	v1.60.1	h1:/blz53O951KWFOso4QQvEs/Fq6cDBKLtMVrYNSeJVKw=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	CGO_ENABLED=0
+	build	GOARCH=arm64
+	build	GOOS=linux
+	build	GOARM64=v8.0
+	build	vcs=git
+	build	vcs.revision=6a0a57484b9e7d76d31e683a499df29f19a8a1e4
+	build	vcs.time=2026-10-23T11:23:48Z
+	build	vcs.modified=true

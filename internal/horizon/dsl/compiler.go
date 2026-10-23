@@ -73,7 +73,7 @@ func Parse(r io.Reader) (model.Experiment, error) {
 			if n.Kind == yaml.MappingNode {
 				for i := 0; i < len(n.Content); i += 2 {
 					switch n.Content[i].Value {
-					case "crossPort", "wait", "repeat", "maxReceiveFrames", "maxMemoryBytes":
+					case "crossPort", "wait", "repeat", "maxReceiveFrames", "maxMemoryBytes", "confounders", "referenceEvery":
 						return errors.New("v1alpha2 fields require v1alpha2")
 					}
 				}
@@ -158,7 +158,7 @@ func Compile(e model.Experiment, policy model.Policy) (model.Plan, error) {
 	if e.APIVersion == model.GeneralVersion {
 		return compileGeneral(e, policy)
 	}
-	if e.Spec.CrossPort || e.Spec.Limits.MaxReceiveFrames != 0 || e.Spec.Limits.MaxMemoryBytes != 0 {
+	if e.Spec.CrossPort || e.Spec.Limits.MaxReceiveFrames != 0 || e.Spec.Limits.MaxMemoryBytes != 0 || len(e.Spec.Confounders) != 0 || e.Spec.Execution.ReferenceEvery != 0 {
 		return p, errors.New("v1alpha2 fields require v1alpha2")
 	}
 	for _, seq := range []model.Sequence{e.Spec.Control, e.Spec.Treatment} {

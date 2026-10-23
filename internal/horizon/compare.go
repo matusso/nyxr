@@ -2,6 +2,7 @@ package horizon
 
 import (
 	"math"
+	"strings"
 
 	"github.com/matusso/nyxr/internal/horizon/model"
 )
@@ -31,13 +32,14 @@ func sack(b []byte) bool {
 // Missing/poor-quality trials are not silently removed to hide attrition.
 func Compare(r model.Report) model.Comparison {
 	c := model.Comparison{Status: "unresolved", Conclusion: "insufficient or confounded evidence", PValue: 1}
+	aa := r.Experiment.Spec.ChangedVariable == "none"
 	if r.Experiment.APIVersion == model.GeneralVersion {
-		if r.Experiment.Spec.ChangedVariable != "sackPermitted" {
+		if r.Experiment.Spec.ChangedVariable != "sackPermitted" && !aa {
 			c.Conclusion = "exploratory sequence observations; inference is not implemented"
 			return c
 		}
 		for _, t := range r.Trials {
-			if t.Probe != 0 {
+			if t.Probe != 0 && t.Arm != "reference" {
 				c.Conclusion = "multi-probe sequence observations; inference is not implemented"
 				return c
 			}
@@ -45,7 +47,7 @@ func Compare(r model.Report) model.Comparison {
 	}
 	pairs := make(map[int]map[string]model.Trial)
 	for _, t := range r.Trials {
-		if t.Features.ResponseClass != "syn-ack" || len(t.QualityFlags) > 0 {
+		if t.Arm == "reference" || t.Features.ResponseClass != "syn-ack" || len(t.QualityFlags) > 0 {
 			continue
 		}
 		if pairs[t.Pair] == nil {
@@ -82,10 +84,20 @@ func Compare(r model.Report) model.Comparison {
 	if !r.Completed || r.BackendDrops > 0 || (r.CaptureArtifact != nil && r.CaptureArtifact.Dropped > 0) || c.CompletePairs < 8 || c.CompletePairs != r.Experiment.Spec.Execution.Replicates {
 		return c
 	}
+	if r.Environment != nil && len(r.Environment.GatingFlags) > 0 {
+		c.Conclusion = "environmental quality gate: " + strings.Join(r.Environment.GatingFlags, ", ")
+		return c
+	}
 	c.Status = "inferred"
 	c.Conclusion = "no detectable difference in SACK permission"
+	if aa {
+		c.Conclusion = "A/A control: no detectable SACK difference between identical arms"
+	}
 	if c.PValue <= 0.05 {
 		c.Conclusion = "SACK permission response differs between paired arms; causal explanation unresolved"
+		if aa {
+			c.Conclusion = "A/A control arms differ in SACK permission; environmental or state instability suspected"
+		}
 	}
 	return c
 }

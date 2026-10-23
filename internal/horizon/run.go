@@ -78,6 +78,7 @@ func Run(ctx context.Context, e model.Experiment, policy model.Policy, link Link
 		if runErr != nil {
 			report.StopReason = runErr.Error()
 		}
+		report.Environment = Assess(report)
 		report.Comparison = Compare(report)
 	}()
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(e.Spec.Limits.MaxDurationSeconds)*time.Second)

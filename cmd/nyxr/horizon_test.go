@@ -174,3 +174,36 @@ func TestGeneralHorizonCLIPolicyAndExactDryRun(t *testing.T) {
 		t.Fatal("missing exact plan", err)
 	}
 }
+
+func TestHorizonCLIEnvironmentAndCalibration(t *testing.T) {
+	var out bytes.Buffer
+	if err := run([]string{"horizon", "calibrate", "--protocol", "../../lab/horizon/calibration/hz-phase3-protocol.json"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	var calibration horizon.CalibrationReport
+	if err := json.Unmarshal(out.Bytes(), &calibration); err != nil || !calibration.Passed || len(calibration.ProtocolSHA256) != 64 {
+		t.Fatalf("calibration: %+v %v", calibration, err)
+	}
+	for _, args := range [][]string{{"horizon", "calibrate"}, {"horizon", "calibrate", "--protocol", "missing.json"}, {"horizon", "environment"}} {
+		if err := run(args, &bytes.Buffer{}); err == nil {
+			t.Fatalf("accepted %v", args)
+		}
+	}
+	report := filepath.Join(t.TempDir(), "aa.json")
+	out.Reset()
+	if err := run([]string{"horizon", "resolve", "--experiment", "../../lab/horizon/hz-002.yaml", "--policy", "lab", "--allow-targets", "192.0.2.0/24", "--allow-ports", "443", "--simulate", "stable", "--output", report}, &out); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if err := run([]string{"horizon", "environment", report}, &out); err != nil {
+		t.Fatal(err)
+	}
+	var env model.Environment
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil || env.Responses.References != 3 || env.Treatment != "none" {
+		t.Fatalf("environment: %+v %v", env, err)
+	}
+	out.Reset()
+	if err := run([]string{"horizon", "explain", report}, &out); err != nil || !strings.Contains(out.String(), "A/A control") || !strings.Contains(out.String(), "References answered: 3/3") || !strings.Contains(out.String(), "Paired RTT difference") {
+		t.Fatalf("explain: %v\n%s", err, out.String())
+	}
+}

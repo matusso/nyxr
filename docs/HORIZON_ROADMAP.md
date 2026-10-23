@@ -280,6 +280,13 @@ inference, calibrated timing and live ground-truth research gates remain separat
 
 ### Phase 3 — Counterfactual Experiment Runner
 
+**Implemented (#69):** declared confounders, interleaved reference probes,
+HZ-002 A/A runs, a replay-verified environment assessment (throttling,
+carryover, reference loss, clock, drift, latency intervals) that gates
+inference, and a pre-registered synthetic calibration whose gates pass. See
+[environmental controls](horizon/environment-controls.md). Live results are
+limited to one shared-kernel Linux lab.
+
 **Goal:** Test controlled changes rather than draw conclusions from isolated responses.
 
 1. Support randomized A/B ordering with fixed reproducible seed.

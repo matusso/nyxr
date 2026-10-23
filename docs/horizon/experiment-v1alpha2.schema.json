@@ -76,8 +76,26 @@
         "changedVariable": {
           "enum": [
             "sackPermitted",
+            "none",
             "sequence"
           ]
+        },
+        "confounders": {
+          "type": "array",
+          "maxItems": 7,
+          "uniqueItems": true,
+          "description": "Declared unavoidable confounders, recorded in the environment assessment.",
+          "items": {
+            "enum": [
+              "ambient-load",
+              "path-routing",
+              "remote-state-reuse",
+              "source-port-reuse",
+              "middlebox-normalization",
+              "clock-resolution",
+              "rate-limiting"
+            ]
+          }
         },
         "control": {
           "$ref": "#/$defs/sequence"
@@ -112,6 +130,13 @@
               "minimum": 0,
               "maximum": 5000,
               "default": 0
+            },
+            "referenceEvery": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 50,
+              "default": 0,
+              "description": "Insert one interleaved baseline reference probe after every N pairs; must not exceed replicates. Arms then hold at most 31 probes."
             }
           }
         },
