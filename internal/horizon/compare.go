@@ -32,6 +32,9 @@ func sack(b []byte) bool {
 // Missing/poor-quality trials are not silently removed to hide attrition.
 func Compare(r model.Report) model.Comparison {
 	c := model.Comparison{Status: "unresolved", Conclusion: "insufficient or confounded evidence", PValue: 1}
+	if r.Experiment.Spec.ChangedVariable == "precondition" {
+		return comparePrecondition(r)
+	}
 	aa := r.Experiment.Spec.ChangedVariable == "none"
 	if r.Experiment.APIVersion == model.GeneralVersion {
 		if r.Experiment.Spec.ChangedVariable != "sackPermitted" && !aa {
@@ -71,16 +74,7 @@ func Compare(r model.Report) model.Comparison {
 		}
 	}
 	c.DiscordantPairs = c.ControlOnlySACK + c.TreatmentOnlySACK
-	if c.DiscordantPairs > 0 {
-		n, k := c.DiscordantPairs, min(c.ControlOnlySACK, c.TreatmentOnlySACK)
-		term := math.Pow(0.5, float64(n))
-		sum := term
-		for i := 1; i <= k; i++ {
-			term *= float64(n-i+1) / float64(i)
-			sum += term
-		}
-		c.PValue = math.Min(1, 2*sum)
-	}
+	c.PValue = signTest(c.ControlOnlySACK, c.TreatmentOnlySACK)
 	if !r.Completed || r.BackendDrops > 0 || (r.CaptureArtifact != nil && r.CaptureArtifact.Dropped > 0) || c.CompletePairs < 8 || c.CompletePairs != r.Experiment.Spec.Execution.Replicates {
 		return c
 	}
@@ -100,4 +94,19 @@ func Compare(r model.Report) model.Comparison {
 		}
 	}
 	return c
+}
+
+// signTest is the exact two-sided sign test of discordant pair counts.
+func signTest(x, y int) float64 {
+	n, k := x+y, min(x, y)
+	if n == 0 {
+		return 1
+	}
+	term := math.Pow(0.5, float64(n))
+	sum := term
+	for i := 1; i <= k; i++ {
+		term *= float64(n-i+1) / float64(i)
+		sum += term
+	}
+	return math.Min(1, 2*sum)
 }

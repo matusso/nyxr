@@ -1,0 +1,38 @@
+# Time-separated control: main ports, measurement 1500 ms after the precondition window.
+apiVersion: horizon.nyxr.io/v1alpha2
+kind: Experiment
+metadata:
+  name: hz-003-time-separated
+spec:
+  scope:
+    targets: ["192.0.2.10"]
+    tcpPorts: [443, 8443]
+  crossPort: true
+  changedVariable: precondition
+  confounders: [ambient-load, rate-limiting]
+  control:
+    steps:
+      - wait: {durationMs: 1600}
+      - send: {protocol: tcp, flags: [SYN], dstPort: 443, optionsProfile: baseline}
+      - observe: {windowMs: 100}
+  treatment:
+    steps:
+      - send: {protocol: tcp, flags: [SYN], dstPort: 8443, optionsProfile: baseline}
+      - observe: {windowMs: 100}
+      - wait: {durationMs: 1500}
+      - send: {protocol: tcp, flags: [SYN], dstPort: 443, optionsProfile: baseline}
+      - observe: {windowMs: 100}
+  execution:
+    replicates: 12
+    randomizedOrder: true
+    seed: 70004
+    washoutMs: 600
+  limits:
+    maxPackets: 72
+    maxDurationSeconds: 180
+    packetsPerSecond: 10
+    maxConcurrentFlows: 1
+    maxReceiveFrames: 64
+    maxMemoryBytes: 2097152
+  capture:
+    maxBytes: 131072

@@ -170,6 +170,9 @@ type Trial struct {
 type Comparison struct {
 	Status            string  `json:"status"` // inferred or unresolved; never a causal claim
 	Conclusion        string  `json:"conclusion"`
+	Metric            string  `json:"metric,omitempty"` // empty means SACK permission
+	ControlOnly       int     `json:"controlOnly,omitempty"`
+	TreatmentOnly     int     `json:"treatmentOnly,omitempty"`
 	CompletePairs     int     `json:"completePairs"`
 	DiscordantPairs   int     `json:"discordantPairs"`
 	ControlOnlySACK   int     `json:"controlOnlySack"`
@@ -265,4 +268,66 @@ type Latency struct {
 type Envelope struct {
 	SHA256 string `json:"sha256"`
 	Report Report `json:"report"`
+}
+
+// CrossPortStudy combines separately executed precondition experiments
+// (HZ-003/HZ-004) against one target. A candidate is never a topology claim.
+type CrossPortStudy struct {
+	Version                string       `json:"version"`
+	Target                 string       `json:"target"`
+	Roles                  []RoleEffect `json:"roles"`
+	Classification         string       `json:"classification"`
+	IsolatedClassification string       `json:"isolatedClassification"`
+	Reasons                []string     `json:"reasons"`
+	Candidates             []Candidate  `json:"candidates"`
+	Limitations            []string     `json:"limitations"`
+}
+
+// RoleEffect is one experiment's measurement-probe effect. Rates are the
+// share of complete pairs whose measurement was answered, with two-sided 95%
+// Clopper-Pearson intervals that assume independent pairs.
+type RoleEffect struct {
+	Role              string   `json:"role"`
+	RunID             string   `json:"runId"`
+	ExperimentHash    string   `json:"experimentHash"`
+	PreconditionPorts []uint16 `json:"preconditionPorts"`
+	MeasurementPort   uint16   `json:"measurementPort"`
+	MatchedWaitMS     int      `json:"matchedWaitMs"`
+	Status            string   `json:"status"`
+	Conclusion        string   `json:"conclusion"`
+	CompletePairs     int      `json:"completePairs"`
+	Suppressed        int      `json:"suppressed"`
+	Enabled           int      `json:"enabled"`
+	PValue            float64  `json:"pValue"`
+	Significant       bool     `json:"significant"`
+	ControlAnswered   Interval `json:"controlAnswered"`
+	TreatmentAnswered Interval `json:"treatmentAnswered"`
+	PreconditionTTLs  []uint8  `json:"preconditionTtls"`
+	MeasurementTTLs   []uint8  `json:"measurementTtls"`
+}
+type Interval struct {
+	Estimate float64 `json:"estimate"`
+	Lower    float64 `json:"lower"`
+	Upper    float64 `json:"upper"`
+}
+type Candidate struct {
+	ID                string       `json:"id"`
+	Type              string       `json:"type"`
+	Status            string       `json:"status"`
+	Subjects          []string     `json:"subjects"`
+	Direction         string       `json:"direction"`
+	Evidence          []string     `json:"evidence"`
+	Alternatives      []string     `json:"alternatives"`
+	OrthogonalSignals []string     `json:"orthogonalSignals"`
+	Hypotheses        []Hypothesis `json:"hypotheses"`
+}
+
+// Hypothesis is an infrastructure explanation. It stays not-elevated unless
+// an orthogonal signal supports it; probability is null until calibrated.
+type Hypothesis struct {
+	Family      string   `json:"family"`
+	Status      string   `json:"status"`
+	Location    string   `json:"location,omitempty"`
+	Probability *float64 `json:"probability"`
+	Reason      string   `json:"reason"`
 }

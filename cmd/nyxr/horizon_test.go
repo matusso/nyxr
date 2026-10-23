@@ -207,3 +207,37 @@ func TestHorizonCLIEnvironmentAndCalibration(t *testing.T) {
 		t.Fatalf("explain: %v\n%s", err, out.String())
 	}
 }
+
+func TestHorizonCLICrossPortStudy(t *testing.T) {
+	dir := t.TempDir()
+	reports := map[string]string{}
+	for _, role := range []string{"main", "same-port"} {
+		b, err := os.ReadFile("../../lab/horizon/cross-port/" + role + ".yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		fast := strings.NewReplacer("replicates: 12", "replicates: 8", "washoutMs: 600", "washoutMs: 300", "windowMs: 100", "windowMs: 20", "durationMs: 100", "durationMs: 20").Replace(string(b))
+		experiment := filepath.Join(dir, role+".yaml")
+		if err := os.WriteFile(experiment, []byte(fast), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		reports[role] = filepath.Join(dir, role+".json")
+		args := []string{"horizon", "resolve", "--experiment", experiment, "--policy", "lab", "--permit", "cross-port", "--allow-targets", "192.0.2.0/24", "--allow-ports", "443,8443", "--simulate", "port-limit", "--output", reports[role]}
+		if err := run(args, &bytes.Buffer{}); err != nil {
+			t.Fatal(role, err)
+		}
+	}
+	var out bytes.Buffer
+	if err := run([]string{"horizon", "cross-port", "--main", reports["main"], "--same-port", reports["same-port"]}, &out); err != nil {
+		t.Fatal(err)
+	}
+	var study model.CrossPortStudy
+	if err := json.Unmarshal(out.Bytes(), &study); err != nil || study.Classification != "per-port-state" || len(study.Roles) != 2 {
+		t.Fatalf("study: %+v %v", study, err)
+	}
+	for _, args := range [][]string{{"horizon", "cross-port"}, {"horizon", "cross-port", "--same-port", reports["same-port"]}, {"horizon", "cross-port", "--main", reports["same-port"]}} {
+		if err := run(args, &bytes.Buffer{}); err == nil {
+			t.Fatalf("accepted %v", args)
+		}
+	}
+}

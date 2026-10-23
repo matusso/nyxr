@@ -1,0 +1,34 @@
+{
+  "version": "horizon-cross-port-live/v1",
+  "issue": 70,
+  "registered_at": "2026-10-23T13:30:00Z",
+  "primary_metric": "measurement SYN answered (SYN/ACK or RST), paired precondition versus matched no-precondition control",
+  "alpha": 0.05,
+  "ports": {"a": 8443, "b": 443, "unrelated": 9443},
+  "limit": {"rate": "2/second", "burst": 1, "note": "one token per 500 ms; SYNs without a token are dropped"},
+  "studies_per_topology": 6,
+  "ipv6_studies_per_topology": 3,
+  "ipv6_topologies": ["independent", "shared-endpoint"],
+  "ipv6_roles": ["main", "same-port"],
+  "roles": ["main", "same-port", "reverse", "time-separated", "null"],
+  "seed_start": 70100,
+  "topologies": {
+    "independent": {"truth": "no-coupling", "limiter": null},
+    "per-port": {"truth": "per-port-state", "limiter": "endpoint-per-port"},
+    "shared-endpoint": {"truth": "shared-state", "limiter": "endpoint-shared"},
+    "shared-path": {"truth": "shared-state", "limiter": "router-shared"}
+  },
+  "gates": {
+    "confidence": 0.95,
+    "go_rule": "cross-port classification accuracy over all planned studies has a two-sided 95% Clopper-Pearson lower bound above the upper bound of the matched isolated-control classification accuracy",
+    "candidate_false_positives_allowed": 0,
+    "infrastructure_hypothesis_requires_orthogonal_signal": true,
+    "confounded_location": "shared-endpoint and shared-path must not be assigned different locations without an orthogonal signal that distinguishes them"
+  },
+  "limitations": [
+    "All namespaces share one Linux kernel inside one Docker VM; study repetitions are not independent hosts.",
+    "Limiters are iptables limit-module token buckets; other shared-state mechanisms are not represented.",
+    "The isolated baseline reuses the experiments' own no-precondition probes; it is matched in timing and port, not a separate scanner.",
+    "Unresolved and failed studies stay in every denominator."
+  ]
+}
