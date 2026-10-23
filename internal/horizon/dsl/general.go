@@ -246,9 +246,13 @@ func compileGeneral(e model.Experiment, policy model.Policy) (model.Plan, error)
 				return p, errors.New("A/A arms must use the baseline profile")
 			}
 		}
+	case "precondition": // HZ-003/HZ-004: precondition flow(s), then one matched measurement.
+		if err := checkPrecondition(arms[0], arms[1]); err != nil {
+			return p, err
+		}
 	case "sequence": // Explicit exploratory sequence difference; never feeds HZ-001 inference.
 	default:
-		return p, errors.New("changedVariable must be sackPermitted, none or sequence")
+		return p, errors.New("changedVariable must be sackPermitted, none, precondition or sequence")
 	}
 	if err := checkConfounders(s.Confounders); err != nil {
 		return p, err
@@ -313,6 +317,36 @@ func compileGeneral(e model.Experiment, policy model.Policy) (model.Plan, error)
 		}
 	}
 	return describePlan(p, policy)
+}
+
+// MaxPreconditions bounds precondition flows before one measurement probe.
+const MaxPreconditions = 4
+
+// checkPrecondition requires a control of exactly one measurement probe and a
+// treatment of 1..4 baseline precondition probes followed by an identical
+// measurement. The control waits exactly as long as the treatment's
+// preconditions take (waits plus response windows), so absence of the
+// precondition flow is the only declared difference. Rate-gate spacing and
+// cleanup are not part of the matched wait and remain a recorded confounder.
+func checkPrecondition(control, treatment []model.PlannedTrial) error {
+	if len(control) != 1 || len(treatment) < 2 || len(treatment) > MaxPreconditions+1 {
+		return fmt.Errorf("precondition requires one control measurement and 1..%d treatment preconditions before it", MaxPreconditions)
+	}
+	m, t := control[0], treatment[len(treatment)-1]
+	matched := t.WaitBeforeMS
+	for _, pre := range treatment[:len(treatment)-1] {
+		if pre.Send.OptionsProfile != "baseline" {
+			return errors.New("precondition probes must use the baseline profile")
+		}
+		matched += pre.WaitBeforeMS + pre.WindowMS
+	}
+	if !reflect.DeepEqual(*m.Send, *t.Send) || m.Send.OptionsProfile != "baseline" || m.WindowMS != t.WindowMS || m.WaitAfterMS != t.WaitAfterMS {
+		return errors.New("control and treatment measurements must be identical baseline probes")
+	}
+	if m.WaitBeforeMS != matched {
+		return fmt.Errorf("control must wait %d ms before its measurement to match the treatment preconditions", matched)
+	}
+	return nil
 }
 
 // ReferenceProbe is the reserved probe index (and source-port slot) of

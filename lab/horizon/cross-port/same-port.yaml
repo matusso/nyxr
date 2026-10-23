@@ -1,0 +1,36 @@
+# Same-port control: precondition and measurement both on 443 (single-port scope).
+apiVersion: horizon.nyxr.io/v1alpha2
+kind: Experiment
+metadata:
+  name: hz-003-same-port
+spec:
+  scope:
+    targets: ["192.0.2.10"]
+    tcpPorts: [443]
+  changedVariable: precondition
+  confounders: [ambient-load, rate-limiting]
+  control:
+    steps:
+      - wait: {durationMs: 100}
+      - send: {protocol: tcp, flags: [SYN], dstPort: 443, optionsProfile: baseline}
+      - observe: {windowMs: 100}
+  treatment:
+    steps:
+      - send: {protocol: tcp, flags: [SYN], dstPort: 443, optionsProfile: baseline}
+      - observe: {windowMs: 100}
+      - send: {protocol: tcp, flags: [SYN], dstPort: 443, optionsProfile: baseline}
+      - observe: {windowMs: 100}
+  execution:
+    replicates: 12
+    randomizedOrder: true
+    seed: 70003
+    washoutMs: 600
+  limits:
+    maxPackets: 72
+    maxDurationSeconds: 120
+    packetsPerSecond: 10
+    maxConcurrentFlows: 1
+    maxReceiveFrames: 64
+    maxMemoryBytes: 2097152
+  capture:
+    maxBytes: 131072

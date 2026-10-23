@@ -75,12 +75,14 @@ _nyxr() {
             case "$prev" in
                 --policy) COMPREPLY=($(compgen -W "lab enterprise fragile ot-restricted" -- "$cur")); return 0 ;;
                 --permit) COMPREPLY=($(compgen -W "cross-port" -- "$cur")); return 0 ;;
-                --simulate) COMPREPLY=($(compgen -W "sack stable loss noise" -- "$cur")); return 0 ;;
-                --experiment|--output|--packetd|--pcapng|--protocol) COMPREPLY=($(compgen -f -- "$cur")); return 0 ;;
+                --simulate) COMPREPLY=($(compgen -W "sack stable loss noise shared-limit port-limit" -- "$cur")); return 0 ;;
+                --experiment|--output|--packetd|--pcapng|--protocol|--main|--same-port|--reverse|--time-separated|--null) COMPREPLY=($(compgen -f -- "$cur")); return 0 ;;
                 --allow-targets|--allow-ports|--target|--ports|--interface|--source-ip|--source-mac|--next-hop-mac|--pcapng-max-bytes) return 0 ;;
             esac
             if [[ -z "$sub" ]]; then
-                COMPREPLY=($(compgen -W "resolve replay explain references verify-capture environment calibrate" -- "$cur"))
+                COMPREPLY=($(compgen -W "resolve replay explain references verify-capture environment calibrate cross-port" -- "$cur"))
+            elif [[ "$sub" == "cross-port" ]]; then
+                COMPREPLY=($(compgen -W "--main --same-port --reverse --time-separated --null --help" -- "$cur"))
             elif [[ "$sub" == "calibrate" ]]; then
                 COMPREPLY=($(compgen -W "--protocol --help" -- "$cur"))
             elif [[ "$sub" == "resolve" ]]; then

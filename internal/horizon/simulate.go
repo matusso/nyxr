@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/gopacket/gopacket"
 	"github.com/gopacket/gopacket/layers"
@@ -20,15 +21,20 @@ type Simulator struct {
 	queue    chan []byte
 	stats    packetio.Stats
 	closed   bool
+	// Limiter scenarios: one-token buckets refilled after limiterRefill,
+	// shared across ports or kept per destination port.
+	tokens map[uint16]time.Time
 }
+
+const limiterRefill = 250 * time.Millisecond
 
 func NewSimulator(scenario string) (*Simulator, error) {
 	switch scenario {
-	case "sack", "stable", "loss", "noise":
+	case "sack", "stable", "loss", "noise", "shared-limit", "port-limit":
 	default:
-		return nil, fmt.Errorf("unknown simulation %q (sack, stable, loss, noise)", scenario)
+		return nil, fmt.Errorf("unknown simulation %q (sack, stable, loss, noise, shared-limit, port-limit)", scenario)
 	}
-	return &Simulator{scenario: scenario, queue: make(chan []byte, 4)}, nil
+	return &Simulator{scenario: scenario, queue: make(chan []byte, 4), tokens: map[uint16]time.Time{}}, nil
 }
 
 func (s *Simulator) SendBatch(ctx context.Context, frames [][]byte) (int, error) {
@@ -46,7 +52,7 @@ func (s *Simulator) SendBatch(ctx context.Context, frames [][]byte) (int, error)
 			return i, errors.New("simulator requires TCP")
 		}
 		s.stats.Sent++
-		if p.TCPFlags != 2 || s.scenario == "loss" {
+		if p.TCPFlags != 2 || s.scenario == "loss" || !s.admit(p.DestPort) {
 			continue
 		}
 		withSack := s.scenario == "sack" && sack(p.TCPOptions[:p.TCPOptionsLen])
@@ -67,6 +73,25 @@ func (s *Simulator) SendBatch(ctx context.Context, frames [][]byte) (int, error)
 		}
 	}
 	return len(frames), nil
+}
+
+// admit spends the bucket token for a SYN in limiter scenarios.
+func (s *Simulator) admit(port uint16) bool {
+	if s.scenario != "shared-limit" && s.scenario != "port-limit" {
+		return true
+	}
+	if s.scenario == "shared-limit" {
+		if port != 443 && port != 8443 {
+			return true
+		}
+		port = 0 // one bucket shared by 443 and 8443
+	}
+	now := time.Now()
+	if next, ok := s.tokens[port]; ok && now.Before(next) {
+		return false
+	}
+	s.tokens[port] = now.Add(limiterRefill)
+	return true
 }
 
 func syntheticReply(frame []byte, p packet.Decoded, withSack bool) ([]byte, error) {

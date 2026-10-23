@@ -1,0 +1,40 @@
+# HZ-003 cross-port predecessor (main role): a SYN to port 8443 precedes the
+# measurement SYN to port 443; the matched control waits the same time.
+# Edit target/ports for an authorized lab. Requires --policy lab|enterprise
+# and --permit cross-port.
+apiVersion: horizon.nyxr.io/v1alpha2
+kind: Experiment
+metadata:
+  name: hz-003-main
+spec:
+  scope:
+    targets: ["192.0.2.10"]
+    tcpPorts: [443, 8443]
+  crossPort: true
+  changedVariable: precondition
+  confounders: [ambient-load, rate-limiting]
+  control:
+    steps:
+      - wait: {durationMs: 100}
+      - send: {protocol: tcp, flags: [SYN], dstPort: 443, optionsProfile: baseline}
+      - observe: {windowMs: 100}
+  treatment:
+    steps:
+      - send: {protocol: tcp, flags: [SYN], dstPort: 8443, optionsProfile: baseline}
+      - observe: {windowMs: 100}
+      - send: {protocol: tcp, flags: [SYN], dstPort: 443, optionsProfile: baseline}
+      - observe: {windowMs: 100}
+  execution:
+    replicates: 12
+    randomizedOrder: true
+    seed: 70001
+    washoutMs: 600
+  limits:
+    maxPackets: 72
+    maxDurationSeconds: 120
+    packetsPerSecond: 10
+    maxConcurrentFlows: 1
+    maxReceiveFrames: 64
+    maxMemoryBytes: 2097152
+  capture:
+    maxBytes: 131072

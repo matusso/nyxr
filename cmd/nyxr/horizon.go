@@ -35,15 +35,18 @@ func runHorizon(args []string, out io.Writer) error {
   nyxr horizon verify-capture report.json evidence.pcapng
   nyxr horizon environment report.json
   nyxr horizon calibrate --protocol protocol.json
+  nyxr horizon cross-port --main main.json [--same-port r.json] [--reverse r.json] [--time-separated r.json] [--null r.json]
 
 v1alpha1 HZ-001 and v1alpha2 bounded send/observe/wait/repeat sequences.
 v1alpha2 requires --policy; cross-port requires --permit cross-port.
 resolve emits versioned JSON; --output writes evidence to a new private file.
 --pcapng exports bounded evidence; --pcapng-minimize strips application payload.
-Simulations (sack, stable, loss, noise) send no network traffic.
+Simulations (sack, stable, loss, noise, shared-limit, port-limit) send no network traffic.
 environment assesses drift, throttling, carryover, clock quality and RTT
 uncertainty offline; calibrate runs a pre-registered synthetic decision-rule
-calibration and exits nonzero when a registered gate fails.
+calibration and exits nonzero when a registered gate fails. cross-port
+replays HZ-003/HZ-004 precondition reports by role and reports shared-state
+candidates with competing explanations.
 Live mode requires an explicit interface source and unicast next-hop MAC.
 Ctrl-C cancels execution and emits partial evidence. No active mode is a default.`)
 		return err
@@ -101,6 +104,40 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 			return errors.New("registered calibration gates failed")
 		}
 		return nil
+	}
+	if args[0] == "cross-port" {
+		fs := flag.NewFlagSet("horizon cross-port", flag.ContinueOnError)
+		fs.SetOutput(out)
+		paths := map[string]*string{}
+		for _, role := range horizon.CrossPortRoles {
+			paths[role] = fs.String(role, "", role+" role precondition report")
+		}
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if fs.NArg() != 0 || *paths[horizon.RoleMain] == "" {
+			return errors.New("horizon cross-port requires --main REPORT")
+		}
+		reports := map[string]model.Report{}
+		for role, path := range paths {
+			if *path == "" {
+				continue
+			}
+			file, err := os.Open(*path)
+			if err != nil {
+				return err
+			}
+			envelope, err := horizon.Replay(file)
+			if err = errors.Join(err, file.Close()); err != nil {
+				return fmt.Errorf("%s: %w", role, err)
+			}
+			reports[role] = envelope.Report
+		}
+		study, err := horizon.AnalyzeCrossPort(reports)
+		if err != nil {
+			return err
+		}
+		return horizonJSON(out, study)
 	}
 	if args[0] == "replay" || args[0] == "explain" || args[0] == "references" || args[0] == "environment" {
 		if len(args) != 2 {
@@ -163,7 +200,7 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 	target := fs.String("target", "", "assert the literal target in the experiment")
 	ports := fs.String("ports", "", "assert the TCP port in the experiment")
 	dry := fs.Bool("dry-run", false, "compile and print the plan; open no packet backend")
-	sim := fs.String("simulate", "", "sack, stable, loss or noise (no network traffic)")
+	sim := fs.String("simulate", "", "sack, stable, loss, noise, shared-limit or port-limit (no network traffic)")
 	device := fs.String("interface", "", "live Ethernet interface")
 	sourceIP := fs.String("source-ip", "", "source IP assigned to the live interface")
 	sourceMAC := fs.String("source-mac", "", "source MAC for unmapped Npcap adapter names")

@@ -27,7 +27,18 @@ var inherentConfounders = []string{"ambient-load", "sequence-and-ip-id-tokens"}
 // Gating flags make the comparison unresolved; other flags are descriptive.
 func Assess(r model.Report) *model.Environment {
 	spec := r.Experiment.Spec
+	// Precondition runs compare their measurement probes; a shared limiter can
+	// legitimately cause late or reference loss, so those flags stay descriptive.
+	pre := spec.ChangedVariable == "precondition"
+	measurement := measurementProbes(r)
 	env := &model.Environment{Version: environmentVersion, Treatment: spec.ChangedVariable, QualityFlags: []string{}, GatingFlags: []string{}}
+	gate := func(flag string) {
+		if pre && (flag == "throttling-suspected" || flag == "reference-loss") {
+			env.QualityFlags = append(env.QualityFlags, flag)
+		} else {
+			env.GatingFlags = append(env.GatingFlags, flag)
+		}
+	}
 	env.Confounders = append(append([]string{}, inherentConfounders...), spec.Confounders...)
 	if spec.CrossPort {
 		env.Confounders = append(env.Confounders, "cross-port-state")
@@ -75,13 +86,13 @@ func Assess(r model.Report) *model.Environment {
 	rs := env.Responses
 	env.Responses.ThrottlingPValue = fisherLower(rs.SecondHalfAnswered, rs.SecondHalf-rs.SecondHalfAnswered, rs.FirstHalfAnswered, rs.FirstHalf-rs.FirstHalfAnswered)
 	if env.Responses.ThrottlingPValue <= environmentAlpha {
-		env.GatingFlags = append(env.GatingFlags, "throttling-suspected")
+		gate("throttling-suspected")
 	}
 	if rs.References > rs.ReferencesAnswered {
-		env.GatingFlags = append(env.GatingFlags, "reference-loss")
+		gate("reference-loss")
 	}
 	if env.Clock.UnstableTrials > 0 || env.Clock.InvalidTimingTrials > 0 {
-		env.GatingFlags = append(env.GatingFlags, "clock-unreliable")
+		gate("clock-unreliable")
 	}
 	if env.Clock.UnknownPrecision > 0 {
 		env.QualityFlags = append(env.QualityFlags, "clock-precision-unknown")
@@ -103,8 +114,9 @@ func Assess(r model.Report) *model.Environment {
 		}
 	}
 
-	// Pairs of the first probe: carryover (discordance by arm order),
-	// stability of non-treatment features and paired latency.
+	// Pairs of the compared probe (the first, or the measurement after a
+	// precondition): carryover (discordance by arm order), stability of
+	// non-treatment features and paired latency.
 	type pairTrials struct {
 		first          string
 		control, treat *model.Trial
@@ -113,7 +125,7 @@ func Assess(r model.Report) *model.Environment {
 	var order []int
 	for i := range r.Trials {
 		t := &r.Trials[i]
-		if t.Probe != 0 || (t.Arm != "control" && t.Arm != "treatment") {
+		if (t.Arm != "control" && t.Arm != "treatment") || t.Probe != measurement[t.Arm] {
 			continue
 		}
 		p := pairs[t.Pair]
@@ -137,6 +149,10 @@ func Assess(r model.Report) *model.Environment {
 		if p.treat != nil && answered(*p.treat) && p.treat.Features.RTTNS > 0 {
 			treats = append(treats, p.treat.Features.RTTNS)
 		}
+		if pre && p.control != nil && p.treat != nil {
+			// The outcome itself is whether the measurement was answered.
+			carryover(&env.Carryover, p.first, answered(*p.control) != answered(*p.treat))
+		}
 		if p.control == nil || p.treat == nil || !answered(*p.control) || !answered(*p.treat) {
 			continue
 		}
@@ -154,23 +170,14 @@ func Assess(r model.Report) *model.Environment {
 		if a.RTTNS > 0 && b.RTTNS > 0 {
 			diffs = append(diffs, b.RTTNS-a.RTTNS)
 		}
-		discordant := a.ResponseClass == "syn-ack" && b.ResponseClass == "syn-ack" && sack(a.TCPOptions) != sack(b.TCPOptions)
-		if p.first == "control" {
-			env.Carryover.ControlFirstPairs++
-			if discordant {
-				env.Carryover.ControlFirstDiscordant++
-			}
-		} else {
-			env.Carryover.TreatmentFirstPairs++
-			if discordant {
-				env.Carryover.TreatmentFirstDiscordant++
-			}
+		if !pre {
+			carryover(&env.Carryover, p.first, a.ResponseClass == "syn-ack" && b.ResponseClass == "syn-ack" && sack(a.TCPOptions) != sack(b.TCPOptions))
 		}
 	}
 	c := env.Carryover
 	env.Carryover.PValue = fisherTwoSided(c.ControlFirstDiscordant, c.ControlFirstPairs-c.ControlFirstDiscordant, c.TreatmentFirstDiscordant, c.TreatmentFirstPairs-c.TreatmentFirstDiscordant)
 	if env.Carryover.PValue <= environmentAlpha {
-		env.GatingFlags = append(env.GatingFlags, "carryover-suspected")
+		gate("carryover-suspected")
 	}
 	if env.Stability.ResponseClassChanges > 0 || env.Stability.TTLChanges > 0 || env.Stability.OtherOptionChanges > 0 {
 		env.QualityFlags = append(env.QualityFlags, "paired-response-instability")
@@ -192,6 +199,46 @@ func Assess(r model.Report) *model.Environment {
 		}
 	}
 	return env
+}
+
+func carryover(c *model.Carryover, first string, discordant bool) {
+	if first == "control" {
+		c.ControlFirstPairs++
+		if discordant {
+			c.ControlFirstDiscordant++
+		}
+	} else {
+		c.TreatmentFirstPairs++
+		if discordant {
+			c.TreatmentFirstDiscordant++
+		}
+	}
+}
+
+// measurementProbes is the compared probe per arm: probe 0, or for a
+// precondition experiment the last probe of each arm.
+func measurementProbes(r model.Report) map[string]int {
+	out := map[string]int{"control": 0, "treatment": 0}
+	if r.Experiment.Spec.ChangedVariable != "precondition" {
+		return out
+	}
+	for arm, seq := range map[string]model.Sequence{"control": r.Experiment.Spec.Control, "treatment": r.Experiment.Spec.Treatment} {
+		out[arm] = countProbes(seq.Steps) - 1
+	}
+	return out
+}
+
+func countProbes(steps []model.Step) int {
+	n := 0
+	for _, s := range steps {
+		switch {
+		case s.Send != nil:
+			n++
+		case s.Repeat != nil:
+			n += s.Repeat.Count * countProbes(s.Repeat.Steps)
+		}
+	}
+	return n
 }
 
 func answered(t model.Trial) bool {

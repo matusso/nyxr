@@ -41,7 +41,7 @@ Flags:
   --token-file file    require this bearer token (or set NYXR_API_TOKEN)
   --max-scans int      concurrent scans (default 1)
   --allow-packet-send  enable single-frame send/resend from the web UI (requires --packetd)
-  --horizon-simulate scenario   enable synthetic HORIZON API (sack/stable/loss/noise)
+  --horizon-simulate scenario   enable synthetic HORIZON API (sack/stable/loss/noise/shared-limit/port-limit)
   --horizon-policy profile      lab/enterprise/fragile/ot-restricted
   --horizon-allow-targets CIDRs independent HORIZON target scope
   --horizon-allow-ports ports   independent HORIZON TCP port scope

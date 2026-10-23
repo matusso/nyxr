@@ -144,7 +144,7 @@ _nyxr() {
                         '--evidence-dir=[directory for API pcapng captures]:directory:_directories' \
                         '--token-file=[require this bearer token]:token file:_files' \
                         '--max-scans=[concurrent scans]:count:' \
-                        '--horizon-simulate=[synthetic HORIZON API]:scenario:(sack stable loss noise)' \
+                        '--horizon-simulate=[synthetic HORIZON API]:scenario:(sack stable loss noise shared-limit port-limit)' \
                         '--horizon-policy=[HORIZON operator policy]:profile:(lab enterprise fragile ot-restricted)' \
                         '--horizon-allow-targets=[HORIZON operator target scope]:scope:' \
                         '--horizon-allow-ports=[HORIZON operator TCP ports]:ports:' \
@@ -154,9 +154,14 @@ _nyxr() {
                     ;;
                 horizon)
                     _arguments \
-                        '1:subcommand:(resolve replay explain references verify-capture environment calibrate)' \
+                        '1:subcommand:(resolve replay explain references verify-capture environment calibrate cross-port)' \
                         '--experiment=[versioned experiment]:file:_files' \
                         '--protocol=[pre-registered calibration protocol]:file:_files' \
+                        '--main=[cross-port main role report]:file:_files' \
+                        '--same-port=[same-port control report]:file:_files' \
+                        '--reverse=[reversed-order report]:file:_files' \
+                        '--time-separated=[time-separated control report]:file:_files' \
+                        '--null=[unrelated-port null control report]:file:_files' \
                         '--policy=[operator policy]:profile:(lab enterprise fragile ot-restricted)' \
                         '--permit=[independent permission]:permission:(cross-port)' \
                         '--allow-targets=[authorized IP/CIDR scope]:scope:' \
@@ -164,7 +169,7 @@ _nyxr() {
                         '--target=[assert experiment target]:IP:' \
                         '--ports=[assert experiment port]:port:' \
                         '--dry-run[compile without packet I/O]' \
-                        '--simulate=[synthetic scenario]:scenario:(sack stable loss noise)' \
+                        '--simulate=[synthetic scenario]:scenario:(sack stable loss noise shared-limit port-limit)' \
                         '--interface=[live Ethernet interface]:interface:_net_interfaces' \
                         '--source-ip=[assigned source IP]:IP:' \
                         '--source-mac=[source Ethernet MAC]:MAC:' \
