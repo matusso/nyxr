@@ -81,7 +81,37 @@ and that matched isolated probes cannot tell them apart.
 
 ## Live ground-truth lab
 
-PENDING
+[`crossport.py`](../../lab/horizon/live/crossport.py) builds fresh isolated
+namespace topologies with known SYN token-bucket limiting:
+
+- `independent`: no limiter.
+- `per-port`: separate buckets for 443 and 8443.
+- `shared-endpoint`: one bucket for both ports on the endpoint.
+- `shared-path`: the same shared bucket on a router in front of the endpoint.
+
+It runs the study roles against each topology under a protocol registered
+before collection ([`crossport-protocol.json`](../../lab/horizon/live/crossport-protocol.json)).
+
+The [2026-10-23 corpus](../../lab/horizon/corpus/2026-10-23-cross-port-linux-arm64/RESULTS.md)
+covers 30 studies and 132 role runs, all replayed and matched against
+independent captures:
+
+| | Correct over all planned studies | Exact 95% interval |
+| --- | ---: | --- |
+| Cross-port classification | 30/30 | 88.4–100% |
+| Matched isolated classification | 9/30 | 14.7–49.4% |
+
+**Go/no-go: go.** Cross-port experiments discriminate shared, per-port and
+absent state, which isolated probes of the same ports cannot do; every
+isolated probe was answered in every topology. There were no candidates on
+independent or per-port topologies. `rate-limiter` was elevated only in the
+12 studies with the cooldown signal; the 3 IPv6 studies without a
+time-separated control stayed `not-elevated`. Endpoint-hosted and path-hosted
+limiters produced identical candidates with location
+`endpoint-or-path-unresolved`. One collector bug (an IPv6 readiness check on
+the IPv4-only routed topology) stopped the first campaign before any
+shared-path traffic. The six shared-path studies were rerun under the same
+registered plan, and the failure is retained in the corpus.
 
 ## Limitations
 

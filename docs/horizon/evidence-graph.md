@@ -45,7 +45,9 @@ runs). `coverage.testedTcpPorts` lists only probed ports;
 | `firewall-tracking` | cross-port candidate | elevated with an orthogonal **TTL-divergence** signal | — (otherwise unresolved) |
 | `nat-state`, `proxy`, `load-balancer` | none implemented | listed under `notEvaluated` | — |
 
-Anything else is `unresolved`, with the reasons listed: unresolved runs,
+For an unresolved hypothesis without disagreeing runs, `support` lists the
+runs that left it unresolved, so it stays traceable. Anything else is
+`unresolved`, with the reasons listed: unresolved runs,
 a reverse-direction difference, or a missing control. Each hypothesis records
 its alternatives (competing explanations), assumptions and reasons. The
 statement kind is `inferred` for supported/not-supported results,
@@ -113,8 +115,21 @@ A SACK sysctl change does not alter the reply TTL or the non-SACK option
 layout, so it is not detected automatically. The graph surfaces it as a
 contradiction instead of averaging it away, and declared changes resolve it.
 
-Cross-port graphs over the live ground-truth lab, including the confounded
-endpoint-versus-path case, are in [cross-port studies](cross-port.md).
+## Live demonstration: cross-port ground truth
+
+Graphs over the [cross-port corpus](../../lab/horizon/corpus/2026-10-23-cross-port-linux-arm64/RESULTS.md)
+(six IPv4 studies per topology):
+
+- `independent` and `per-port`: `shared-state` is not-supported, and
+  `rate-limiter` and `firewall-tracking` are not evaluated.
+- `shared-endpoint` and `shared-path` produce **identical** graphs:
+  `shared-state` and `rate-limiter` are supported with grade `good`,
+  `rate-limiter` has location `endpoint-or-path-unresolved`, and
+  `firewall-tracking` is unresolved. The confounded topologies are not told
+  apart.
+- Combining endpoint and path studies against the same address detects a
+  change (reply TTL 64 → 63 once the router is inserted), and the earlier
+  studies become stale.
 
 ## Limitations
 
