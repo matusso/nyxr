@@ -860,6 +860,108 @@ function packetsPage() {
     h("div", { class: "bar" }, sendEdited, sendStatus)];
 }
 
+// HORIZON: opt-in experiment runs. Run IDs and every report field come from
+// the API and are rendered as text only.
+const horizonHeaders = ["run", "mode", "state", "experiment", "target", "ports", "created", "packets", "conclusion", ""];
+
+function horizonRow(r, refresh) {
+  const cancel = r.state === "running" ? h("button", { class: "secondary", type: "button", onclick: async () => {
+    try { await api(`/horizon/runs/${encodeURIComponent(r.id)}/cancel`, { body: {} }); } catch (e) { alert(e.message); }
+    refresh();
+  } }, "cancel") : null;
+  return h("tr", {}, h("td", {}, h("a", { href: "#/horizon/" + encodeURIComponent(r.id) }, r.id.slice(0, 12))), h("td", {}, r.mode),
+    h("td", {}, state(r.state)), h("td", {}, r.experiment), h("td", {}, r.target), h("td", {}, (r.ports || []).join(", ")),
+    h("td", {}, fmtTime(r.createdAt)), h("td", {}, r.packetsTx), h("td", {}, r.comparison ? r.comparison.conclusion : (r.error || "")), h("td", {}, cancel));
+}
+
+async function horizonPage() {
+  const signal = pageAbort.signal;
+  let caps;
+  try { caps = await api("/horizon", { signal }); } catch (e) {
+    if (e instanceof AuthError) throw e;
+    return [h("h1", {}, "HORIZON"), h("p", { class: "muted" }, e.message)];
+  }
+  const list = h("div", {}, h("p", { class: "muted" }, "Loading runs…"));
+  const metrics = h("pre", { class: "scroll" });
+  const refresh = async () => {
+    const [{ runs }, text] = await Promise.all([api("/horizon/runs", { signal }), api("/horizon/metrics", { signal, raw: true }).then(r => r.text())]);
+    if (signal.aborted) return;
+    list.replaceChildren(runs.length ? h("div", { class: "scroll" }, h("table", {}, h("thead", {}, h("tr", {}, horizonHeaders.map(x => h("th", {}, x)))),
+      h("tbody", {}, runs.map(r => horizonRow(r, refresh))))) : h("p", { class: "muted" }, "No retained runs. Create runs with POST /api/v1/horizon/runs."));
+    metrics.textContent = text.split("\n").filter(l => l && !l.startsWith("#")).join("\n");
+    if (runs.some(r => r.state === "running")) setTimeout(() => { if (!signal.aborted) refresh().catch(() => {}); }, 2000);
+  };
+  await refresh();
+  const kill = h("button", { class: "secondary", type: "button", onclick: async () => {
+    if (!confirm("Engage the HORIZON kill switch? All runs stop and the API refuses new runs until the server restarts.")) return;
+    try { await api("/horizon/stop", { body: {} }); } catch (e) { alert(e.message); }
+    refresh();
+  } }, "kill switch");
+  return [h("h1", {}, "HORIZON"),
+    h("p", { class: "muted" }, `Enabled modes: ${caps.modes.join(", ")}. Statements are observed, inferred or unresolved; nothing here is a topology claim.`),
+    h("div", { class: "actions" }, kill), list, h("h2", {}, "Metrics"), metrics];
+}
+
+const svgNS = "http://www.w3.org/2000/svg";
+function svg(tag, attrs, text) {
+  const el = document.createElementNS(svgNS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, String(v));
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
+
+// horizonTimeline plots every trial by send time and arm, colored by response.
+function horizonTimeline(report) {
+  const trials = (report.trials || []).filter(t => t.sentAt && !t.sentAt.startsWith("0001"));
+  if (!trials.length) return h("p", { class: "muted" }, "No transmitted trials.");
+  const t0 = Date.parse(trials[0].sentAt), span = Math.max(1, Date.parse(trials[trials.length - 1].sentAt) - t0);
+  const arms = ["control", "treatment", "reference"], width = 760, left = 90, row = 34;
+  const colors = { "syn-ack": "#61e4eb", "rst-ack": "#ffc676", "icmp-error": "#ff7b9c", "no-response": "#9698b3" };
+  const chart = svg("svg", { viewBox: `0 0 ${width} ${arms.length * row + 40}`, role: "img", "aria-label": "trial timeline", class: "timeline" });
+  arms.forEach((arm, i) => chart.append(svg("text", { x: 4, y: 24 + i * row, fill: "#9698b3", "font-size": 12 }, arm)));
+  for (const t of trials) {
+    const x = left + (Date.parse(t.sentAt) - t0) / span * (width - left - 10), y = 20 + arms.indexOf(t.arm) * row;
+    const c = svg("circle", { cx: x.toFixed(1), cy: y, r: t.probe ? 3 : 5, fill: colors[t.features.responseClass] || "#9b7dff" });
+    c.append(svg("title", {}, `pair ${t.pair} ${t.arm} probe ${t.probe || 0}: ${t.features.responseClass}${(t.qualityFlags || []).length ? " [" + t.qualityFlags.join(", ") + "]" : ""}`));
+    chart.append(c);
+  }
+  chart.append(svg("text", { x: left, y: arms.length * row + 32, fill: "#9698b3", "font-size": 11 }, `0 … ${(span / 1000).toFixed(1)} s · ${Object.entries(colors).map(([k]) => k).join(" / ")}`));
+  return chart;
+}
+
+async function horizonRunPage(id) {
+  const signal = pageAbort.signal;
+  const path = "/horizon/runs/" + encodeURIComponent(id);
+  const run = await api(path, { signal });
+  const out = [h("h1", {}, "HORIZON run " + run.id.slice(0, 12)), kv([["mode", run.mode], ["state", state(run.state)], ["experiment", run.experiment],
+    ["experiment hash", run.experimentHash], ["target", run.target], ["ports", (run.ports || []).join(", ")], ["created", fmtTime(run.createdAt)],
+    ["finished", run.finishedAt ? fmtTime(run.finishedAt) : ""], ["packets", run.packetsTx], ["trials", run.trials], ["stop", run.stopReason || ""],
+    ["curtailment", run.curtailment ? `${run.curtailment.decision} after ${run.curtailment.pairs} pairs` : ""], ["error", run.error || ""], ["report SHA-256", run.reportSha256 || ""]])];
+  if (run.state === "running") {
+    setTimeout(() => { if (!signal.aborted) route(); }, 2000);
+    return out.concat(h("p", { class: "muted" }, "Running; this page refreshes."));
+  }
+  if (!run.reportSha256) return out;
+  const [env, graph] = await Promise.all([api(path + "/report", { signal }), api(path + "/evidence-graph", { signal }).catch(e => ({ error: e.message }))]);
+  const c = env.report.comparison;
+  const save = h("button", { class: "secondary", type: "button", onclick: () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(env, null, 2)], { type: "application/json" }));
+    const a = h("a", { href: url, download: `horizon-${run.id}.json` });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } }, "download sealed report");
+  out.push(h("div", { class: "actions" }, save), h("h2", {}, "Timeline"), horizonTimeline(env.report),
+    h("h2", {}, "Control / treatment comparison"), kv([["status", state(c.status)], ["conclusion", c.conclusion], ["metric", c.metric || "SACK permission"],
+      ["complete pairs", c.completePairs], ["discordant pairs", c.discordantPairs], ["exact paired p-value", c.pValue]]));
+  if (graph.error) out.push(h("p", { class: "error" }, graph.error));
+  else out.push(h("h2", {}, "Evidence graph"), graph.hypotheses.length ? table(["hypothesis", "family", "subject", "status", "statement", "observation grade", "support", "against"],
+    graph.hypotheses.map(x => [x.id, x.family, x.subject, state(x.status), x.statement, x.observationGrade, x.support.length, x.against.length]))
+    : h("p", { class: "muted" }, "This run supports no hypothesis on its own."),
+    h("p", { class: "muted" }, `Not evaluated: ${graph.notEvaluated.join(", ") || "none"}. Probabilities stay null until calibrated.`));
+  out.push(h("h2", {}, "Limitations"), h("ul", {}, env.report.limitations.map(l => h("li", {}, l))));
+  return out;
+}
+
 function login(retry) {
   const t = h("input", { type: "password", placeholder: "API token", autocomplete: "current-password" });
   main.replaceChildren(h("h1", {}, "Token required"),
@@ -875,7 +977,7 @@ async function route() {
   document.querySelectorAll("nav a").forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + hash));
   const section = hash.startsWith("/scans/") ? "Scans" : hash.startsWith("/new") ? "New scan" :
 	({ "/": "Overview", "/scans": "Scans", "/assets": "Assets", "/identities": "Identities", "/services": "Services",
-      "/packets": "Packets", "/profiles": "Profiles" })[hash] || "Workspace";
+      "/packets": "Packets", "/profiles": "Profiles", "/horizon": "HORIZON" })[hash] || (hash.startsWith("/horizon/") ? "HORIZON" : "Workspace");
   document.getElementById("current-page").textContent = section;
   if (hash.startsWith("/scans/")) document.querySelector('nav a[href="#/scans"]').classList.add("active");
   if (hash.startsWith("/new/")) document.querySelector('nav a[href="#/new"]').classList.add("active");
@@ -891,6 +993,8 @@ async function route() {
   else if (hash === "/services") page = servicesPage();
   else if (hash === "/profiles") page = profilesPage();
   else if (hash === "/packets") page = packetsPage();
+  else if (hash === "/horizon") page = horizonPage();
+  else if (hash.startsWith("/horizon/")) page = horizonRunPage(decodeURIComponent(hash.slice(9)));
   else page = Promise.resolve([h("p", { class: "error" }, "no such page")]);
   const mine = pageAbort;
   try {

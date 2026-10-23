@@ -72,9 +72,9 @@ td { color: #d6d7e8; font-size: 12px; }
 td a { font-family: var(--mono); }
 tr.new td { animation: flash 1.2s ease-out; }
 @keyframes flash { from { background: #3e315a; } to { background: transparent; } }
-.s-open, .s-completed, .s-up, .s-matched { color: var(--cyan); }
+.s-open, .s-completed, .s-up, .s-matched, .s-supported, .s-inferred { color: var(--cyan); }
 .s-closed, .s-failed, .s-error { color: var(--bad); }
-.s-filtered, .s-open\|filtered, .s-running, .s-unknown { color: var(--warn); }
+.s-filtered, .s-open\|filtered, .s-running, .s-unknown, .s-unresolved, .s-cancelled, .s-stale { color: var(--warn); }
 .s-running::before { content: "● "; animation: pulse 1.8s infinite; }
 @keyframes pulse { 50% { opacity: .4; } }
 form.grid { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 15px 21px; max-width: 1110px; align-items: center; padding: 27px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); }
@@ -179,3 +179,4 @@ details summary { cursor: pointer; color: var(--cyan); }
 }
 @media (max-width: 390px) { .tiles { gap: 8px; } .tile .l { font-size: 9px; } .hero-actions .button-link { width: 100%; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+.timeline { width: 100%; max-width: 760px; height: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; }
