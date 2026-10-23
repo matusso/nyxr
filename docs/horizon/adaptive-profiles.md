@@ -154,7 +154,8 @@ through each configuration. Results are in the
 
 All five registered gates pass. Profiles were valid in 24/24 applications to
 their own topology and invalid in 78/78 applications to other topologies:
-42 by behavior drift alone, 12 by a path change alone and 24 by both. In the
+42 by behavior drift alone, 12 by a path change alone and 24 by both; 39 also
+predated their profile. In the
 24 valid applications, the refined task used 2,162 packets instead of 3,142
 without a profile, or 7,068 for the fixed design. Every profile-inferred value
 equaled what the fixed design measured.

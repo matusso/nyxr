@@ -1,0 +1,800 @@
+{
+  "configurations": {
+    "adaptive": {
+      "correct": 30,
+      "curtailed_roles": 0,
+      "duration_ms": 1166424,
+      "interval": [
+        0.884296691777972,
+        1.0
+      ],
+      "packets": 3708,
+      "roles_run": 57,
+      "stops": {
+        "indistinguishable": 3,
+        "sufficient": 27
+      },
+      "studies": 30
+    },
+    "adaptive-curtailed": {
+      "correct": 30,
+      "curtailed_roles": 57,
+      "duration_ms": 852395,
+      "interval": [
+        0.884296691777972,
+        1.0
+      ],
+      "packets": 2682,
+      "roles_run": 57,
+      "stops": {
+        "indistinguishable": 3,
+        "sufficient": 27
+      },
+      "studies": 30
+    },
+    "adaptive-refined": {
+      "correct": 30,
+      "curtailed_roles": 81,
+      "duration_ms": 1516759,
+      "interval": [
+        0.884296691777972,
+        1.0
+      ],
+      "packets": 3858,
+      "roles_run": 81,
+      "stops": {
+        "indistinguishable": 3,
+        "sufficient": 27
+      },
+      "studies": 30
+    },
+    "fixed": {
+      "correct": 30,
+      "curtailed_roles": 0,
+      "duration_ms": 3541419,
+      "interval": [
+        0.884296691777972,
+        1.0
+      ],
+      "packets": 8640,
+      "roles_run": 132,
+      "stops": {
+        "full-coverage": 30
+      },
+      "studies": 30
+    }
+  },
+  "counterexamples": [
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-endpoint-v4-000",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-endpoint-v4-000",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-endpoint-v4-000",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-endpoint-v4-001",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-endpoint-v4-001",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-endpoint-v4-001",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-endpoint-v4-002",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-endpoint-v4-002",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-endpoint-v4-002",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-endpoint-v4-003",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-endpoint-v4-003",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-endpoint-v4-003",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-endpoint-v4-004",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-endpoint-v4-004",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-endpoint-v4-004",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-endpoint-v4-005",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-endpoint-v4-005",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-endpoint-v4-005",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-path-v4-000",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-path-v4-000",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-path-v4-000",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-path-v4-001",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-path-v4-001",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-path-v4-001",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-path-v4-002",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-path-v4-002",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-path-v4-002",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-path-v4-003",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-path-v4-003",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-path-v4-003",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-path-v4-004",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-path-v4-004",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-path-v4-004",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-path-v4-005",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-path-v4-005",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-path-v4-005",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-endpoint-v4-000",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-endpoint-v4-000",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-endpoint-v4-000",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-endpoint-v4-001",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-endpoint-v4-001",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-endpoint-v4-001",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-endpoint-v4-002",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-endpoint-v4-002",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-endpoint-v4-002",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-endpoint-v4-003",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-endpoint-v4-003",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-endpoint-v4-003",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-endpoint-v4-004",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-endpoint-v4-004",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-endpoint-v4-004",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-endpoint-v4-005",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-endpoint-v4-005",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-endpoint-v4-005",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-path-v4-000",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-path-v4-000",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-path-v4-000",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-path-v4-001",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-path-v4-001",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-path-v4-001",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-path-v4-002",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-path-v4-002",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-path-v4-002",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-path-v4-003",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-path-v4-003",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-path-v4-003",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-path-v4-004",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-path-v4-004",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-path-v4-004",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "symmetric",
+      "statement": "direction",
+      "study": "shared-path-v4-005",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "cooldown",
+      "statement": "cooldown",
+      "study": "shared-path-v4-005",
+      "value": "untested"
+    },
+    {
+      "configuration": "adaptive-curtailed",
+      "coverage": "not-tested",
+      "fixed": "hypothesis",
+      "statement": "rate-limiter",
+      "study": "shared-path-v4-005",
+      "value": "untested"
+    }
+  ],
+  "gates": {
+    "G1_no_accuracy_loss": true,
+    "G2_traffic": true,
+    "G3_honest_coverage": true,
+    "G4_profile_invalidation": true,
+    "G5_profile_inference": true
+  },
+  "passed": true,
+  "per_topology": {
+    "independent-v4": {
+      "adaptive": {
+        "correct": 6,
+        "packets": 864,
+        "studies": 6
+      },
+      "adaptive-curtailed": {
+        "correct": 6,
+        "packets": 576,
+        "studies": 6
+      },
+      "adaptive-refined": {
+        "correct": 6,
+        "packets": 576,
+        "studies": 6
+      },
+      "fixed": {
+        "correct": 6,
+        "packets": 2088,
+        "studies": 6
+      }
+    },
+    "independent-v6": {
+      "adaptive": {
+        "correct": 3,
+        "packets": 432,
+        "studies": 3
+      },
+      "adaptive-curtailed": {
+        "correct": 3,
+        "packets": 288,
+        "studies": 3
+      },
+      "adaptive-refined": {
+        "correct": 3,
+        "packets": 288,
+        "studies": 3
+      },
+      "fixed": {
+        "correct": 3,
+        "packets": 432,
+        "studies": 3
+      }
+    },
+    "per-port-v4": {
+      "adaptive": {
+        "correct": 6,
+        "packets": 792,
+        "studies": 6
+      },
+      "adaptive-curtailed": {
+        "correct": 6,
+        "packets": 588,
+        "studies": 6
+      },
+      "adaptive-refined": {
+        "correct": 6,
+        "packets": 588,
+        "studies": 6
+      },
+      "fixed": {
+        "correct": 6,
+        "packets": 2016,
+        "studies": 6
+      }
+    },
+    "shared-endpoint-v4": {
+      "adaptive": {
+        "correct": 6,
+        "packets": 720,
+        "studies": 6
+      },
+      "adaptive-curtailed": {
+        "correct": 6,
+        "packets": 540,
+        "studies": 6
+      },
+      "adaptive-refined": {
+        "correct": 6,
+        "packets": 1128,
+        "studies": 6
+      },
+      "fixed": {
+        "correct": 6,
+        "packets": 1872,
+        "studies": 6
+      }
+    },
+    "shared-endpoint-v6": {
+      "adaptive": {
+        "correct": 3,
+        "packets": 180,
+        "studies": 3
+      },
+      "adaptive-curtailed": {
+        "correct": 3,
+        "packets": 150,
+        "studies": 3
+      },
+      "adaptive-refined": {
+        "correct": 3,
+        "packets": 150,
+        "studies": 3
+      },
+      "fixed": {
+        "correct": 3,
+        "packets": 360,
+        "studies": 3
+      }
+    },
+    "shared-path-v4": {
+      "adaptive": {
+        "correct": 6,
+        "packets": 720,
+        "studies": 6
+      },
+      "adaptive-curtailed": {
+        "correct": 6,
+        "packets": 540,
+        "studies": 6
+      },
+      "adaptive-refined": {
+        "correct": 6,
+        "packets": 1128,
+        "studies": 6
+      },
+      "fixed": {
+        "correct": 6,
+        "packets": 1872,
+        "studies": 6
+      }
+    }
+  },
+  "profile": {
+    "applications": 102,
+    "fixed_packets_same_studies": 7068,
+    "invalidation_reasons": {
+      "behavior drift": 66,
+      "path change": 36,
+      "profile is dated after the evaluation time": 39
+    },
+    "packets_valid": 2162,
+    "refined_packets_same_studies": 3142,
+    "valid": 24
+  },
+  "protocol": "horizon-adaptive-replay/v1"
+}
