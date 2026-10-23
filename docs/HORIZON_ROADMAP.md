@@ -371,6 +371,15 @@ dashboard remains #73.
 
 ### Phase 7 — Productization, Hardening, and Observability
 
+**Implemented (#73):** explicit recognize/resolve/reconstruct modes (reconstruct
+opt-in), a versioned async run API (create, inspect, cancel, export, graph),
+a fail-closed hash-chained audit trail, bounded retention, Prometheus-text
+metrics, a HORIZON web UI with run timelines and hypotheses, documented and
+tested platform/capture limits, fuzz and race coverage in CI, and a recorded
+security review. OpenTelemetry and a live-transport API are not implemented.
+See [operations](horizon/operations.md) and the
+[security review](horizon/security-review.md).
+
 **Goal:** Make HORIZON usable and maintainable in production environments.
 
 1. Add `nyxr horizon recognize|resolve|reconstruct|explain|replay` commands.
