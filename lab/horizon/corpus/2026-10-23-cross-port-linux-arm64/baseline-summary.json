@@ -1,0 +1,3185 @@
+{
+  "version": "horizon-cross-port-live/v1",
+  "completed": false,
+  "campaigns": [
+    "crossport-2026-10-23",
+    "crossport-2026-10-23-shared-path"
+  ],
+  "attempts": [
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "independent-v4-000",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "independent-v4-001",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "independent-v4-002",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "independent-v4-003",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "independent-v4-004",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "independent-v4-005",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "independent-v6-000",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "independent-v6-001",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "independent-v6-002",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "per-port-v4-000",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "per-port-v4-001",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "per-port-v4-002",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "per-port-v4-003",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "per-port-v4-004",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "per-port-v4-005",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "shared-endpoint-v4-000",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "shared-endpoint-v4-001",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "shared-endpoint-v4-002",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "shared-endpoint-v4-003",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "shared-endpoint-v4-004",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "shared-endpoint-v4-005",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "shared-endpoint-v6-000",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "shared-endpoint-v6-001",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "shared-endpoint-v6-002",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "shared-path-v4-000",
+      "started": true,
+      "setup_failure": true,
+      "collection_error": "lab listener readiness timed out"
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "shared-path-v4-001",
+      "started": false,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "shared-path-v4-002",
+      "started": false,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "shared-path-v4-003",
+      "started": false,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "shared-path-v4-004",
+      "started": false,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23",
+      "id": "shared-path-v4-005",
+      "started": false,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23-shared-path",
+      "id": "shared-path-v4-000",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23-shared-path",
+      "id": "shared-path-v4-001",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23-shared-path",
+      "id": "shared-path-v4-002",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23-shared-path",
+      "id": "shared-path-v4-003",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23-shared-path",
+      "id": "shared-path-v4-004",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    },
+    {
+      "campaign": "crossport-2026-10-23-shared-path",
+      "id": "shared-path-v4-005",
+      "started": true,
+      "setup_failure": false,
+      "collection_error": null
+    }
+  ],
+  "rows": [
+    {
+      "id": "independent-v4-000",
+      "campaign": "crossport-2026-10-23",
+      "topology": "independent",
+      "family": 4,
+      "truth": "no-coupling",
+      "classification": "no-coupling",
+      "isolated": "no-coupling",
+      "reasons": [
+        "neither cross-port nor same-port dependence detected"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": null
+    },
+    {
+      "id": "independent-v4-001",
+      "campaign": "crossport-2026-10-23",
+      "topology": "independent",
+      "family": 4,
+      "truth": "no-coupling",
+      "classification": "no-coupling",
+      "isolated": "no-coupling",
+      "reasons": [
+        "neither cross-port nor same-port dependence detected"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": null
+    },
+    {
+      "id": "independent-v4-002",
+      "campaign": "crossport-2026-10-23",
+      "topology": "independent",
+      "family": 4,
+      "truth": "no-coupling",
+      "classification": "no-coupling",
+      "isolated": "no-coupling",
+      "reasons": [
+        "neither cross-port nor same-port dependence detected"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": null
+    },
+    {
+      "id": "independent-v4-003",
+      "campaign": "crossport-2026-10-23",
+      "topology": "independent",
+      "family": 4,
+      "truth": "no-coupling",
+      "classification": "no-coupling",
+      "isolated": "no-coupling",
+      "reasons": [
+        "neither cross-port nor same-port dependence detected"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": null
+    },
+    {
+      "id": "independent-v4-004",
+      "campaign": "crossport-2026-10-23",
+      "topology": "independent",
+      "family": 4,
+      "truth": "no-coupling",
+      "classification": "no-coupling",
+      "isolated": "no-coupling",
+      "reasons": [
+        "neither cross-port nor same-port dependence detected"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": null
+    },
+    {
+      "id": "independent-v4-005",
+      "campaign": "crossport-2026-10-23",
+      "topology": "independent",
+      "family": 4,
+      "truth": "no-coupling",
+      "classification": "no-coupling",
+      "isolated": "no-coupling",
+      "reasons": [
+        "neither cross-port nor same-port dependence detected"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": null
+    },
+    {
+      "id": "independent-v6-000",
+      "campaign": "crossport-2026-10-23",
+      "topology": "independent",
+      "family": 6,
+      "truth": "no-coupling",
+      "classification": "no-coupling",
+      "isolated": "no-coupling",
+      "reasons": [
+        "neither cross-port nor same-port dependence detected"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": null
+    },
+    {
+      "id": "independent-v6-001",
+      "campaign": "crossport-2026-10-23",
+      "topology": "independent",
+      "family": 6,
+      "truth": "no-coupling",
+      "classification": "no-coupling",
+      "isolated": "no-coupling",
+      "reasons": [
+        "neither cross-port nor same-port dependence detected"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": null
+    },
+    {
+      "id": "independent-v6-002",
+      "campaign": "crossport-2026-10-23",
+      "topology": "independent",
+      "family": 6,
+      "truth": "no-coupling",
+      "classification": "no-coupling",
+      "isolated": "no-coupling",
+      "reasons": [
+        "neither cross-port nor same-port dependence detected"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": null
+    },
+    {
+      "id": "per-port-v4-000",
+      "campaign": "crossport-2026-10-23",
+      "topology": "per-port",
+      "family": 4,
+      "truth": "per-port-state",
+      "classification": "per-port-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "dependence appears only when precondition and measurement share a port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": null
+    },
+    {
+      "id": "per-port-v4-001",
+      "campaign": "crossport-2026-10-23",
+      "topology": "per-port",
+      "family": 4,
+      "truth": "per-port-state",
+      "classification": "per-port-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "dependence appears only when precondition and measurement share a port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": null
+    },
+    {
+      "id": "per-port-v4-002",
+      "campaign": "crossport-2026-10-23",
+      "topology": "per-port",
+      "family": 4,
+      "truth": "per-port-state",
+      "classification": "per-port-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "dependence appears only when precondition and measurement share a port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": null
+    },
+    {
+      "id": "per-port-v4-003",
+      "campaign": "crossport-2026-10-23",
+      "topology": "per-port",
+      "family": 4,
+      "truth": "per-port-state",
+      "classification": "per-port-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "dependence appears only when precondition and measurement share a port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": null
+    },
+    {
+      "id": "per-port-v4-004",
+      "campaign": "crossport-2026-10-23",
+      "topology": "per-port",
+      "family": 4,
+      "truth": "per-port-state",
+      "classification": "per-port-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "dependence appears only when precondition and measurement share a port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": null
+    },
+    {
+      "id": "per-port-v4-005",
+      "campaign": "crossport-2026-10-23",
+      "topology": "per-port",
+      "family": 4,
+      "truth": "per-port-state",
+      "classification": "per-port-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "dependence appears only when precondition and measurement share a port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": null
+    },
+    {
+      "id": "shared-endpoint-v4-000",
+      "campaign": "crossport-2026-10-23",
+      "topology": "shared-endpoint",
+      "family": 4,
+      "truth": "shared-state",
+      "classification": "shared-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "main measurement depends on a precondition on a different port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": {
+        "direction": "symmetric",
+        "signals": [
+          "cooldown"
+        ],
+        "hypotheses": [
+          [
+            "rate-limiter",
+            "hypothesis",
+            "endpoint-or-path-unresolved"
+          ],
+          [
+            "firewall-tracking",
+            "not-elevated",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "shared-endpoint-v4-001",
+      "campaign": "crossport-2026-10-23",
+      "topology": "shared-endpoint",
+      "family": 4,
+      "truth": "shared-state",
+      "classification": "shared-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "main measurement depends on a precondition on a different port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": {
+        "direction": "symmetric",
+        "signals": [
+          "cooldown"
+        ],
+        "hypotheses": [
+          [
+            "rate-limiter",
+            "hypothesis",
+            "endpoint-or-path-unresolved"
+          ],
+          [
+            "firewall-tracking",
+            "not-elevated",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "shared-endpoint-v4-002",
+      "campaign": "crossport-2026-10-23",
+      "topology": "shared-endpoint",
+      "family": 4,
+      "truth": "shared-state",
+      "classification": "shared-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "main measurement depends on a precondition on a different port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": {
+        "direction": "symmetric",
+        "signals": [
+          "cooldown"
+        ],
+        "hypotheses": [
+          [
+            "rate-limiter",
+            "hypothesis",
+            "endpoint-or-path-unresolved"
+          ],
+          [
+            "firewall-tracking",
+            "not-elevated",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "shared-endpoint-v4-003",
+      "campaign": "crossport-2026-10-23",
+      "topology": "shared-endpoint",
+      "family": 4,
+      "truth": "shared-state",
+      "classification": "shared-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "main measurement depends on a precondition on a different port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": {
+        "direction": "symmetric",
+        "signals": [
+          "cooldown"
+        ],
+        "hypotheses": [
+          [
+            "rate-limiter",
+            "hypothesis",
+            "endpoint-or-path-unresolved"
+          ],
+          [
+            "firewall-tracking",
+            "not-elevated",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "shared-endpoint-v4-004",
+      "campaign": "crossport-2026-10-23",
+      "topology": "shared-endpoint",
+      "family": 4,
+      "truth": "shared-state",
+      "classification": "shared-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "main measurement depends on a precondition on a different port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": {
+        "direction": "symmetric",
+        "signals": [
+          "cooldown"
+        ],
+        "hypotheses": [
+          [
+            "rate-limiter",
+            "hypothesis",
+            "endpoint-or-path-unresolved"
+          ],
+          [
+            "firewall-tracking",
+            "not-elevated",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "shared-endpoint-v4-005",
+      "campaign": "crossport-2026-10-23",
+      "topology": "shared-endpoint",
+      "family": 4,
+      "truth": "shared-state",
+      "classification": "shared-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "main measurement depends on a precondition on a different port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": {
+        "direction": "symmetric",
+        "signals": [
+          "cooldown"
+        ],
+        "hypotheses": [
+          [
+            "rate-limiter",
+            "hypothesis",
+            "endpoint-or-path-unresolved"
+          ],
+          [
+            "firewall-tracking",
+            "not-elevated",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "shared-endpoint-v6-000",
+      "campaign": "crossport-2026-10-23",
+      "topology": "shared-endpoint",
+      "family": 6,
+      "truth": "shared-state",
+      "classification": "shared-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "main measurement depends on a precondition on a different port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        }
+      },
+      "candidate": {
+        "direction": "untested",
+        "signals": [],
+        "hypotheses": [
+          [
+            "rate-limiter",
+            "not-elevated",
+            null
+          ],
+          [
+            "firewall-tracking",
+            "not-elevated",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "shared-endpoint-v6-001",
+      "campaign": "crossport-2026-10-23",
+      "topology": "shared-endpoint",
+      "family": 6,
+      "truth": "shared-state",
+      "classification": "shared-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "main measurement depends on a precondition on a different port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        }
+      },
+      "candidate": {
+        "direction": "untested",
+        "signals": [],
+        "hypotheses": [
+          [
+            "rate-limiter",
+            "not-elevated",
+            null
+          ],
+          [
+            "firewall-tracking",
+            "not-elevated",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "shared-endpoint-v6-002",
+      "campaign": "crossport-2026-10-23",
+      "topology": "shared-endpoint",
+      "family": 6,
+      "truth": "shared-state",
+      "classification": "shared-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "main measurement depends on a precondition on a different port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        }
+      },
+      "candidate": {
+        "direction": "untested",
+        "signals": [],
+        "hypotheses": [
+          [
+            "rate-limiter",
+            "not-elevated",
+            null
+          ],
+          [
+            "firewall-tracking",
+            "not-elevated",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "shared-path-v4-000",
+      "campaign": "crossport-2026-10-23-shared-path",
+      "topology": "shared-path",
+      "family": 4,
+      "truth": "shared-state",
+      "classification": "shared-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "main measurement depends on a precondition on a different port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": {
+        "direction": "symmetric",
+        "signals": [
+          "cooldown"
+        ],
+        "hypotheses": [
+          [
+            "rate-limiter",
+            "hypothesis",
+            "endpoint-or-path-unresolved"
+          ],
+          [
+            "firewall-tracking",
+            "not-elevated",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "shared-path-v4-001",
+      "campaign": "crossport-2026-10-23-shared-path",
+      "topology": "shared-path",
+      "family": 4,
+      "truth": "shared-state",
+      "classification": "shared-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "main measurement depends on a precondition on a different port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": {
+        "direction": "symmetric",
+        "signals": [
+          "cooldown"
+        ],
+        "hypotheses": [
+          [
+            "rate-limiter",
+            "hypothesis",
+            "endpoint-or-path-unresolved"
+          ],
+          [
+            "firewall-tracking",
+            "not-elevated",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "shared-path-v4-002",
+      "campaign": "crossport-2026-10-23-shared-path",
+      "topology": "shared-path",
+      "family": 4,
+      "truth": "shared-state",
+      "classification": "shared-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "main measurement depends on a precondition on a different port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": {
+        "direction": "symmetric",
+        "signals": [
+          "cooldown"
+        ],
+        "hypotheses": [
+          [
+            "rate-limiter",
+            "hypothesis",
+            "endpoint-or-path-unresolved"
+          ],
+          [
+            "firewall-tracking",
+            "not-elevated",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "shared-path-v4-003",
+      "campaign": "crossport-2026-10-23-shared-path",
+      "topology": "shared-path",
+      "family": 4,
+      "truth": "shared-state",
+      "classification": "shared-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "main measurement depends on a precondition on a different port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": {
+        "direction": "symmetric",
+        "signals": [
+          "cooldown"
+        ],
+        "hypotheses": [
+          [
+            "rate-limiter",
+            "hypothesis",
+            "endpoint-or-path-unresolved"
+          ],
+          [
+            "firewall-tracking",
+            "not-elevated",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "shared-path-v4-004",
+      "campaign": "crossport-2026-10-23-shared-path",
+      "topology": "shared-path",
+      "family": 4,
+      "truth": "shared-state",
+      "classification": "shared-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "main measurement depends on a precondition on a different port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": {
+        "direction": "symmetric",
+        "signals": [
+          "cooldown"
+        ],
+        "hypotheses": [
+          [
+            "rate-limiter",
+            "hypothesis",
+            "endpoint-or-path-unresolved"
+          ],
+          [
+            "firewall-tracking",
+            "not-elevated",
+            null
+          ]
+        ]
+      }
+    },
+    {
+      "id": "shared-path-v4-005",
+      "campaign": "crossport-2026-10-23-shared-path",
+      "topology": "shared-path",
+      "family": 4,
+      "truth": "shared-state",
+      "classification": "shared-state",
+      "isolated": "no-coupling",
+      "reasons": [
+        "main measurement depends on a precondition on a different port"
+      ],
+      "roles": {
+        "main": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "reverse": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "same-port": {
+          "status": "inferred",
+          "suppressed": 12,
+          "enabled": 0,
+          "p": 0.00048828125,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 0,
+            "lower": 0,
+            "upper": 0.2646484693970512
+          }
+        },
+        "time-separated": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        },
+        "null": {
+          "status": "inferred",
+          "suppressed": 0,
+          "enabled": 0,
+          "p": 1,
+          "control": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          },
+          "treatment": {
+            "estimate": 1,
+            "lower": 0.7353515306029437,
+            "upper": 1
+          }
+        }
+      },
+      "candidate": {
+        "direction": "symmetric",
+        "signals": [
+          "cooldown"
+        ],
+        "hypotheses": [
+          [
+            "rate-limiter",
+            "hypothesis",
+            "endpoint-or-path-unresolved"
+          ],
+          [
+            "firewall-tracking",
+            "not-elevated",
+            null
+          ]
+        ]
+      }
+    }
+  ],
+  "topologies": {
+    "independent": {
+      "planned": 9,
+      "errors": 0,
+      "classifications": {
+        "no-coupling": 9
+      },
+      "isolated": {
+        "no-coupling": 9
+      },
+      "correct": 9,
+      "correct_ci": [
+        0.6637328831200568,
+        1.0
+      ],
+      "candidates": 0,
+      "signals": {},
+      "elevated": {}
+    },
+    "per-port": {
+      "planned": 6,
+      "errors": 0,
+      "classifications": {
+        "per-port-state": 6
+      },
+      "isolated": {
+        "no-coupling": 6
+      },
+      "correct": 6,
+      "correct_ci": [
+        0.5407418735600993,
+        1.0
+      ],
+      "candidates": 0,
+      "signals": {},
+      "elevated": {}
+    },
+    "shared-endpoint": {
+      "planned": 9,
+      "errors": 0,
+      "classifications": {
+        "shared-state": 9
+      },
+      "isolated": {
+        "no-coupling": 9
+      },
+      "correct": 9,
+      "correct_ci": [
+        0.6637328831200568,
+        1.0
+      ],
+      "candidates": 9,
+      "signals": {
+        "cooldown": 6
+      },
+      "elevated": {
+        "rate-limiter@endpoint-or-path-unresolved": 6
+      }
+    },
+    "shared-path": {
+      "planned": 6,
+      "errors": 0,
+      "classifications": {
+        "shared-state": 6
+      },
+      "isolated": {
+        "no-coupling": 6
+      },
+      "correct": 6,
+      "correct_ci": [
+        0.5407418735600993,
+        1.0
+      ],
+      "candidates": 6,
+      "signals": {
+        "cooldown": 6
+      },
+      "elevated": {
+        "rate-limiter@endpoint-or-path-unresolved": 6
+      }
+    }
+  },
+  "cross_port_accuracy": {
+    "correct": 30,
+    "planned": 30,
+    "ci95": [
+      0.884296691777972,
+      1.0
+    ]
+  },
+  "isolated_accuracy": {
+    "correct": 9,
+    "planned": 30,
+    "ci95": [
+      0.147345184754701,
+      0.49395904146255376
+    ]
+  },
+  "gates": {
+    "go": true,
+    "zero_candidate_false_positives": true,
+    "no_unsupported_infrastructure_hypothesis": true,
+    "confounded_location_unresolved": true
+  },
+  "limitations": [
+    "All namespaces share one Linux kernel inside one Docker VM; study repetitions are not independent hosts.",
+    "Limiters are iptables limit-module token buckets; other shared-state mechanisms are not represented.",
+    "The isolated baseline reuses the experiments' own no-precondition probes; it is matched in timing and port, not a separate scanner.",
+    "Unresolved and failed studies stay in every denominator."
+  ]
+}

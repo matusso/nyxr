@@ -1,0 +1,9 @@
+{
+    "docker_server_version": "29.9.2",
+    "vm_cpu_count": 18,
+    "vm_memory_bytes": 8317267968,
+    "architecture": "aarch64",
+    "kernel": "7.0.14-linuxkit",
+    "image_id": "sha256:811cab92fd63f50aa0cff07d7ca2a975606f364b119a83acd15ce8a9fce20d2a",
+    "packages": "ethtool=1:6.14.2-1 iproute2=6.15.0-1 iptables=1.8.11-2 procps=2:4.0.4-9 python3=3.13.5-1 tcpdump=4.99.5-2 "
+}

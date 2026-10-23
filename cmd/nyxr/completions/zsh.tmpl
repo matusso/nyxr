@@ -154,7 +154,7 @@ _nyxr() {
                     ;;
                 horizon)
                     _arguments \
-                        '1:subcommand:(resolve replay explain references verify-capture environment calibrate cross-port)' \
+                        '1:subcommand:(resolve replay explain references verify-capture environment calibrate cross-port graph)' \
                         '--experiment=[versioned experiment]:file:_files' \
                         '--protocol=[pre-registered calibration protocol]:file:_files' \
                         '--main=[cross-port main role report]:file:_files' \
@@ -162,6 +162,13 @@ _nyxr() {
                         '--reverse=[reversed-order report]:file:_files' \
                         '--time-separated=[time-separated control report]:file:_files' \
                         '--null=[unrelated-port null control report]:file:_files' \
+                        '*--report=[report for the evidence graph]:file:_files' \
+                        '*--study=[cross-port study role=report,...]:study:' \
+                        '*--change=[declared change TIME@scope]:change:' \
+                        '--ttl=[confidence TTL]:duration:' \
+                        '--now=[evaluation time]:time:' \
+                        '--graph=[saved evidence graph]:file:_files' \
+                        '--hypothesis=[hypothesis ID]:id:' \
                         '--policy=[operator policy]:profile:(lab enterprise fragile ot-restricted)' \
                         '--permit=[independent permission]:permission:(cross-port)' \
                         '--allow-targets=[authorized IP/CIDR scope]:scope:' \

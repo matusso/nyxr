@@ -241,3 +241,44 @@ func TestHorizonCLICrossPortStudy(t *testing.T) {
 		}
 	}
 }
+
+func TestHorizonCLIGraphAndExplain(t *testing.T) {
+	dir := t.TempDir()
+	report := filepath.Join(dir, "sack.json")
+	if err := run([]string{"horizon", "resolve", "--experiment", "../../lab/horizon/hz-001-environment.yaml", "--policy", "lab", "--allow-targets", "192.0.2.0/24", "--allow-ports", "443", "--simulate", "sack", "--output", report}, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	graph := filepath.Join(dir, "graph.json")
+	var out bytes.Buffer
+	if err := run([]string{"horizon", "graph", "--report", report, "--ttl", "8760h", "--output", graph}, &out); err != nil {
+		t.Fatal(err)
+	}
+	var g model.Graph
+	if err := json.Unmarshal(out.Bytes(), &g); err != nil || len(g.Hypotheses) != 1 || g.Hypotheses[0].Status != "supported" || g.APIVersion != model.GraphVersion {
+		t.Fatalf("graph: %+v %v", g.Hypotheses, err)
+	}
+	out.Reset()
+	if err := run([]string{"horizon", "explain", "--graph", graph, "--hypothesis", "HYP-1"}, &out); err != nil || !strings.Contains(out.String(), "HYP-1 [supported] endpoint-stack") {
+		t.Fatalf("explain: %v\n%s", err, out.String())
+	}
+	for _, args := range [][]string{
+		{"horizon", "graph"},
+		{"horizon", "graph", "--report", report, "--output", graph},
+		{"horizon", "graph", "--study", "bogus=" + report},
+		{"horizon", "graph", "--report", report, "--change", "yesterday@network"},
+		{"horizon", "graph", "--report", report, "--now", "now"},
+		{"horizon", "explain", "--graph", graph},
+		{"horizon", "explain", "--graph", graph, "--hypothesis", "HYP-9"},
+	} {
+		if err := run(args, &bytes.Buffer{}); err == nil {
+			t.Fatalf("accepted %v", args)
+		}
+	}
+	out.Reset()
+	if err := run([]string{"horizon", "graph", "--report", report, "--change", "2999-01-01T00:00:00Z@host:192.0.2.10@upgrade", "--now", "2999-01-02T00:00:00Z", "--ttl", "876000h"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(out.Bytes(), &g); err != nil || g.Hypotheses[0].Status != "stale" {
+		t.Fatalf("declared change: %+v %v", g.Hypotheses, err)
+	}
+}

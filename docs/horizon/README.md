@@ -4,6 +4,9 @@ The [bounded sequence DSL and policy profiles](general-dsl.md) extend this PoC
 with v1alpha2 send/observe/wait/repeat sequences, explicit cross-port permission,
 exact dry-run probes and API/executor kill switches. v1alpha1 remains compatible.
 The guide below describes HZ-001. [Phase 2 correlation and evidence](correlation-evidence.md) documents IPv6/ICMP, delayed replies, timestamp provenance and bounded PCAPNG export.
+[Phase 3 environmental controls](environment-controls.md) adds declared confounders, interleaved reference probes, HZ-002 A/A runs, a gating environment assessment and a pre-registered calibration.
+[Phase 4 cross-port studies](cross-port.md) add HZ-003/HZ-004 precondition experiments, role controls and shared-state candidates.
+[Phase 5 evidence graph](evidence-graph.md) projects replayed runs into a versioned provenance graph of hypotheses with contradictions and confidence decay.
 
 HORIZON is an opt-in experiment runner. Both SYN arms offer MSS 1460;
 **only treatment adds SACK permission**. It retains TCP replies, ICMP errors and ambiguous path candidates and
