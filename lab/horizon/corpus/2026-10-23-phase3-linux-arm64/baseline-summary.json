@@ -1,0 +1,5257 @@
+{
+  "version": "horizon-phase3-live/v1",
+  "completed": true,
+  "rows": [
+    {
+      "id": "hz-001-linux-v4-clean-000",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69100,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.017334,
+      "paired_rtt_interval_ms": [
+        -0.053208,
+        0.066291
+      ],
+      "report_sha256": "7d047f86569a82a87afc79a1360118bc0d6cfa498a0198b86f6d441226fd02ad"
+    },
+    {
+      "id": "hz-001-linux-v4-clean-001",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69101,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.034417,
+      "paired_rtt_interval_ms": [
+        -0.091041,
+        0.022208
+      ],
+      "report_sha256": "87d5abf679d237c0e9bd3244c2d56cec2ccd02409cfcb23b225b8fbadff93071"
+    },
+    {
+      "id": "hz-001-linux-v4-clean-002",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69102,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.032333,
+      "paired_rtt_interval_ms": [
+        -0.061583,
+        0.038916
+      ],
+      "report_sha256": "fd67601bd59cc209322de47e2cf6baecc1086e1ca0b669e1bd77d57d07e07b44"
+    },
+    {
+      "id": "hz-001-linux-v4-clean-003",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69103,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.002917,
+      "paired_rtt_interval_ms": [
+        -0.077876,
+        0.074625
+      ],
+      "report_sha256": "013e200e12e7e56f8d73d2152ee326017fd3de6cec3ab1d4dcdecc972e2c1e9c"
+    },
+    {
+      "id": "hz-001-linux-v4-clean-004",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69104,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.008458,
+      "paired_rtt_interval_ms": [
+        -0.127458,
+        0.087708
+      ],
+      "report_sha256": "9195fbb11931acd78ecca717cb6100f46b58ed6e1d918fa55d85f0e49e30b028"
+    },
+    {
+      "id": "hz-001-linux-v4-clean-005",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69105,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.004208,
+      "paired_rtt_interval_ms": [
+        -0.032375,
+        0.065041
+      ],
+      "report_sha256": "e939944e000441128be216340b2bfa26c303c500748266bfbfd79eddb18514e8"
+    },
+    {
+      "id": "hz-001-linux-v4-clean-006",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69106,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.03675,
+      "paired_rtt_interval_ms": [
+        -0.058499,
+        0.012458
+      ],
+      "report_sha256": "9a4d37667e83760740a9df7ec4168fa570561517e3d4e59228ee9e084b02d9d0"
+    },
+    {
+      "id": "hz-001-linux-v4-clean-007",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69107,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.010417,
+      "paired_rtt_interval_ms": [
+        -0.070083,
+        0.06675
+      ],
+      "report_sha256": "148eef52325dbdc3f3f025e0df68b1e97f6b022a031153d7e9b3adb8169160a7"
+    },
+    {
+      "id": "hz-001-linux-v4-clean-008",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69108,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.040583,
+      "paired_rtt_interval_ms": [
+        -0.050958,
+        0.025209
+      ],
+      "report_sha256": "5c6c0773b5ddd671fb51db22d455e1c5c86f54246d76595c48aca9a6e88c17b2"
+    },
+    {
+      "id": "hz-001-linux-v4-clean-009",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69109,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.047417,
+      "paired_rtt_interval_ms": [
+        -0.040292,
+        0.090042
+      ],
+      "report_sha256": "bb10caf3f44bbcc08c93525b29185d1dcc4543ca8dd23543258a3c09a383fbbf"
+    },
+    {
+      "id": "hz-002-linux-v4-clean-000",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69100,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.012375,
+      "paired_rtt_interval_ms": [
+        -0.063792,
+        0.056
+      ],
+      "report_sha256": "0c999f5f154c53d0d13b54c74f4f396a7ade280eaec135105305cf8d099365bc"
+    },
+    {
+      "id": "hz-002-linux-v4-clean-001",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69101,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.028041,
+      "paired_rtt_interval_ms": [
+        -0.059501,
+        0.001708
+      ],
+      "report_sha256": "a950fa66fec0190b3ba6e27a84771c79fe462790e6d2529b9f63dc0bed0c4089"
+    },
+    {
+      "id": "hz-002-linux-v4-clean-002",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69102,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.049875,
+      "paired_rtt_interval_ms": [
+        -0.153834,
+        0.012792
+      ],
+      "report_sha256": "dcbb662c568ce8813a692d43bebc6978b9266b157ce5c17cf9e76e67ae9b7a14"
+    },
+    {
+      "id": "hz-002-linux-v4-clean-003",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69103,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.000708,
+      "paired_rtt_interval_ms": [
+        -0.057124,
+        0.038958
+      ],
+      "report_sha256": "e918c87cf17a91a7601a5f62f2bfccc840b39f48054176da46a14cee0b257209"
+    },
+    {
+      "id": "hz-002-linux-v4-clean-004",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69104,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.012583,
+      "paired_rtt_interval_ms": [
+        -0.081624,
+        0.030499
+      ],
+      "report_sha256": "4e1ce8467b87e8a8b5ae3cf8d79656345531fb6977849d5e6c005dc2990b54b2"
+    },
+    {
+      "id": "hz-002-linux-v4-clean-005",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69105,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -4.2e-05,
+      "paired_rtt_interval_ms": [
+        -0.051583,
+        0.029251
+      ],
+      "report_sha256": "2b0e2f35fce32be6957fc48263b5eefa53ac2ff5b13a70c11d6fd9150c5e27da"
+    },
+    {
+      "id": "hz-002-linux-v4-clean-006",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69106,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.043791,
+      "paired_rtt_interval_ms": [
+        -0.143458,
+        0.014376
+      ],
+      "report_sha256": "e9c44aef9d2180feec99cbacba0cd3e93d6e8690718d79bdd30aa0a0fe9b1467"
+    },
+    {
+      "id": "hz-002-linux-v4-clean-007",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69107,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.024791,
+      "paired_rtt_interval_ms": [
+        -0.08225,
+        0.013584
+      ],
+      "report_sha256": "5cfa55617971844cf81be5f672747c6c23a35c2742ca0ca8e4a2707861aa7b1e"
+    },
+    {
+      "id": "hz-002-linux-v4-clean-008",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69108,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.004125,
+      "paired_rtt_interval_ms": [
+        -0.086834,
+        0.108708
+      ],
+      "report_sha256": "e456719d6e56e06167219526ab10b8e67b3404bff168af5c93475a051d62d1c9"
+    },
+    {
+      "id": "hz-002-linux-v4-clean-009",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69109,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.008459,
+      "paired_rtt_interval_ms": [
+        -0.029041,
+        0.145333
+      ],
+      "report_sha256": "2a9bc19c892b49a2106ec801d97ac8712af37ff8cb7a3fe6662942c371f496ae"
+    },
+    {
+      "id": "hz-001-linux-v4-loss-jitter-000",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69100,
+      "expected": null,
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -2.569333,
+      "paired_rtt_interval_ms": [
+        -3.67075,
+        0.466708
+      ],
+      "report_sha256": "87b45edd73bc3e5603de6fddd76e7e5b7f28eca4615f0b0588532b4ae0a3a6e4"
+    },
+    {
+      "id": "hz-001-linux-v4-loss-jitter-001",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69101,
+      "expected": null,
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.100166,
+      "paired_rtt_interval_ms": [
+        -3.575,
+        4.681083
+      ],
+      "report_sha256": "8e54439cf2292b68867aa81ec8ee2e41f7ae7609e03f6c5e3889a052c7256d9a"
+    },
+    {
+      "id": "hz-001-linux-v4-loss-jitter-002",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69102,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 0.0078125,
+      "packets_tx": 49,
+      "independent_packets": 75,
+      "timeouts": 3,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5288888888888895,
+      "carryover_p": 1,
+      "paired_rtt_ms": -2.105708,
+      "paired_rtt_interval_ms": [
+        -7.712124,
+        1.470333
+      ],
+      "report_sha256": "e4fdbb6f0c3802c503a2bde243a976f2a776e468b0ff1041d205d5ae02009abe"
+    },
+    {
+      "id": "hz-001-linux-v4-loss-jitter-003",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69103,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 0.015625,
+      "packets_tx": 51,
+      "independent_packets": 80,
+      "timeouts": 2,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.7777777777777876,
+      "carryover_p": 1,
+      "paired_rtt_ms": 2.490459,
+      "paired_rtt_interval_ms": [
+        -2.30625,
+        5.034292
+      ],
+      "report_sha256": "930caded9fe2929a0288a20a1fae027b025cac39c1234baa634b704987652891"
+    },
+    {
+      "id": "hz-001-linux-v4-loss-jitter-004",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69104,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 0.0009765625,
+      "packets_tx": 53,
+      "independent_packets": 80,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": 1.866459,
+      "paired_rtt_interval_ms": [
+        -3.555959,
+        3.371125
+      ],
+      "report_sha256": "373e73a921864c3a2bf831f29c5456994f12152e270befafb88079cf3164360f"
+    },
+    {
+      "id": "hz-001-linux-v4-loss-jitter-005",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69105,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 0.0009765625,
+      "packets_tx": 52,
+      "independent_packets": 82,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": 1.934958,
+      "paired_rtt_interval_ms": [
+        -3.326875,
+        7.288416
+      ],
+      "report_sha256": "f70aeff5dd2b5aa3d94a36276454548dc1b9e4174f84f64a95bf154c33492633"
+    },
+    {
+      "id": "hz-001-linux-v4-loss-jitter-006",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69106,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 0.0009765625,
+      "packets_tx": 53,
+      "independent_packets": 80,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.437543,
+      "paired_rtt_interval_ms": [
+        -2.796667,
+        3.51825
+      ],
+      "report_sha256": "7a7918a730ceb7ee1fdca571575b8285f41cdac69c2cf090b818da8881131eac"
+    },
+    {
+      "id": "hz-001-linux-v4-loss-jitter-007",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69107,
+      "expected": null,
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 84,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.669042,
+      "paired_rtt_interval_ms": [
+        -3.854124,
+        3.245958
+      ],
+      "report_sha256": "168d648a65403d05e0f0f0aaaee2897b4265fe989b4b2076f485f1f3efc867eb"
+    },
+    {
+      "id": "hz-001-linux-v4-loss-jitter-008",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69108,
+      "expected": null,
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 82,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -1.001792,
+      "paired_rtt_interval_ms": [
+        -4.280751,
+        6.109417
+      ],
+      "report_sha256": "9bf5adf7daa81fde127e9f2b24d66e5d0ca10413f87f1c01f43e46a7f1325a69"
+    },
+    {
+      "id": "hz-001-linux-v4-loss-jitter-009",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69109,
+      "expected": null,
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.227541,
+      "paired_rtt_interval_ms": [
+        -2.232,
+        4.192583
+      ],
+      "report_sha256": "4c52cbb4d2f48ef95999db11a7164d46a234324acae3222ca3d5e190d79a7acd"
+    },
+    {
+      "id": "hz-002-linux-v4-loss-jitter-000",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69100,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 52,
+      "independent_packets": 78,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.791333,
+      "paired_rtt_interval_ms": [
+        -2.302625,
+        5.065541
+      ],
+      "report_sha256": "10c4c3d8b6240dd99548c4ad1d1af7f03f6dfc910915aee1026b4bacf039e9db"
+    },
+    {
+      "id": "hz-002-linux-v4-loss-jitter-001",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69101,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 50,
+      "independent_packets": 79,
+      "timeouts": 3,
+      "gating_flags": [
+        "reference-loss"
+      ],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        2,
+        3
+      ],
+      "throttling_p": 0.5288888888888895,
+      "carryover_p": 1,
+      "paired_rtt_ms": 2.022458,
+      "paired_rtt_interval_ms": [
+        -2.431667,
+        9.405751
+      ],
+      "report_sha256": "5b7ea2ad8255f5ade1d2ab27f796035ea48941d853443fdd0f01e4e0acdcd3da"
+    },
+    {
+      "id": "hz-002-linux-v4-loss-jitter-002",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69102,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 48,
+      "independent_packets": 80,
+      "timeouts": 4,
+      "gating_flags": [
+        "reference-loss"
+      ],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        2,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.985667,
+      "paired_rtt_interval_ms": [
+        -3.369542,
+        3.977541
+      ],
+      "report_sha256": "daf19e44457ff9d5c62477f539e1d2abba8c3031d094728e5eeb90d692de6508"
+    },
+    {
+      "id": "hz-002-linux-v4-loss-jitter-003",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69103,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 83,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -1.788583,
+      "paired_rtt_interval_ms": [
+        -6.089042,
+        4.65175
+      ],
+      "report_sha256": "40174ce2f1696ed08757ea2d42df1b99b6b0776192a614c38845371c0cbf2c18"
+    },
+    {
+      "id": "hz-002-linux-v4-loss-jitter-004",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69104,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 53,
+      "independent_packets": 85,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -3.721084,
+      "paired_rtt_interval_ms": [
+        -6.667125,
+        5.316166
+      ],
+      "report_sha256": "a546e4b3c6d29515e594313a1bf5803cd62894e0d35ce0b2c6a7c0898037fd5c"
+    },
+    {
+      "id": "hz-002-linux-v4-loss-jitter-005",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69105,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 53,
+      "independent_packets": 82,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": 1.104417,
+      "paired_rtt_interval_ms": [
+        -5.454166,
+        4.694417
+      ],
+      "report_sha256": "386eea90d9f42a6f25993ed2a646be2c1b8282fe9d41b0cb248536626ff7f6f3"
+    },
+    {
+      "id": "hz-002-linux-v4-loss-jitter-006",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69106,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 83,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.675959,
+      "paired_rtt_interval_ms": [
+        -4.490666,
+        4.746707
+      ],
+      "report_sha256": "5f973d66f41b47c0960e33090b31e2c2f8ab48a5b832c075619053536f45b70a"
+    },
+    {
+      "id": "hz-002-linux-v4-loss-jitter-007",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69107,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 52,
+      "independent_packets": 80,
+      "timeouts": 2,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.7777777777777876,
+      "carryover_p": 1,
+      "paired_rtt_ms": 2.788458,
+      "paired_rtt_interval_ms": [
+        -1.762167,
+        5.855083
+      ],
+      "report_sha256": "27c1611ccd7c19f5e2dabf603ea9ad4a187b362a0e5c1f620d2160d9de61a12d"
+    },
+    {
+      "id": "hz-002-linux-v4-loss-jitter-008",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69108,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 50,
+      "independent_packets": 83,
+      "timeouts": 3,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5288888888888895,
+      "carryover_p": 1,
+      "paired_rtt_ms": 2.014986,
+      "paired_rtt_interval_ms": [
+        -1.547084,
+        6.709291
+      ],
+      "report_sha256": "99142aee3c81b4332d998b480fba4e4f5a14bf7638f8633118100ef9b14d997b"
+    },
+    {
+      "id": "hz-002-linux-v4-loss-jitter-009",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69109,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 83,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.205458,
+      "paired_rtt_interval_ms": [
+        -4.754125,
+        6.536917
+      ],
+      "report_sha256": "81ad8fe8f5890f3398c1a1067fc3dab307af29597c86a705241c756120f23f9c"
+    },
+    {
+      "id": "hz-001-linux-v6-clean-000",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69100,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 84,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.027917,
+      "paired_rtt_interval_ms": [
+        -0.073792,
+        0.068333
+      ],
+      "report_sha256": "bf3291434733e1d7fd38687e021135b5a99406c84ca30de79f3585ca4e2fcfc9"
+    },
+    {
+      "id": "hz-001-linux-v6-clean-001",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69101,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 83,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.037458,
+      "paired_rtt_interval_ms": [
+        -0.115374,
+        0.061292
+      ],
+      "report_sha256": "3ddb91ece66aabe308144f876ef446349cd0998de193bee73db96a65dcaef5d2"
+    },
+    {
+      "id": "hz-001-linux-v6-clean-002",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69102,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.011791,
+      "paired_rtt_interval_ms": [
+        -0.0745,
+        0.059708
+      ],
+      "report_sha256": "89e8e88120d6a48324aa363fdae968f99fa13a033ea6740e6a80a0359dcdcd8b"
+    },
+    {
+      "id": "hz-001-linux-v6-clean-003",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69103,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.000959,
+      "paired_rtt_interval_ms": [
+        -0.003917,
+        0.00575
+      ],
+      "report_sha256": "8cb1e8184c01deb3762f012edfa7d3af7353d15f4277becb3259634df98ef4fa"
+    },
+    {
+      "id": "hz-001-linux-v6-clean-004",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69104,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.006001,
+      "paired_rtt_interval_ms": [
+        -0.012959,
+        -0.000833
+      ],
+      "report_sha256": "ce8c01b41032fc8e5b05475234eae724fabe2d52901642f898eca974752cabd9"
+    },
+    {
+      "id": "hz-001-linux-v6-clean-005",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69105,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.004792,
+      "paired_rtt_interval_ms": [
+        -0.026208,
+        0.00575
+      ],
+      "report_sha256": "bcfa12729d3bc2b37250c849a480275041b530a848f6f78ef9e13a11da3a44d5"
+    },
+    {
+      "id": "hz-001-linux-v6-clean-006",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69106,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.017958,
+      "paired_rtt_interval_ms": [
+        -0.006,
+        0.092917
+      ],
+      "report_sha256": "71d0df7c368c6430e94fddb166064decbafa2470a2ce722a9ea81d713cdf3641"
+    },
+    {
+      "id": "hz-001-linux-v6-clean-007",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69107,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.040292,
+      "paired_rtt_interval_ms": [
+        0.000417,
+        0.158083
+      ],
+      "report_sha256": "4e2c51acb50b56e518ebf659cc71d12347a6dbac32edf97c2456797439ffd06f"
+    },
+    {
+      "id": "hz-001-linux-v6-clean-008",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69108,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.038542,
+      "paired_rtt_interval_ms": [
+        -0.165125,
+        0.054792
+      ],
+      "report_sha256": "50287861de418fe82561d20fdb81ea0e05804981c6208cfb31bf3f208478af89"
+    },
+    {
+      "id": "hz-001-linux-v6-clean-009",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69109,
+      "expected": "difference",
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.030583,
+      "paired_rtt_interval_ms": [
+        -0.003375,
+        0.064792
+      ],
+      "report_sha256": "b7fc86bd61ef863a18fd7bc05a8eb291cc0b8574c781210a1da79385f7809769"
+    },
+    {
+      "id": "hz-002-linux-v6-clean-000",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69100,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.02475,
+      "paired_rtt_interval_ms": [
+        -0.107667,
+        0.095167
+      ],
+      "report_sha256": "68c377985c6af3d2359120a93418f784d70157432d55933ca4b66fe24fa8c7d6"
+    },
+    {
+      "id": "hz-002-linux-v6-clean-001",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69101,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.021125,
+      "paired_rtt_interval_ms": [
+        -0.030709,
+        0.030792
+      ],
+      "report_sha256": "728819f2edd39ac540dd568283f232902f592fb5703078ebfb8f0e58ecdb7cb0"
+    },
+    {
+      "id": "hz-002-linux-v6-clean-002",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69102,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.001082,
+      "paired_rtt_interval_ms": [
+        -0.052042,
+        0.064541
+      ],
+      "report_sha256": "25bd76c118d40eb253337c43ca23b9373c75a55bc368696a8dcbf238a38e2f4a"
+    },
+    {
+      "id": "hz-002-linux-v6-clean-003",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69103,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.023001,
+      "paired_rtt_interval_ms": [
+        -0.057666,
+        0.088208
+      ],
+      "report_sha256": "5eb6e2e8545f55faa136be5585e57c7a9a2f8ccfbe2766f7abd334fb2f1bba7a"
+    },
+    {
+      "id": "hz-002-linux-v6-clean-004",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69104,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.015667,
+      "paired_rtt_interval_ms": [
+        -0.082583,
+        0.083667
+      ],
+      "report_sha256": "54f57add3bfc27ab31c24998c71624eed2e223c5b66d0a78aa17cc3148ac531f"
+    },
+    {
+      "id": "hz-002-linux-v6-clean-005",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69105,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.00975,
+      "paired_rtt_interval_ms": [
+        -0.025292,
+        0.069458
+      ],
+      "report_sha256": "7da0f8bdb0477b5a29bdc4e201fe1a7a02658871bd7a8bfa163391252b9935ba"
+    },
+    {
+      "id": "hz-002-linux-v6-clean-006",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69106,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.042333,
+      "paired_rtt_interval_ms": [
+        -0.015792,
+        0.068667
+      ],
+      "report_sha256": "739d5231a0c9b35390c1caa18b7b73eb53331312d459d7fb0744dad3b8e1dd41"
+    },
+    {
+      "id": "hz-002-linux-v6-clean-007",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69107,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.005416,
+      "paired_rtt_interval_ms": [
+        -0.078916,
+        0.003917
+      ],
+      "report_sha256": "cd978dc9c393f437d38cfe2480342723cf2e28dcafd3feaa239ea6d99f66f680"
+    },
+    {
+      "id": "hz-002-linux-v6-clean-008",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69108,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.003208,
+      "paired_rtt_interval_ms": [
+        -0.010791,
+        0.002374
+      ],
+      "report_sha256": "11e4a97c1674d56c4a1895e2188caf2e43878d6be9c5f3a2a41de0634e0a46d6"
+    },
+    {
+      "id": "hz-002-linux-v6-clean-009",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69109,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.003292,
+      "paired_rtt_interval_ms": [
+        -0.014874,
+        0.012458
+      ],
+      "report_sha256": "9b0fe1c1be47b883d55e96bb6c4681e4a2c8c0e2052c9cb60d1665c939c0812a"
+    },
+    {
+      "id": "hz-001-linux-v6-loss-jitter-000",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69100,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 0.001953125,
+      "packets_tx": 53,
+      "independent_packets": 80,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": 3.0715,
+      "paired_rtt_interval_ms": [
+        -7.987292,
+        5.638917
+      ],
+      "report_sha256": "37c7a3bf1acb72011803cd1abd330146ab115d0e2d8d1bcda7b628149054aef6"
+    },
+    {
+      "id": "hz-001-linux-v6-loss-jitter-001",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69101,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 0.00390625,
+      "packets_tx": 53,
+      "independent_packets": 83,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": -1.371834,
+      "paired_rtt_interval_ms": [
+        -4.721084,
+        2.404625
+      ],
+      "report_sha256": "54d7b9c9dd83ed8b0915ff622e97916ef65738611ba15598d995ba3b1ae95f4c"
+    },
+    {
+      "id": "hz-001-linux-v6-loss-jitter-002",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69102,
+      "expected": null,
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 84,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -1.531375,
+      "paired_rtt_interval_ms": [
+        -4.835249,
+        1.892458
+      ],
+      "report_sha256": "09186ea019bedf87d8864f0fddd2bb06921e1d0d991ca6f6cd8fb5b2f77c37d6"
+    },
+    {
+      "id": "hz-001-linux-v6-loss-jitter-003",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69103,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 0.0009765625,
+      "packets_tx": 52,
+      "independent_packets": 79,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -2.375375,
+      "paired_rtt_interval_ms": [
+        -3.539917,
+        4.612376
+      ],
+      "report_sha256": "511db8b1ee83085c6b9df9ec4c292173c05e040b33f4d96d0956164de57cac19"
+    },
+    {
+      "id": "hz-001-linux-v6-loss-jitter-004",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69104,
+      "expected": null,
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 82,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.387167,
+      "paired_rtt_interval_ms": [
+        -4.091583,
+        4.6965
+      ],
+      "report_sha256": "4dbfee354bf4cd335943175742f4e884de9c54bf58ed291821126b4dda86752e"
+    },
+    {
+      "id": "hz-001-linux-v6-loss-jitter-005",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69105,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 0.0009765625,
+      "packets_tx": 52,
+      "independent_packets": 78,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.220541,
+      "paired_rtt_interval_ms": [
+        -6.09575,
+        7.940584
+      ],
+      "report_sha256": "1edbbeac646a991fc8e655e5b294addf3b1c842635cf09548e5d7b9ae440bab7"
+    },
+    {
+      "id": "hz-001-linux-v6-loss-jitter-006",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69106,
+      "expected": null,
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 1.199667,
+      "paired_rtt_interval_ms": [
+        -2.786459,
+        5.330458
+      ],
+      "report_sha256": "3a165741b7648d7c296b2c1a67f9100267411b8242e0653880f5aaddfea7c266"
+    },
+    {
+      "id": "hz-001-linux-v6-loss-jitter-007",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69107,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 0.00390625,
+      "packets_tx": 53,
+      "independent_packets": 82,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.923292,
+      "paired_rtt_interval_ms": [
+        -2.872625,
+        4.344542
+      ],
+      "report_sha256": "50978a23517acad80c462fa1675a5d29c8e9840f5bbe616c43d84ec9e14d410b"
+    },
+    {
+      "id": "hz-001-linux-v6-loss-jitter-008",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69108,
+      "expected": null,
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 82,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -2.503459,
+      "paired_rtt_interval_ms": [
+        -5.237709,
+        3.205459
+      ],
+      "report_sha256": "32d56375e836498d517f91a7f2d502034ad5522893a5156b82c93316fefb310a"
+    },
+    {
+      "id": "hz-001-linux-v6-loss-jitter-009",
+      "kind": "hz-001",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69109,
+      "expected": null,
+      "outcome": "difference",
+      "conclusion": "SACK permission response differs between paired arms; causal explanation unresolved",
+      "p_value": 0.00048828125,
+      "packets_tx": 54,
+      "independent_packets": 82,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.953792,
+      "paired_rtt_interval_ms": [
+        -4.564999,
+        2.872722
+      ],
+      "report_sha256": "bb04b6ff730fd21bfab532c82f9294f185cc6b29c0aa5900477985ba2fcd74c5"
+    },
+    {
+      "id": "hz-002-linux-v6-loss-jitter-000",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69100,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.615126,
+      "paired_rtt_interval_ms": [
+        -1.789042,
+        5.727125
+      ],
+      "report_sha256": "fb96d74231d36d03eafa293117bce6b6461132b47705d433ae9b52be91f81a76"
+    },
+    {
+      "id": "hz-002-linux-v6-loss-jitter-001",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69101,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 51,
+      "independent_packets": 79,
+      "timeouts": 2,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.536084,
+      "paired_rtt_interval_ms": [
+        -4.550042,
+        3.578334
+      ],
+      "report_sha256": "ef2d28ab51585cebe9659a55ac1cd932ed1efa337bb012f1e4f648d5072d8d49"
+    },
+    {
+      "id": "hz-002-linux-v6-loss-jitter-002",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69102,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 82,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.025376,
+      "paired_rtt_interval_ms": [
+        -2.188125,
+        4.889292
+      ],
+      "report_sha256": "238c7c779331ef1d71c8297f33791f169cda01170c72708fc975f94c331a8dfc"
+    },
+    {
+      "id": "hz-002-linux-v6-loss-jitter-003",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69103,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 53,
+      "independent_packets": 82,
+      "timeouts": 1,
+      "gating_flags": [
+        "reference-loss"
+      ],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        2,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -1.045874,
+      "paired_rtt_interval_ms": [
+        -2.909125,
+        5.604584
+      ],
+      "report_sha256": "0d1e6733600bbd481e6768bc9c8d41d86ced83d9d3b1a7e408e6ef7daf8f4a17"
+    },
+    {
+      "id": "hz-002-linux-v6-loss-jitter-004",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69104,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 48,
+      "independent_packets": 79,
+      "timeouts": 4,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.9592592592592696,
+      "carryover_p": 1,
+      "paired_rtt_ms": -5.013542,
+      "paired_rtt_interval_ms": [
+        -9.059833,
+        -0.940709
+      ],
+      "report_sha256": "efb08c532baee7e32e839ba5123a0c0be9c6644ed74a86d29837f0c830c9696b"
+    },
+    {
+      "id": "hz-002-linux-v6-loss-jitter-005",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69105,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 52,
+      "independent_packets": 80,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.708291,
+      "paired_rtt_interval_ms": [
+        -7.473541,
+        5.448292
+      ],
+      "report_sha256": "9abf7fed02a2e3587242e3fcd4cb74f638dd0286dee195804409172afcd6ac3f"
+    },
+    {
+      "id": "hz-002-linux-v6-loss-jitter-006",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69106,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 50,
+      "independent_packets": 78,
+      "timeouts": 2,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.2592592592592625,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.638334,
+      "paired_rtt_interval_ms": [
+        -3.840917,
+        4.737416
+      ],
+      "report_sha256": "5459aea9b57402d4ce769d68971aff23ef3f8b1e14c4525296eacb1fb1f3161a"
+    },
+    {
+      "id": "hz-002-linux-v6-loss-jitter-007",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69107,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 51,
+      "independent_packets": 78,
+      "timeouts": 2,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.7777777777777876,
+      "carryover_p": 1,
+      "paired_rtt_ms": -2.363707,
+      "paired_rtt_interval_ms": [
+        -5.327333,
+        2.64475
+      ],
+      "report_sha256": "c852cfa06d20633d4b604ccc93673728aa3641b1db0134519d7abb6cc18f0bce"
+    },
+    {
+      "id": "hz-002-linux-v6-loss-jitter-008",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69108,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 53,
+      "independent_packets": 82,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.759958,
+      "paired_rtt_interval_ms": [
+        -5.441376,
+        3.375542
+      ],
+      "report_sha256": "a0cd68b62daea0c58cfd570beb4b75c352a50eb80a989f2653301baf3375c39f"
+    },
+    {
+      "id": "hz-002-linux-v6-loss-jitter-009",
+      "kind": "hz-002",
+      "case": "linux",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69109,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 52,
+      "independent_packets": 80,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": -3.928292,
+      "paired_rtt_interval_ms": [
+        -6.115667,
+        0.774125
+      ],
+      "report_sha256": "7dda59e6a9801822e28c1b51df41854026892ae19f50757a8da6973726e39cc9"
+    },
+    {
+      "id": "hz-001-null-v4-clean-000",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69100,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.001375,
+      "paired_rtt_interval_ms": [
+        -0.026834,
+        0.084916
+      ],
+      "report_sha256": "969032308557b800d60c18d6cba2ea55387c45069d9328d8f047d590cf9d3719"
+    },
+    {
+      "id": "hz-001-null-v4-clean-001",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69101,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.015166,
+      "paired_rtt_interval_ms": [
+        -0.046,
+        0.053125
+      ],
+      "report_sha256": "422c4202ec001e766786530ce12136559dd8f9ac4b5d6f7a9411668d73ebdc8e"
+    },
+    {
+      "id": "hz-001-null-v4-clean-002",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69102,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.005,
+      "paired_rtt_interval_ms": [
+        -0.090958,
+        0.105751
+      ],
+      "report_sha256": "70d42d0ad0410120a2809954fe60610e59060d9017b83c8d2ad48864a3a118d9"
+    },
+    {
+      "id": "hz-001-null-v4-clean-003",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69103,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.018208,
+      "paired_rtt_interval_ms": [
+        -0.085542,
+        0.080292
+      ],
+      "report_sha256": "9cbf7f47a974bd3efe18e2f0f2e3a95681ab3ae59b035a57dbfc706f0c6afdb3"
+    },
+    {
+      "id": "hz-001-null-v4-clean-004",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69104,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.032959,
+      "paired_rtt_interval_ms": [
+        -0.071416,
+        0.047917
+      ],
+      "report_sha256": "dea4fe6d971c06a9326fa6470136bd3adb0c818930eab7834f5ee9684f00a749"
+    },
+    {
+      "id": "hz-001-null-v4-clean-005",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69105,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.012125,
+      "paired_rtt_interval_ms": [
+        -0.043166,
+        0.179333
+      ],
+      "report_sha256": "490433d69aa98d9ff97ae3fba32e1fca043a4f16dcccd7e59e19c957de810ff0"
+    },
+    {
+      "id": "hz-001-null-v4-clean-006",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69106,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.019291,
+      "paired_rtt_interval_ms": [
+        -0.071208,
+        0.075333
+      ],
+      "report_sha256": "5c21b22bdf4b05c25f8615b44c5ca3c6b45af4d82029be5cedad403ea49006da"
+    },
+    {
+      "id": "hz-001-null-v4-clean-007",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69107,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.029749,
+      "paired_rtt_interval_ms": [
+        -0.107833,
+        0.028749
+      ],
+      "report_sha256": "9c2e080c1a8b268cf0b48d69a6826911eb881f96a378281939d0938f704ee003"
+    },
+    {
+      "id": "hz-001-null-v4-clean-008",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69108,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.021,
+      "paired_rtt_interval_ms": [
+        -0.088708,
+        0.067333
+      ],
+      "report_sha256": "68e9af69948fab52e45ffc01f406c0582555bf192b5d18d6e9197eb4469b64d0"
+    },
+    {
+      "id": "hz-001-null-v4-clean-009",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69109,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.023707,
+      "paired_rtt_interval_ms": [
+        -0.082833,
+        0.108334
+      ],
+      "report_sha256": "96bc3fa3b23718b13250429baf5e5353dd1b34f89cd37f1a7a032af59799a8d1"
+    },
+    {
+      "id": "hz-002-null-v4-clean-000",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69100,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.011041,
+      "paired_rtt_interval_ms": [
+        -0.073292,
+        0.06775
+      ],
+      "report_sha256": "72847838003d44f1b023477c694466a563ced2119b32d2900f7cb26bc430e529"
+    },
+    {
+      "id": "hz-002-null-v4-clean-001",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69101,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.065208,
+      "paired_rtt_interval_ms": [
+        -0.0595,
+        0.138375
+      ],
+      "report_sha256": "427c28b30c51eaf09bff31b25ce2cd04245ed0ca0d2910dc1f5a5f182240422d"
+    },
+    {
+      "id": "hz-002-null-v4-clean-002",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69102,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.03,
+      "paired_rtt_interval_ms": [
+        -0.064125,
+        0.106167
+      ],
+      "report_sha256": "db163655cf8b140b0c469dd2600deee8da4859e4124a0649e9474f27b515df71"
+    },
+    {
+      "id": "hz-002-null-v4-clean-003",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69103,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.009791,
+      "paired_rtt_interval_ms": [
+        -0.070041,
+        0.076834
+      ],
+      "report_sha256": "633ee04f98db2eb0c898ed7efdb8a3aa12765b828559d3dc091ece5ccbaba36a"
+    },
+    {
+      "id": "hz-002-null-v4-clean-004",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69104,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.033459,
+      "paired_rtt_interval_ms": [
+        -0.071625,
+        0.094542
+      ],
+      "report_sha256": "682a8931c0f44482c04a3002b68e6129e3e0b0215b67be9c55530a06f517c9cd"
+    },
+    {
+      "id": "hz-002-null-v4-clean-005",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69105,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.002501,
+      "paired_rtt_interval_ms": [
+        -0.12725,
+        0.054167
+      ],
+      "report_sha256": "b00af7600595702c1ff226785df1ebcfecb0ee594432b033a787b571977aa676"
+    },
+    {
+      "id": "hz-002-null-v4-clean-006",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69106,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.021209,
+      "paired_rtt_interval_ms": [
+        -0.090666,
+        -0.007625
+      ],
+      "report_sha256": "86cffab7cc276fecb7f1af2ec0846ec007aade4b9716d1bce2605d92335a8d52"
+    },
+    {
+      "id": "hz-002-null-v4-clean-007",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69107,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.005083,
+      "paired_rtt_interval_ms": [
+        -0.04925,
+        0.098708
+      ],
+      "report_sha256": "c12a4aec0cf12c12672f62c1944482b85fe37b0371d2f8aba4914f1ea251f04b"
+    },
+    {
+      "id": "hz-002-null-v4-clean-008",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69108,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.014542,
+      "paired_rtt_interval_ms": [
+        -0.050125,
+        0.048292
+      ],
+      "report_sha256": "5fca0df90d3912e4b108908d7b203ec25d6440258283c46a7ec7cd16c3069e47"
+    },
+    {
+      "id": "hz-002-null-v4-clean-009",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "clean",
+      "seed": 69109,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.009793,
+      "paired_rtt_interval_ms": [
+        -0.051792,
+        0.069583
+      ],
+      "report_sha256": "b160883c36f076ae6d4556748c173c96b0d1756e80d5f04e985bd452474ef182"
+    },
+    {
+      "id": "hz-001-null-v4-loss-jitter-000",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69100,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 53,
+      "independent_packets": 80,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.360501,
+      "paired_rtt_interval_ms": [
+        -0.159541,
+        5.469376
+      ],
+      "report_sha256": "1de16d7727aa12d38caa671211a7c94a52ebfb5ebbccfe4375e300588c76c639"
+    },
+    {
+      "id": "hz-001-null-v4-loss-jitter-001",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69101,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 53,
+      "independent_packets": 84,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -1.100249,
+      "paired_rtt_interval_ms": [
+        -7.691709,
+        5.750042
+      ],
+      "report_sha256": "6a849b84c4ab54b2e7292c142d726400d88a52c50f34ea16326c0e087a976fe4"
+    },
+    {
+      "id": "hz-001-null-v4-loss-jitter-002",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69102,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 83,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.306917,
+      "paired_rtt_interval_ms": [
+        -2.966333,
+        2.305167
+      ],
+      "report_sha256": "0c92ed21521467df47c764b3dfcc4fa4ef50e9244776406ca7469d1e6ad8d797"
+    },
+    {
+      "id": "hz-001-null-v4-loss-jitter-003",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69103,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 51,
+      "independent_packets": 83,
+      "timeouts": 3,
+      "gating_flags": [
+        "reference-loss"
+      ],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        2,
+        3
+      ],
+      "throttling_p": 0.5288888888888895,
+      "carryover_p": 1,
+      "paired_rtt_ms": -1.248916,
+      "paired_rtt_interval_ms": [
+        -6.290167,
+        1.813833
+      ],
+      "report_sha256": "1734a7a659e6cadadd516e7b45cd1ba712eb45d414e100c557806f40a99a9d16"
+    },
+    {
+      "id": "hz-001-null-v4-loss-jitter-004",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69104,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 48,
+      "independent_packets": 79,
+      "timeouts": 4,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.3266666666666704,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.047333,
+      "paired_rtt_interval_ms": [
+        -6.534584,
+        8.46875
+      ],
+      "report_sha256": "345c30292001c7ff36de758eb7deb6eef59d513d39976f21ab9c7fff2675c4f8"
+    },
+    {
+      "id": "hz-001-null-v4-loss-jitter-005",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69105,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 52,
+      "independent_packets": 81,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": 1.405292,
+      "paired_rtt_interval_ms": [
+        -5.492249,
+        3.379833
+      ],
+      "report_sha256": "10a34a1850a5ef36a5bec74b6b054111b3f6849c8bc41841847547299ff138c7"
+    },
+    {
+      "id": "hz-001-null-v4-loss-jitter-006",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69106,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 84,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -1.0805,
+      "paired_rtt_interval_ms": [
+        -4.222749,
+        2.873458
+      ],
+      "report_sha256": "2834d33a6dabe13136b949ad647f7e539ce92615a8eda2f158e8bb4d1fced385"
+    },
+    {
+      "id": "hz-001-null-v4-loss-jitter-007",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69107,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 51,
+      "independent_packets": 79,
+      "timeouts": 2,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.7777777777777876,
+      "carryover_p": 1,
+      "paired_rtt_ms": -2.156375,
+      "paired_rtt_interval_ms": [
+        -6.719333,
+        4.005209
+      ],
+      "report_sha256": "8690d8e61f91cbbe5ed9e2937c0f9708aedbe77c284601a61d6f9d43ab64299e"
+    },
+    {
+      "id": "hz-001-null-v4-loss-jitter-008",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69108,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 52,
+      "independent_packets": 79,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": -1.905959,
+      "paired_rtt_interval_ms": [
+        -6.297626,
+        2.416
+      ],
+      "report_sha256": "6740f61b35209cd29e6c6b63ac3f1ba26c49187a73a44c59c22a2707f8140826"
+    },
+    {
+      "id": "hz-001-null-v4-loss-jitter-009",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69109,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.283626,
+      "paired_rtt_interval_ms": [
+        -3.669832,
+        5.251459
+      ],
+      "report_sha256": "f71144983928995660b6abcaac6544a6411206755f6419e1893c594eac4c2854"
+    },
+    {
+      "id": "hz-002-null-v4-loss-jitter-000",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69100,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 82,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 1.783792,
+      "paired_rtt_interval_ms": [
+        -2.912667,
+        5.469167
+      ],
+      "report_sha256": "bf28f3f88cc2c435445aed9f1d0e041964b81259c1afc7e24d8b08b9902a5344"
+    },
+    {
+      "id": "hz-002-null-v4-loss-jitter-001",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69101,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 52,
+      "independent_packets": 78,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -3.476751,
+      "paired_rtt_interval_ms": [
+        -7.867416,
+        2.159459
+      ],
+      "report_sha256": "373f75eb0ddb745a3949ac8532172b95664e68fc8cb6650ce91ab0294193a427"
+    },
+    {
+      "id": "hz-002-null-v4-loss-jitter-002",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69102,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 52,
+      "independent_packets": 78,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": 1.231084,
+      "paired_rtt_interval_ms": [
+        -3.711749,
+        4.125291
+      ],
+      "report_sha256": "3db947eb19b330615c24adf5fd042a26f62eebc07935088df53b73d6f3b1eb56"
+    },
+    {
+      "id": "hz-002-null-v4-loss-jitter-003",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69103,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -3.394542,
+      "paired_rtt_interval_ms": [
+        -4.668125,
+        3.728708
+      ],
+      "report_sha256": "a3c208942d7a92c8108780af930b763b42015ac39af74922b1e3ac1a9bba41e9"
+    },
+    {
+      "id": "hz-002-null-v4-loss-jitter-004",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69104,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -2.076375,
+      "paired_rtt_interval_ms": [
+        -3.594251,
+        -0.437001
+      ],
+      "report_sha256": "5077808e74088adb41d89b3e5fb4bc3b8d6ecfc06783141b436fa98b7f9c19cd"
+    },
+    {
+      "id": "hz-002-null-v4-loss-jitter-005",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69105,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -2.475209,
+      "paired_rtt_interval_ms": [
+        -5.077417,
+        0.236917
+      ],
+      "report_sha256": "d8522c4d8d0984999467b87abd773b2443fc8f0e7f4d76d40cd1ca779b7f1e3a"
+    },
+    {
+      "id": "hz-002-null-v4-loss-jitter-006",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69106,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 53,
+      "independent_packets": 79,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": -2.483333,
+      "paired_rtt_interval_ms": [
+        -6.657209,
+        6.686958
+      ],
+      "report_sha256": "8ced723384d1327a060399cc2a1fb2cbae526d06d74a2af6b01e00824d91fd8e"
+    },
+    {
+      "id": "hz-002-null-v4-loss-jitter-007",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69107,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 83,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.195125,
+      "paired_rtt_interval_ms": [
+        -2.517708,
+        4.291542
+      ],
+      "report_sha256": "60a61bc7291f598e81d5588748faa20c12e2f3e49f57cdb313e8938a7302fc2e"
+    },
+    {
+      "id": "hz-002-null-v4-loss-jitter-008",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69108,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 82,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -5.146792,
+      "paired_rtt_interval_ms": [
+        -6.695875,
+        -0.078459
+      ],
+      "report_sha256": "534b179a08752424181901a94e704c0a97fc4c98f6ac577b19e029ebaf08643a"
+    },
+    {
+      "id": "hz-002-null-v4-loss-jitter-009",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 4,
+      "impairment": "loss-jitter",
+      "seed": 69109,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 53,
+      "independent_packets": 83,
+      "timeouts": 1,
+      "gating_flags": [
+        "reference-loss"
+      ],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        2,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -2.078459,
+      "paired_rtt_interval_ms": [
+        -7.214541,
+        2.145333
+      ],
+      "report_sha256": "bd7830e0c8002be3411962e72ab9efa68eae84c5c2276e4b07a179acd01c51d4"
+    },
+    {
+      "id": "hz-001-null-v6-clean-000",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69100,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 82,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.001166,
+      "paired_rtt_interval_ms": [
+        -0.008542,
+        0.005834
+      ],
+      "report_sha256": "8d7caaaf81c2ff5cd0d5fbbf2486bad2c12047c17ac0f7ab62279250de2ae9b7"
+    },
+    {
+      "id": "hz-001-null-v6-clean-001",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69101,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.005542,
+      "paired_rtt_interval_ms": [
+        -0.00875,
+        0.010126
+      ],
+      "report_sha256": "e40fd07f67a3f6c8eac6e9421ec52e1b5c255c4e913e8c6f21fbe63978f24b49"
+    },
+    {
+      "id": "hz-001-null-v6-clean-002",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69102,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 82,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.007375,
+      "paired_rtt_interval_ms": [
+        -0.014708,
+        0.01825
+      ],
+      "report_sha256": "f606c6ab7e059985a2c31c5bc45874c3a2ae64d549d0a988d1672245864e7245"
+    },
+    {
+      "id": "hz-001-null-v6-clean-003",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69103,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.038625,
+      "paired_rtt_interval_ms": [
+        -0.088083,
+        0.074625
+      ],
+      "report_sha256": "21eb28cffdabf945731e555937d28e3093d8599292c55b6ef40003e1f2c182c9"
+    },
+    {
+      "id": "hz-001-null-v6-clean-004",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69104,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.005,
+      "paired_rtt_interval_ms": [
+        -0.099917,
+        0.093625
+      ],
+      "report_sha256": "04c253e42c926657833f9ed54aec823482cb09178112e5372f436aa541ec0df0"
+    },
+    {
+      "id": "hz-001-null-v6-clean-005",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69105,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.007333,
+      "paired_rtt_interval_ms": [
+        -0.100791,
+        0.032751
+      ],
+      "report_sha256": "b56ce7f276fc0f1d8aa791967f27bf4187272c4540fadc3f97dc521392eb67ef"
+    },
+    {
+      "id": "hz-001-null-v6-clean-006",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69106,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.039374,
+      "paired_rtt_interval_ms": [
+        -0.011501,
+        0.094167
+      ],
+      "report_sha256": "6a6a20a8216d402f69a8b28a695a0e830dc7cf3f39ae3581ea45f2bb03244158"
+    },
+    {
+      "id": "hz-001-null-v6-clean-007",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69107,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.017958,
+      "paired_rtt_interval_ms": [
+        -0.074792,
+        0.047291
+      ],
+      "report_sha256": "985d697f4ac8957cf590feaf6fcf745362443e541a23fcddb2974b4656f2fbf5"
+    },
+    {
+      "id": "hz-001-null-v6-clean-008",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69108,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.000875,
+      "paired_rtt_interval_ms": [
+        -0.060084,
+        0.090084
+      ],
+      "report_sha256": "cd1f778ca73859a4beb6d967684506b67e80c0169d8d29a6ff6545bed85d9d0a"
+    },
+    {
+      "id": "hz-001-null-v6-clean-009",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69109,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.00075,
+      "paired_rtt_interval_ms": [
+        -0.072709,
+        0.110709
+      ],
+      "report_sha256": "6ab99568971afcc29e1409abd0390de60ce0e8358d0402c81bc1600c85310730"
+    },
+    {
+      "id": "hz-002-null-v6-clean-000",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69100,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.021,
+      "paired_rtt_interval_ms": [
+        -0.12575,
+        0.094125
+      ],
+      "report_sha256": "64f88af05d3be4a8d1e6e68e6017e8694d8f7217c58beb446a4eea3800bb6d13"
+    },
+    {
+      "id": "hz-002-null-v6-clean-001",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69101,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.058875,
+      "paired_rtt_interval_ms": [
+        -0.089375,
+        -0.015625
+      ],
+      "report_sha256": "da8f7348d64ca03d318c41b34503ccfd52ebf2d72ec14ce2773d8483940da33b"
+    },
+    {
+      "id": "hz-002-null-v6-clean-002",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69102,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.042999,
+      "paired_rtt_interval_ms": [
+        -0.067375,
+        0.075917
+      ],
+      "report_sha256": "04fc60d102999b5d497716925a8a650619bb3406d3fb103a36249ae499703ff2"
+    },
+    {
+      "id": "hz-002-null-v6-clean-003",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69103,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.021333,
+      "paired_rtt_interval_ms": [
+        -0.063625,
+        0.065417
+      ],
+      "report_sha256": "a61aa91588afdbd6c71f8ae3f3d9e456eb84ce34fe3a6c15cfc538b0f4983b19"
+    },
+    {
+      "id": "hz-002-null-v6-clean-004",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69104,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.006499,
+      "paired_rtt_interval_ms": [
+        -0.057292,
+        0.08825
+      ],
+      "report_sha256": "d6b83a8061eedfc48de119c7c3aca2a9a92ec5407f7a4be2d368332603bba2e8"
+    },
+    {
+      "id": "hz-002-null-v6-clean-005",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69105,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.0115,
+      "paired_rtt_interval_ms": [
+        -0.090167,
+        0.051501
+      ],
+      "report_sha256": "d4280dc39bb1188b67e487b306cc088a48fb8f71ce4bad8cafa0e21392861298"
+    },
+    {
+      "id": "hz-002-null-v6-clean-006",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69106,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.021292,
+      "paired_rtt_interval_ms": [
+        -0.044042,
+        0.096292
+      ],
+      "report_sha256": "0a868a62d632a8945ee3bad21d6a634fe07c348a9eb2a5f5661c64a0900093da"
+    },
+    {
+      "id": "hz-002-null-v6-clean-007",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69107,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.024958,
+      "paired_rtt_interval_ms": [
+        -0.094667,
+        -0.002416
+      ],
+      "report_sha256": "31778dfcb482debb24324780110032131f15075648dd5fc0d8e7e25074632a45"
+    },
+    {
+      "id": "hz-002-null-v6-clean-008",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69108,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.047334,
+      "paired_rtt_interval_ms": [
+        -0.130292,
+        0.041291
+      ],
+      "report_sha256": "90ed233f6fc9e00a35d08619681179433a6f79f5e3388a6dc82bb635f6d79cc7"
+    },
+    {
+      "id": "hz-002-null-v6-clean-009",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "clean",
+      "seed": 69109,
+      "expected": "no-difference",
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.013541,
+      "paired_rtt_interval_ms": [
+        -0.007125,
+        0.110042
+      ],
+      "report_sha256": "087b3ea397fddffe438ce566a87348559fcc0505a8c993cebb4f1ea99cad967d"
+    },
+    {
+      "id": "hz-001-null-v6-loss-jitter-000",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69100,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 52,
+      "independent_packets": 78,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.404291,
+      "paired_rtt_interval_ms": [
+        -5.235708,
+        3.302708
+      ],
+      "report_sha256": "f5bcf5000cd7b1ca9948019ef797a013987524cbbc18dd1b317111ab1dcef8bf"
+    },
+    {
+      "id": "hz-001-null-v6-loss-jitter-001",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69101,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 81,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.276624,
+      "paired_rtt_interval_ms": [
+        -3.873417,
+        4.338625
+      ],
+      "report_sha256": "d7691dde6fb535c9ffc8e5beb65b723c3c20a8b3db864bc14fadea1bf35de9e0"
+    },
+    {
+      "id": "hz-001-null-v6-loss-jitter-002",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69102,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 53,
+      "independent_packets": 82,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.426749,
+      "paired_rtt_interval_ms": [
+        -3.497,
+        2.097708
+      ],
+      "report_sha256": "2d84c0bfa3f0ed02f71737013bfd72d856bd64596a95fc0ee3076c01d6ed4e3d"
+    },
+    {
+      "id": "hz-001-null-v6-loss-jitter-003",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69103,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 52,
+      "independent_packets": 84,
+      "timeouts": 2,
+      "gating_flags": [
+        "reference-loss"
+      ],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        2,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 2.321791,
+      "paired_rtt_interval_ms": [
+        -1.949375,
+        7.861333
+      ],
+      "report_sha256": "31b338dfde0661da625a0c56c472a1a3e9e5641059910450c738922b0cb7aaba"
+    },
+    {
+      "id": "hz-001-null-v6-loss-jitter-004",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69104,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 53,
+      "independent_packets": 84,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 1.611376,
+      "paired_rtt_interval_ms": [
+        -3.533917,
+        6.25875
+      ],
+      "report_sha256": "8e4bcea1986e28cffe26887ff4c4c97550008e884bb42d2a2ef7f0498fc188a3"
+    },
+    {
+      "id": "hz-001-null-v6-loss-jitter-005",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69105,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "no detectable difference in SACK permission",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 84,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.000834,
+      "paired_rtt_interval_ms": [
+        -1.372792,
+        7.658959
+      ],
+      "report_sha256": "ca5aefbea4175f09999ded9759ba605f83acf47588d9060605f1fd75b94c2058"
+    },
+    {
+      "id": "hz-001-null-v6-loss-jitter-006",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69106,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 53,
+      "independent_packets": 84,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.465,
+      "paired_rtt_interval_ms": [
+        -4.130334,
+        3.167458
+      ],
+      "report_sha256": "f8b8ab1b2bc4cdda042bdb37a562fe87af63a7ca01f8e674bbd1adb969a74a65"
+    },
+    {
+      "id": "hz-001-null-v6-loss-jitter-007",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69107,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 49,
+      "independent_packets": 77,
+      "timeouts": 3,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.9022222222222218,
+      "carryover_p": 1,
+      "paired_rtt_ms": -1.7635,
+      "paired_rtt_interval_ms": [
+        -4.462666,
+        3.42575
+      ],
+      "report_sha256": "75804b2b2302acd1452c77b92eca704fcfd8c0bccdba841458a06debd3d84910"
+    },
+    {
+      "id": "hz-001-null-v6-loss-jitter-008",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69108,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 48,
+      "independent_packets": 75,
+      "timeouts": 4,
+      "gating_flags": [
+        "reference-loss"
+      ],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        2,
+        3
+      ],
+      "throttling_p": 0.7311111111111194,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.6835,
+      "paired_rtt_interval_ms": [
+        -4.870832,
+        4.157583
+      ],
+      "report_sha256": "34f25edebc9345ae61a45d33e3607f48860748282840324364e1c5f39d915c08"
+    },
+    {
+      "id": "hz-001-null-v6-loss-jitter-009",
+      "kind": "hz-001",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69109,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 51,
+      "independent_packets": 83,
+      "timeouts": 2,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.2592592592592625,
+      "carryover_p": 1,
+      "paired_rtt_ms": -2.174916,
+      "paired_rtt_interval_ms": [
+        -4.449417,
+        2.285667
+      ],
+      "report_sha256": "bb402e9134b07d259e20942cbf039576f9798decff61dd5b31717d5f820ad147"
+    },
+    {
+      "id": "hz-002-null-v6-loss-jitter-000",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69100,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 51,
+      "independent_packets": 81,
+      "timeouts": 2,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.7777777777777876,
+      "carryover_p": 1,
+      "paired_rtt_ms": -1.315375,
+      "paired_rtt_interval_ms": [
+        -5.469417,
+        3.477417
+      ],
+      "report_sha256": "54cfd51e155333d9720def7a199c6219a36180bc2f6dd38531da4d7205e3c86d"
+    },
+    {
+      "id": "hz-002-null-v6-loss-jitter-001",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69101,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 51,
+      "independent_packets": 83,
+      "timeouts": 2,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.7777777777777876,
+      "carryover_p": 1,
+      "paired_rtt_ms": 1.100875,
+      "paired_rtt_interval_ms": [
+        -4.037209,
+        6.523542
+      ],
+      "report_sha256": "2f68aa2846b3913b67716b605e239c5486ff443e00aa720fdf596127265ce053"
+    },
+    {
+      "id": "hz-002-null-v6-loss-jitter-002",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69102,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 51,
+      "independent_packets": 85,
+      "timeouts": 3,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.9999999999999997,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.888333,
+      "paired_rtt_interval_ms": [
+        -7.335042,
+        4.111708
+      ],
+      "report_sha256": "153f2c3b6b7600fdd9507ec55169fb3aba8c916b9283bbfec9bd5b847e5a67ad"
+    },
+    {
+      "id": "hz-002-null-v6-loss-jitter-003",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69103,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 53,
+      "independent_packets": 85,
+      "timeouts": 1,
+      "gating_flags": [
+        "reference-loss"
+      ],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        2,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.222791,
+      "paired_rtt_interval_ms": [
+        -1.675583,
+        4.749166
+      ],
+      "report_sha256": "aa99e435d4b1da9311fb1b3d6aeb2fbb9bc7f530a712056f79f88a1a33fa3e25"
+    },
+    {
+      "id": "hz-002-null-v6-loss-jitter-004",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69104,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 52,
+      "independent_packets": 81,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.05725,
+      "paired_rtt_interval_ms": [
+        -3.554499,
+        3.79975
+      ],
+      "report_sha256": "bb78b1e155cb1db1df8db216c13e137e59ff34d6642e2aa88504426a09e22b71"
+    },
+    {
+      "id": "hz-002-null-v6-loss-jitter-005",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69105,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 52,
+      "independent_packets": 79,
+      "timeouts": 1,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5185185185185205,
+      "carryover_p": 1,
+      "paired_rtt_ms": -2.008041,
+      "paired_rtt_interval_ms": [
+        -6.958541,
+        0.971917
+      ],
+      "report_sha256": "4d866677dbf98801380a661da58ce08d2867d8400a53c94d21db088c987357ad"
+    },
+    {
+      "id": "hz-002-null-v6-loss-jitter-006",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69106,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 48,
+      "independent_packets": 73,
+      "timeouts": 3,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5288888888888895,
+      "carryover_p": 1,
+      "paired_rtt_ms": 1.152583,
+      "paired_rtt_interval_ms": [
+        -3.074374,
+        5.864
+      ],
+      "report_sha256": "603e1905cfc4ba7470771238498c5cd9345e3d83be65943b4aa977085ed12907"
+    },
+    {
+      "id": "hz-002-null-v6-loss-jitter-007",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69107,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 49,
+      "independent_packets": 75,
+      "timeouts": 3,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 0.5288888888888895,
+      "carryover_p": 1,
+      "paired_rtt_ms": -0.808916,
+      "paired_rtt_interval_ms": [
+        -6.959458,
+        1.822792
+      ],
+      "report_sha256": "17b91051dcdd3cc4770b83286155ee8c0364bb10947c6196c916cff3c3458b0e"
+    },
+    {
+      "id": "hz-002-null-v6-loss-jitter-008",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69108,
+      "expected": null,
+      "outcome": "no-difference",
+      "conclusion": "A/A control: no detectable SACK difference between identical arms",
+      "p_value": 1,
+      "packets_tx": 54,
+      "independent_packets": 82,
+      "timeouts": 0,
+      "gating_flags": [],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        3,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": -1.613125,
+      "paired_rtt_interval_ms": [
+        -2.968,
+        5.535917
+      ],
+      "report_sha256": "8540ffc25ad7e266ed61f0b30d2f0508b6bf68082c8da0dbd798bad6a17f5dcb"
+    },
+    {
+      "id": "hz-002-null-v6-loss-jitter-009",
+      "kind": "hz-002",
+      "case": "null",
+      "family": 6,
+      "impairment": "loss-jitter",
+      "seed": 69109,
+      "expected": null,
+      "outcome": "unresolved",
+      "conclusion": "insufficient or confounded evidence",
+      "p_value": 1,
+      "packets_tx": 53,
+      "independent_packets": 83,
+      "timeouts": 1,
+      "gating_flags": [
+        "reference-loss"
+      ],
+      "quality_flags": [
+        "clock-precision-unknown"
+      ],
+      "references": [
+        2,
+        3
+      ],
+      "throttling_p": 1,
+      "carryover_p": 1,
+      "paired_rtt_ms": 0.57525,
+      "paired_rtt_interval_ms": [
+        -0.543042,
+        3.083501
+      ],
+      "report_sha256": "0da7e074afe542158b280eff06da15013d33eddc65c67ce2f29c5c0d4dcbf9d8"
+    }
+  ],
+  "strata": {
+    "hz-001/linux/v4/clean": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "difference": 10
+      },
+      "gating_flags": {},
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": "difference",
+      "correct_all_planned": 1.0,
+      "false_positives": null
+    },
+    "hz-002/linux/v4/clean": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "no-difference": 10
+      },
+      "gating_flags": {},
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": "no-difference",
+      "correct_all_planned": 1.0,
+      "false_positives": 0
+    },
+    "hz-001/linux/v4/loss-jitter": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "difference": 5,
+        "unresolved": 5
+      },
+      "gating_flags": {},
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": null,
+      "correct_all_planned": null,
+      "false_positives": null
+    },
+    "hz-002/linux/v4/loss-jitter": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "unresolved": 7,
+        "no-difference": 3
+      },
+      "gating_flags": {
+        "reference-loss": 2
+      },
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": null,
+      "correct_all_planned": null,
+      "false_positives": 0
+    },
+    "hz-001/linux/v6/clean": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "difference": 10
+      },
+      "gating_flags": {},
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": "difference",
+      "correct_all_planned": 1.0,
+      "false_positives": null
+    },
+    "hz-002/linux/v6/clean": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "no-difference": 10
+      },
+      "gating_flags": {},
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": "no-difference",
+      "correct_all_planned": 1.0,
+      "false_positives": 0
+    },
+    "hz-001/linux/v6/loss-jitter": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "unresolved": 5,
+        "difference": 5
+      },
+      "gating_flags": {},
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": null,
+      "correct_all_planned": null,
+      "false_positives": null
+    },
+    "hz-002/linux/v6/loss-jitter": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "no-difference": 2,
+        "unresolved": 8
+      },
+      "gating_flags": {
+        "reference-loss": 1
+      },
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": null,
+      "correct_all_planned": null,
+      "false_positives": 0
+    },
+    "hz-001/null/v4/clean": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "no-difference": 10
+      },
+      "gating_flags": {},
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": "no-difference",
+      "correct_all_planned": 1.0,
+      "false_positives": 0
+    },
+    "hz-002/null/v4/clean": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "no-difference": 10
+      },
+      "gating_flags": {},
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": "no-difference",
+      "correct_all_planned": 1.0,
+      "false_positives": 0
+    },
+    "hz-001/null/v4/loss-jitter": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "unresolved": 7,
+        "no-difference": 3
+      },
+      "gating_flags": {
+        "reference-loss": 1
+      },
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": null,
+      "correct_all_planned": null,
+      "false_positives": 0
+    },
+    "hz-002/null/v4/loss-jitter": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "no-difference": 6,
+        "unresolved": 4
+      },
+      "gating_flags": {
+        "reference-loss": 1
+      },
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": null,
+      "correct_all_planned": null,
+      "false_positives": 0
+    },
+    "hz-001/null/v6/clean": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "no-difference": 10
+      },
+      "gating_flags": {},
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": "no-difference",
+      "correct_all_planned": 1.0,
+      "false_positives": 0
+    },
+    "hz-002/null/v6/clean": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "no-difference": 10
+      },
+      "gating_flags": {},
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": "no-difference",
+      "correct_all_planned": 1.0,
+      "false_positives": 0
+    },
+    "hz-001/null/v6/loss-jitter": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "unresolved": 8,
+        "no-difference": 2
+      },
+      "gating_flags": {
+        "reference-loss": 2
+      },
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": null,
+      "correct_all_planned": null,
+      "false_positives": 0
+    },
+    "hz-002/null/v6/loss-jitter": {
+      "planned": 10,
+      "invalid": 0,
+      "missing": 0,
+      "outcomes": {
+        "unresolved": 9,
+        "no-difference": 1
+      },
+      "gating_flags": {
+        "reference-loss": 2
+      },
+      "quality_flags": {
+        "clock-precision-unknown": 10
+      },
+      "expected": null,
+      "correct_all_planned": null,
+      "false_positives": 0
+    }
+  },
+  "false_positives": 0,
+  "gates": {
+    "zero_false_positives": true,
+    "clean_effect_accuracy": true
+  },
+  "limitations": [
+    "All namespaces share one Linux kernel inside one Docker VM; runs are not independent hosts.",
+    "Netem randomness is not reproduced by the ordering seed.",
+    "RTT is the HORIZON userspace clock; intervals assume independent pairs.",
+    "Small per-stratum counts bound false-positive rates only loosely; the synthetic protocol calibrates the decision rules."
+  ]
+}

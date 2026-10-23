@@ -1,0 +1,41 @@
+{
+  "version": "horizon-phase3-live/v1",
+  "issue": 69,
+  "registered_at": "2026-10-23T12:00:00Z",
+  "primary_metric": "correlated SYN/ACK SACK permission (HZ-001); A/A SACK discordance (HZ-002)",
+  "alpha": 0.05,
+  "replicates": 12,
+  "reference_every": 4,
+  "window_ms": 300,
+  "washout_ms": 100,
+  "packets_per_second": 10,
+  "max_packets": 54,
+  "max_duration_seconds": 90,
+  "seed_start": 69100,
+  "confounders": ["path-routing", "remote-state-reuse"],
+  "cases": {
+    "linux": {"sack": 1},
+    "null": {"sack": 0}
+  },
+  "experiments": {
+    "hz-001": {"changed_variable": "sackPermitted"},
+    "hz-002": {"changed_variable": "none"}
+  },
+  "expected": {
+    "hz-001/linux/clean": "difference",
+    "hz-001/null/clean": "no-difference",
+    "hz-002/linux/clean": "no-difference",
+    "hz-002/null/clean": "no-difference"
+  },
+  "gates": {
+    "false_positives_allowed": 0,
+    "clean_effect_minimum_accuracy_all_planned": 0.9,
+    "note": "A false positive is any inferred SACK difference on a SACK-disabled endpoint or any A/A run. Loss-jitter strata have no registered resolved outcome: unresolved is acceptable, a difference on a null is not."
+  },
+  "limitations": [
+    "All namespaces share one Linux kernel inside one Docker VM; runs are not independent hosts.",
+    "Netem randomness is not reproduced by the ordering seed.",
+    "RTT is the HORIZON userspace clock; intervals assume independent pairs.",
+    "Small per-stratum counts bound false-positive rates only loosely; the synthetic protocol calibrates the decision rules."
+  ]
+}
