@@ -34,6 +34,33 @@ var crossPortAlternatives = []string{
 // the precondition flow: an exact paired sign test over measurement outcomes.
 // Timeouts are the outcome here, not a quality failure; any other flag is.
 func comparePrecondition(r model.Report) model.Comparison {
+	c := comparePreconditionCounts(r)
+	replicates := r.Experiment.Spec.Execution.Replicates
+	want := replicates
+	if r.Curtailment != nil {
+		want = r.Curtailment.Pairs
+	}
+	if !r.Completed || r.BackendDrops > 0 || (r.CaptureArtifact != nil && r.CaptureArtifact.Dropped > 0) || c.CompletePairs < MinCurtailPairs || c.CompletePairs != want {
+		return c
+	}
+	if r.Curtailment != nil && (r.Curtailment.Rule != CurtailRule || CurtailDecision(c.ControlOnly, c.TreatmentOnly, replicates-c.CompletePairs) != r.Curtailment.Decision) {
+		c.Conclusion = "curtailment is not supported by the recorded pairs"
+		return c
+	}
+	if r.Environment != nil && len(r.Environment.GatingFlags) > 0 {
+		c.Conclusion = "environmental quality gate: " + strings.Join(r.Environment.GatingFlags, ", ")
+		return c
+	}
+	c.Status = "inferred"
+	c.Conclusion = "no detectable dependence of the measurement on the precondition flow"
+	if c.PValue <= 0.05 {
+		c.Conclusion = "measurement response depends on the precondition flow; shared-state candidate, mechanism unresolved"
+	}
+	return c
+}
+
+// comparePreconditionCounts tallies complete and discordant measurement pairs.
+func comparePreconditionCounts(r model.Report) model.Comparison {
 	c := model.Comparison{Status: "unresolved", Conclusion: "insufficient or confounded evidence", PValue: 1, Metric: "measurement-answered"}
 	measurement := measurementProbes(r)
 	pairs := map[int]map[string]model.Trial{}
@@ -78,19 +105,102 @@ func comparePrecondition(r model.Report) model.Comparison {
 	}
 	c.DiscordantPairs = c.ControlOnly + c.TreatmentOnly
 	c.PValue = signTest(c.ControlOnly, c.TreatmentOnly)
-	if !r.Completed || r.BackendDrops > 0 || (r.CaptureArtifact != nil && r.CaptureArtifact.Dropped > 0) || c.CompletePairs < 8 || c.CompletePairs != r.Experiment.Spec.Execution.Replicates {
-		return c
-	}
-	if r.Environment != nil && len(r.Environment.GatingFlags) > 0 {
-		c.Conclusion = "environmental quality gate: " + strings.Join(r.Environment.GatingFlags, ", ")
-		return c
-	}
-	c.Status = "inferred"
-	c.Conclusion = "no detectable dependence of the measurement on the precondition flow"
-	if c.PValue <= 0.05 {
-		c.Conclusion = "measurement response depends on the precondition flow; shared-state candidate, mechanism unresolved"
-	}
 	return c
+}
+
+// CurtailRule names exact curtailment of the fixed-n paired sign test.
+const CurtailRule = "exact-sign-test-curtailment/v1"
+
+// MinCurtailPairs is the minimum number of complete pairs for any precondition
+// decision, curtailed or not.
+const MinCurtailPairs = 8
+
+// CurtailDecision reports the fixed-n decision (alpha 0.05) when every way the
+// remaining pairs could turn out leads to it, and "" while it can still change.
+// Concordant pairs do not affect the sign test, so only discordant splits of
+// the remaining pairs are enumerated.
+func CurtailDecision(controlOnly, treatmentOnly, remaining int) string {
+	if remaining < 0 {
+		return ""
+	}
+	significant, insignificant := false, false
+	for x := 0; x <= remaining; x++ {
+		for y := 0; x+y <= remaining; y++ {
+			if signTest(controlOnly+x, treatmentOnly+y) <= 0.05 {
+				significant = true
+			} else {
+				insignificant = true
+			}
+			if significant && insignificant {
+				return ""
+			}
+		}
+	}
+	if significant {
+		return "significant"
+	}
+	return "not-significant"
+}
+
+// curtailAfter returns the curtailment justified by the trials so far, which
+// end with a whole pair, or nil. Any incomplete pair blocks curtailment.
+func curtailAfter(r model.Report, pairs int) *model.Curtailment {
+	x := r.Experiment.Spec.Execution
+	if x.StopRule != "curtail" || pairs < MinCurtailPairs || pairs >= x.Replicates {
+		return nil
+	}
+	c := comparePreconditionCounts(r)
+	if c.CompletePairs != pairs {
+		return nil
+	}
+	if decision := CurtailDecision(c.ControlOnly, c.TreatmentOnly, x.Replicates-pairs); decision != "" {
+		return &model.Curtailment{Rule: CurtailRule, Pairs: pairs, Decision: decision}
+	}
+	return nil
+}
+
+// RetroCurtail returns what an exact-curtailment run would have recorded from
+// a completed precondition report: the trials up to the first decisive pair,
+// with re-derived traffic accounting, environment and comparison. Its
+// FinishedAt is the next pair's first send, an upper bound. It is for
+// retrospective evaluation of recorded studies only: the result declares a
+// stop rule its experiment hash does not cover, so it is not replayable.
+func RetroCurtail(r model.Report) model.Report {
+	x := r.Experiment.Spec.Execution
+	if !r.Completed || r.Curtailment != nil || r.Experiment.Spec.ChangedVariable != "precondition" {
+		return r
+	}
+	out := r
+	out.Experiment.Spec.Execution.StopRule = "curtail"
+	end := 0
+	for pairs := 1; pairs < x.Replicates; pairs++ {
+		for end < len(r.Trials) && r.Trials[end].Pair < pairs {
+			end++
+		}
+		out.Trials = r.Trials[:end]
+		c := curtailAfter(out, pairs)
+		if c == nil {
+			continue
+		}
+		out.Curtailment, out.PacketsTX, out.CaptureBytes = c, 0, 0
+		for _, t := range out.Trials {
+			for _, e := range t.Evidence {
+				out.CaptureBytes += len(e.Frame)
+				if e.Direction == "tx" || e.Direction == "cleanup" {
+					out.PacketsTX++
+				}
+			}
+		}
+		if end < len(r.Trials) && !r.Trials[end].SentAt.IsZero() {
+			out.FinishedAt = r.Trials[end].SentAt
+		}
+		if r.Environment != nil {
+			out.Environment = Assess(out)
+		}
+		out.Comparison = Compare(out)
+		return out
+	}
+	return r
 }
 
 // AnalyzeCrossPort combines replayed reports by role. The main and same-port
@@ -285,7 +395,11 @@ func roleEffect(role string, r model.Report) (model.RoleEffect, error) {
 		}
 		pairs[t.Pair][t.Arm] = true
 	}
-	for pair := range r.Experiment.Spec.Execution.Replicates {
+	executed := r.Experiment.Spec.Execution.Replicates
+	if r.Curtailment != nil {
+		executed = r.Curtailment.Pairs
+	}
+	for pair := range executed {
 		n++
 		if pairs[pair]["control"] {
 			answeredControl++

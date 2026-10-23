@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"slices"
 
 	"github.com/matusso/nyxr/internal/horizon/dsl"
 	"github.com/matusso/nyxr/internal/horizon/model"
@@ -57,7 +58,19 @@ func Replay(reader io.Reader) (model.Envelope, error) {
 	if err != nil {
 		return envelope, err
 	}
-	if r.ExperimentHash != p.Hash || len(r.Trials) > len(p.Trials) || (r.Completed && len(r.Trials) != len(p.Trials)) {
+	planned := len(p.Trials)
+	if c := r.Curtailment; c != nil {
+		if !r.Completed || r.Experiment.Spec.Execution.StopRule != "curtail" || c.Pairs < 1 || c.Pairs >= r.Experiment.Spec.Execution.Replicates {
+			return envelope, errors.New("invalid curtailment")
+		}
+		planned = 0
+		for _, t := range p.Trials {
+			if t.Pair < c.Pairs {
+				planned++
+			}
+		}
+	}
+	if r.ExperimentHash != p.Hash || len(r.Trials) > planned || (r.Completed && len(r.Trials) != planned) {
 		return envelope, errors.New("experiment hash or trial count mismatch")
 	}
 	if r.Completed && r.StopReason != "" {
@@ -227,12 +240,50 @@ func Replay(reader io.Reader) (model.Envelope, error) {
 	if r.Environment != nil && !reflect.DeepEqual(Assess(*r), r.Environment) {
 		return envelope, errors.New("derived environment assessment mismatch")
 	}
+	if err := verifyCurtailment(*r); err != nil {
+		return envelope, err
+	}
 	c := Compare(*r)
 	if !reflect.DeepEqual(c, r.Comparison) {
 		return envelope, errors.New("derived comparison mismatch")
 	}
 	r.Comparison = c
 	return envelope, nil
+}
+
+// verifyCurtailment requires a curtailed report to stop at the first pair where
+// the recorded evidence decides the fixed-n test, and a completed report under
+// the curtail rule to have had no such pair.
+func verifyCurtailment(r model.Report) error {
+	if r.Experiment.Spec.Execution.StopRule != "curtail" || !r.Completed {
+		return nil
+	}
+	last := r.Experiment.Spec.Execution.Replicates
+	if r.Curtailment != nil {
+		last = r.Curtailment.Pairs
+	}
+	// Run appends capture-stats-reset to every trial after the loop, so it
+	// cannot have informed the stop; the comparison still fails on it.
+	r.Trials = slices.Clone(r.Trials)
+	for i := range r.Trials {
+		r.Trials[i].QualityFlags = slices.DeleteFunc(slices.Clone(r.Trials[i].QualityFlags), func(f string) bool { return f == "capture-stats-reset" })
+	}
+	end := 0
+	for pairs := 1; pairs <= last; pairs++ {
+		for end < len(r.Trials) && r.Trials[end].Pair < pairs {
+			end++
+		}
+		prefix := r
+		prefix.Trials = r.Trials[:end]
+		got := curtailAfter(prefix, pairs)
+		if pairs < last && got != nil {
+			return errors.New("curtailment was due at an earlier pair")
+		}
+		if pairs == last && r.Curtailment != nil && !reflect.DeepEqual(got, r.Curtailment) {
+			return errors.New("curtailment is not supported by the recorded pairs")
+		}
+	}
+	return nil
 }
 
 func hasFlag(flags []string, want string) bool {

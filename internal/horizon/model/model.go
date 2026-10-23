@@ -61,6 +61,9 @@ type Execution struct {
 	Seed            int64 `json:"seed" yaml:"seed,omitempty"`
 	WashoutMS       int   `json:"washoutMs" yaml:"washoutMs,omitempty"`
 	ReferenceEvery  int   `json:"referenceEvery,omitempty" yaml:"referenceEvery,omitempty"`
+	// StopRule "curtail" ends a precondition experiment once its fixed-n
+	// sign-test decision can no longer change (exact curtailment).
+	StopRule string `json:"stopRule,omitempty" yaml:"stopRule,omitempty"`
 }
 type Limits struct {
 	MaxReceiveFrames   int `json:"maxReceiveFrames,omitempty" yaml:"maxReceiveFrames,omitempty"`
@@ -193,6 +196,7 @@ type Report struct {
 	FinishedAt         time.Time        `json:"finishedAt"`
 	Completed          bool             `json:"completed"`
 	StopReason         string           `json:"stopReason,omitempty"`
+	Curtailment        *Curtailment     `json:"curtailment,omitempty"`
 	PacketsTX          int              `json:"packetsTx"`
 	CaptureBytes       int              `json:"captureBytes"`
 	BackendDrops       uint64           `json:"backendDrops"`
@@ -200,6 +204,14 @@ type Report struct {
 	Comparison         Comparison       `json:"comparison"`
 	Environment        *Environment     `json:"environment,omitempty"`
 	Limitations        []string         `json:"limitations"`
+}
+
+// Curtailment records an exact early stop: after Pairs complete pairs, every
+// possible outcome of the remaining pairs yields the same fixed-n decision.
+type Curtailment struct {
+	Rule     string `json:"rule"`
+	Pairs    int    `json:"pairs"`
+	Decision string `json:"decision"` // significant or not-significant
 }
 
 // Environment is a deterministic post-run quality assessment. Its flags are

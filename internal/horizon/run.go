@@ -113,6 +113,13 @@ func Run(ctx context.Context, e model.Experiment, policy model.Policy, link Link
 		if err := pause(ctx, time.Duration(trial.WaitAfterMS)*time.Millisecond); err != nil {
 			return report, err
 		}
+		if endPair := i+1 == len(p.Trials) || p.Trials[i+1].Pair != trial.Pair; endPair {
+			if c := curtailAfter(report, trial.Pair+1); c != nil {
+				// Exact early stop: the remaining pairs cannot change the decision.
+				report.Curtailment = c
+				break
+			}
+		}
 		endArm := i+1 == len(p.Trials) || p.Trials[i+1].Arm != trial.Arm || p.Trials[i+1].Pair != trial.Pair
 		if endArm {
 			if err := pause(ctx, time.Duration(e.Spec.Execution.WashoutMS)*time.Millisecond); err != nil {
