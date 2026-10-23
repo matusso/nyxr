@@ -33,12 +33,17 @@ func runHorizon(args []string, out io.Writer) error {
   nyxr horizon explain report.json
   nyxr horizon references report.json
   nyxr horizon verify-capture report.json evidence.pcapng
+  nyxr horizon environment report.json
+  nyxr horizon calibrate --protocol protocol.json
 
 v1alpha1 HZ-001 and v1alpha2 bounded send/observe/wait/repeat sequences.
 v1alpha2 requires --policy; cross-port requires --permit cross-port.
 resolve emits versioned JSON; --output writes evidence to a new private file.
 --pcapng exports bounded evidence; --pcapng-minimize strips application payload.
 Simulations (sack, stable, loss, noise) send no network traffic.
+environment assesses drift, throttling, carryover, clock quality and RTT
+uncertainty offline; calibrate runs a pre-registered synthetic decision-rule
+calibration and exits nonzero when a registered gate fails.
 Live mode requires an explicit interface source and unicast next-hop MAC.
 Ctrl-C cancels execution and emits partial evidence. No active mode is a default.`)
 		return err
@@ -67,9 +72,39 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 		_, err = fmt.Fprintln(out, "PCAPNG artifact and packet references verified")
 		return err
 	}
-	if args[0] == "replay" || args[0] == "explain" || args[0] == "references" {
+	if args[0] == "calibrate" {
+		fs := flag.NewFlagSet("horizon calibrate", flag.ContinueOnError)
+		fs.SetOutput(out)
+		protocol := fs.String("protocol", "", "pre-registered calibration protocol JSON")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if fs.NArg() != 0 || *protocol == "" {
+			return errors.New("horizon calibrate requires --protocol FILE")
+		}
+		file, err := os.Open(*protocol)
+		if err != nil {
+			return err
+		}
+		p, hash, err := horizon.LoadCalibrationProtocol(file)
+		if err = errors.Join(err, file.Close()); err != nil {
+			return err
+		}
+		report, err := horizon.Calibrate(p, hash)
+		if err != nil {
+			return err
+		}
+		if err := horizonJSON(out, report); err != nil {
+			return err
+		}
+		if !report.Passed {
+			return errors.New("registered calibration gates failed")
+		}
+		return nil
+	}
+	if args[0] == "replay" || args[0] == "explain" || args[0] == "references" || args[0] == "environment" {
 		if len(args) != 2 {
-			return errors.New("horizon replay/explain/references requires one report file")
+			return errors.New("horizon replay/explain/references/environment requires one report file")
 		}
 		file, err := os.Open(args[1])
 		if err != nil {
@@ -90,10 +125,23 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 		if args[0] == "replay" {
 			return horizonJSON(out, envelope)
 		}
+		if args[0] == "environment" {
+			// Replay verified a saved assessment; older reports are assessed now.
+			return horizonJSON(out, horizon.Assess(envelope.Report))
+		}
 		r := envelope.Report
 		_, err = fmt.Fprintf(out, "%s (%s)\nExperiment: %s\nRun: %s; backend: %s\nObserved: %d trials, %d transmitted packets, %d evidence bytes\nConclusion [%s]: %s\nComplete pairs: %d; discordant: %d; exact paired p-value: %.6g\n", r.Experiment.Metadata.Name, r.APIVersion, r.ExperimentHash, r.RunID, r.Backend, len(r.Trials), r.PacketsTX, r.CaptureBytes, r.Comparison.Status, r.Comparison.Conclusion, r.Comparison.CompletePairs, r.Comparison.DiscordantPairs, r.Comparison.PValue)
 		if err != nil {
 			return err
+		}
+		if env := r.Environment; env != nil {
+			_, err = fmt.Fprintf(out, "Environment [%s]: gating %v; quality %v\nConfounders: %s\nReferences answered: %d/%d; throttling p=%.4g; carryover p=%.4g\n", env.Version, env.GatingFlags, env.QualityFlags, strings.Join(env.Confounders, ", "), env.Responses.ReferencesAnswered, env.Responses.References, env.Responses.ThrottlingPValue, env.Carryover.PValue)
+			if err == nil && env.Latency.PairedLowerNS != nil {
+				_, err = fmt.Fprintf(out, "Paired RTT difference (treatment-control): median %.3f ms, %.0f%% interval [%.3f, %.3f] ms over %d pairs (userspace clock)\n", float64(*env.Latency.PairedMedianNS)/1e6, 100*env.Latency.Confidence, float64(*env.Latency.PairedLowerNS)/1e6, float64(*env.Latency.PairedUpperNS)/1e6, env.Latency.PairedSamples)
+			}
+			if err != nil {
+				return err
+			}
 		}
 		for _, limitation := range r.Limitations {
 			if _, err = fmt.Fprintln(out, "Limitation:", limitation); err != nil {

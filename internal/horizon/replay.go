@@ -223,6 +223,10 @@ func Replay(reader io.Reader) (model.Envelope, error) {
 	if err := validateCaptureReferences(*r); err != nil {
 		return envelope, err
 	}
+	// Reports predating environment assessment replay without one.
+	if r.Environment != nil && !reflect.DeepEqual(Assess(*r), r.Environment) {
+		return envelope, errors.New("derived environment assessment mismatch")
+	}
 	c := Compare(*r)
 	if !reflect.DeepEqual(c, r.Comparison) {
 		return envelope, errors.New("derived comparison mismatch")

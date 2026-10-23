@@ -1,0 +1,36 @@
+# HZ-001 with Phase 3 environmental controls: one declared treatment (SACK
+# permission), declared confounders and interleaved reference probes.
+# Edit target/ports for an authorized lab.
+apiVersion: horizon.nyxr.io/v1alpha2
+kind: Experiment
+metadata:
+  name: hz-001-environment-controls
+spec:
+  scope:
+    targets: ["192.0.2.10"]
+    tcpPorts: [443]
+  changedVariable: sackPermitted
+  confounders: [path-routing, remote-state-reuse]
+  control:
+    steps:
+      - send: {protocol: tcp, flags: [SYN], dstPort: 443, optionsProfile: baseline}
+      - observe: {windowMs: 100}
+  treatment:
+    steps:
+      - send: {protocol: tcp, flags: [SYN], dstPort: 443, optionsProfile: sack-permitted}
+      - observe: {windowMs: 100}
+  execution:
+    replicates: 12
+    randomizedOrder: true
+    seed: 69001
+    washoutMs: 100
+    referenceEvery: 4
+  limits:
+    maxPackets: 54
+    maxDurationSeconds: 90
+    packetsPerSecond: 10
+    maxConcurrentFlows: 1
+    maxReceiveFrames: 64
+    maxMemoryBytes: 2097152
+  capture:
+    maxBytes: 65536

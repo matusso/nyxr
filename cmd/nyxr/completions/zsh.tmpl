@@ -154,8 +154,9 @@ _nyxr() {
                     ;;
                 horizon)
                     _arguments \
-                        '1:subcommand:(resolve replay explain references verify-capture)' \
+                        '1:subcommand:(resolve replay explain references verify-capture environment calibrate)' \
                         '--experiment=[versioned experiment]:file:_files' \
+                        '--protocol=[pre-registered calibration protocol]:file:_files' \
                         '--policy=[operator policy]:profile:(lab enterprise fragile ot-restricted)' \
                         '--permit=[independent permission]:permission:(cross-port)' \
                         '--allow-targets=[authorized IP/CIDR scope]:scope:' \

@@ -1,0 +1,29 @@
+{
+  "version": "horizon-calibration/v1",
+  "id": "hz-phase3-decision-rules-v1",
+  "registeredAt": "2026-10-23T10:00:00Z",
+  "seed": 69000,
+  "runsPerScenario": 1000,
+  "replicates": 12,
+  "referenceEvery": 4,
+  "alpha": 0.05,
+  "confidence": 0.95,
+  "maxFalsePositiveRate": 0.05,
+  "minimumPower": 0.9,
+  "scenarios": [
+    {"name": "null-no-sack", "gate": "false-positive", "variable": "sackPermitted", "controlSack": 0, "treatmentSack": 0, "loss": 0, "baseRttMs": 1, "jitterMs": 0.2, "driftMs": 0, "throttleAfter": 0, "throttleLoss": 0, "treatmentFirstOnly": false},
+    {"name": "null-sack-both", "gate": "false-positive", "variable": "sackPermitted", "controlSack": 1, "treatmentSack": 1, "loss": 0, "baseRttMs": 1, "jitterMs": 0.2, "driftMs": 0, "throttleAfter": 0, "throttleLoss": 0, "treatmentFirstOnly": false},
+    {"name": "null-intermittent-sack", "gate": "false-positive", "variable": "sackPermitted", "controlSack": 0.5, "treatmentSack": 0.5, "loss": 0, "baseRttMs": 1, "jitterMs": 0.2, "driftMs": 0, "throttleAfter": 0, "throttleLoss": 0, "treatmentFirstOnly": false},
+    {"name": "aa-intermittent-sack", "gate": "false-positive", "variable": "none", "controlSack": 0.5, "treatmentSack": 0.5, "loss": 0, "baseRttMs": 1, "jitterMs": 0.2, "driftMs": 0, "throttleAfter": 0, "throttleLoss": 0, "treatmentFirstOnly": false},
+    {"name": "null-jitter", "gate": "false-positive", "variable": "sackPermitted", "controlSack": 0, "treatmentSack": 0, "loss": 0, "baseRttMs": 20, "jitterMs": 20, "driftMs": 0, "throttleAfter": 0, "throttleLoss": 0, "treatmentFirstOnly": false},
+    {"name": "null-drift", "gate": "false-positive", "variable": "sackPermitted", "controlSack": 0.5, "treatmentSack": 0.5, "loss": 0, "baseRttMs": 5, "jitterMs": 1, "driftMs": 60, "throttleAfter": 0, "throttleLoss": 0, "treatmentFirstOnly": false},
+    {"name": "null-loss-5pct", "gate": "false-positive", "variable": "sackPermitted", "controlSack": 0.5, "treatmentSack": 0.5, "loss": 0.05, "baseRttMs": 1, "jitterMs": 0.2, "driftMs": 0, "throttleAfter": 0, "throttleLoss": 0, "treatmentFirstOnly": false},
+    {"name": "null-throttle", "gate": "false-positive", "variable": "sackPermitted", "controlSack": 0.5, "treatmentSack": 0.5, "loss": 0, "baseRttMs": 1, "jitterMs": 0.2, "driftMs": 0, "throttleAfter": 0.5, "throttleLoss": 0.8, "treatmentFirstOnly": false},
+    {"name": "effect-clean", "gate": "power", "variable": "sackPermitted", "controlSack": 0, "treatmentSack": 1, "loss": 0, "baseRttMs": 1, "jitterMs": 0.2, "driftMs": 0, "throttleAfter": 0, "throttleLoss": 0, "treatmentFirstOnly": false},
+    {"name": "effect-jitter", "gate": "power", "variable": "sackPermitted", "controlSack": 0, "treatmentSack": 1, "loss": 0, "baseRttMs": 20, "jitterMs": 20, "driftMs": 0, "throttleAfter": 0, "throttleLoss": 0, "treatmentFirstOnly": false},
+    {"name": "effect-partial-70pct", "gate": "descriptive", "variable": "sackPermitted", "controlSack": 0, "treatmentSack": 0.7, "loss": 0, "baseRttMs": 1, "jitterMs": 0.2, "driftMs": 0, "throttleAfter": 0, "throttleLoss": 0, "treatmentFirstOnly": false},
+    {"name": "effect-loss-5pct", "gate": "descriptive", "variable": "sackPermitted", "controlSack": 0, "treatmentSack": 1, "loss": 0.05, "baseRttMs": 1, "jitterMs": 0.2, "driftMs": 0, "throttleAfter": 0, "throttleLoss": 0, "treatmentFirstOnly": false},
+    {"name": "effect-carryover", "gate": "descriptive", "variable": "sackPermitted", "controlSack": 0, "treatmentSack": 1, "loss": 0, "baseRttMs": 1, "jitterMs": 0.2, "driftMs": 0, "throttleAfter": 0, "throttleLoss": 0, "treatmentFirstOnly": true},
+    {"name": "effect-throttle", "gate": "descriptive", "variable": "sackPermitted", "controlSack": 0, "treatmentSack": 1, "loss": 0, "baseRttMs": 1, "jitterMs": 0.2, "driftMs": 0, "throttleAfter": 0.5, "throttleLoss": 0.8, "treatmentFirstOnly": false}
+  ]
+}

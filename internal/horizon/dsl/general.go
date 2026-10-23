@@ -237,13 +237,33 @@ func compileGeneral(e model.Experiment, policy model.Policy) (model.Plan, error)
 				return p, errors.New("SACK arms may differ only in SACK permission")
 			}
 		}
+	case "none": // HZ-002 A/A stability: identical baseline arms, order is the only difference.
+		if !reflect.DeepEqual(arms[0], arms[1]) {
+			return p, errors.New("A/A arms must be identical")
+		}
+		for _, probe := range arms[0] {
+			if probe.Send.OptionsProfile != "baseline" {
+				return p, errors.New("A/A arms must use the baseline profile")
+			}
+		}
 	case "sequence": // Explicit exploratory sequence difference; never feeds HZ-001 inference.
 	default:
-		return p, errors.New("changedVariable must be sackPermitted or sequence")
+		return p, errors.New("changedVariable must be sackPermitted, none or sequence")
+	}
+	if err := checkConfounders(s.Confounders); err != nil {
+		return p, err
 	}
 	x, l := s.Execution, s.Limits
 	if x.Replicates < 2 || x.Replicates > 50 || !x.RandomizedOrder || x.WashoutMS < 0 || x.WashoutMS > 5000 {
 		return p, errors.New("require 2..50 randomized pairs and 0..5000 ms washout")
+	}
+	references := 0
+	if x.ReferenceEvery != 0 {
+		// Reference probes use reserved source-port slot ReferenceProbe.
+		if x.ReferenceEvery < 1 || x.ReferenceEvery > x.Replicates || len(arms[0]) > ReferenceProbe || len(arms[1]) > ReferenceProbe {
+			return p, fmt.Errorf("referenceEvery requires 1..replicates and at most %d probes per arm", ReferenceProbe)
+		}
+		references = x.Replicates / x.ReferenceEvery
 	}
 	if l.MaxPackets < 1 || l.MaxPackets > 200 || l.PacketsPerSecond < 1 || l.PacketsPerSecond > 10 || l.MaxConcurrentFlows != 1 || l.MaxDurationSeconds < 1 || l.MaxDurationSeconds > 1800 {
 		return p, errors.New("invalid packet/rate/concurrency/deadline bound")
@@ -251,7 +271,7 @@ func compileGeneral(e model.Experiment, policy model.Policy) (model.Plan, error)
 	if s.Capture.MaxBytes < 4096 || s.Capture.MaxBytes > 8<<20 || l.MaxReceiveFrames < 1 || l.MaxReceiveFrames > 4096 || l.MaxMemoryBytes < s.Capture.MaxBytes+(1<<20) || l.MaxMemoryBytes > 16<<20 {
 		return p, errors.New("invalid capture/receive/memory bound")
 	}
-	packets := 2 * x.Replicates * (len(arms[0]) + len(arms[1]))
+	packets := 2 * (x.Replicates*(len(arms[0])+len(arms[1])) + references)
 	if packets > l.MaxPackets {
 		return p, errors.New("packet budget must reserve every SYN and possible RST cleanup")
 	}
@@ -262,6 +282,8 @@ func compileGeneral(e model.Experiment, policy model.Policy) (model.Plan, error)
 			bound += time.Duration(x.Replicates) * (time.Duration(probe.WindowMS+probe.WaitBeforeMS+probe.WaitAfterMS)*time.Millisecond + 2*time.Second/time.Duration(l.PacketsPerSecond))
 		}
 	}
+	reference := arms[0][0]
+	bound += time.Duration(references) * (time.Duration(reference.WindowMS+x.WashoutMS)*time.Millisecond + 2*time.Second/time.Duration(l.PacketsPerSecond))
 	if bound > time.Duration(l.MaxDurationSeconds)*time.Second {
 		return p, fmt.Errorf("duration below conservative bound %s", bound)
 	}
@@ -285,6 +307,36 @@ func compileGeneral(e model.Experiment, policy model.Policy) (model.Plan, error)
 				p.Trials = append(p.Trials, probe)
 			}
 		}
+		if references != 0 && (pair+1)%x.ReferenceEvery == 0 {
+			// An interleaved environmental baseline outside the comparison.
+			p.Trials = append(p.Trials, model.PlannedTrial{Probe: ReferenceProbe, Send: reference.Send, WindowMS: reference.WindowMS, Pair: pair, Arm: "reference"})
+		}
 	}
 	return describePlan(p, policy)
+}
+
+// ReferenceProbe is the reserved probe index (and source-port slot) of
+// interleaved reference probes. Arms therefore hold at most 31 probes.
+const ReferenceProbe = 31
+
+// Confounders are declared, never inferred away. The vocabulary is closed so
+// reports remain comparable; every report also records inherent confounders.
+var Confounders = []string{"ambient-load", "path-routing", "remote-state-reuse", "source-port-reuse", "middlebox-normalization", "clock-resolution", "rate-limiting"}
+
+func checkConfounders(declared []string) error {
+	if len(declared) > len(Confounders) {
+		return errors.New("too many declared confounders")
+	}
+	seen := map[string]bool{}
+	for _, c := range declared {
+		known := false
+		for _, v := range Confounders {
+			known = known || v == c
+		}
+		if !known || seen[c] {
+			return fmt.Errorf("unknown or duplicate confounder %q", c)
+		}
+		seen[c] = true
+	}
+	return nil
 }
