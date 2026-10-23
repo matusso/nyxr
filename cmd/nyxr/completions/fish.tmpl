@@ -25,9 +25,16 @@ complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a versio
 complete -c nyxr -n "not __fish_seen_subcommand_from $__nyxr_commands" -a help -d 'Show help'
 
 # horizon
-complete -c nyxr -n '__fish_seen_subcommand_from horizon; and not __fish_seen_subcommand_from resolve replay explain references verify-capture environment calibrate cross-port' -a 'resolve replay explain references verify-capture environment calibrate cross-port'
+complete -c nyxr -n '__fish_seen_subcommand_from horizon; and not __fish_seen_subcommand_from resolve replay explain references verify-capture environment calibrate cross-port graph' -a 'resolve replay explain references verify-capture environment calibrate cross-port graph'
 complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from replay explain references environment' -F
 complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from calibrate' -l protocol -r -F
+complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from graph' -l report -r -F
+complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from graph' -l output -r -F
+for flag in study change ttl now
+    complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from graph' -l $flag -x
+end
+complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from explain' -l graph -r -F
+complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from explain' -l hypothesis -x
 for flag in main same-port reverse time-separated null
     complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from cross-port' -l $flag -r -F
 end

@@ -331,3 +331,79 @@ type Hypothesis struct {
 	Probability *float64 `json:"probability"`
 	Reason      string   `json:"reason"`
 }
+
+const GraphVersion = "horizon.nyxr.io/graph/v1"
+
+// Graph is a provenance-aware projection of replayed reports. Observation
+// quality (how good the evidence is) is kept apart from hypothesis status
+// (what it supports); no numeric probability is published until calibrated.
+type Graph struct {
+	APIVersion     string            `json:"apiVersion"`
+	Kind           string            `json:"kind"`
+	GeneratedAt    time.Time         `json:"generatedAt"`
+	TTLSeconds     int64             `json:"ttlSeconds"`
+	Coverage       GraphCoverage     `json:"coverage"`
+	Nodes          []GraphNode       `json:"nodes"`
+	Edges          []GraphEdge       `json:"edges"`
+	Quality        []RunQuality      `json:"observationQuality"`
+	Hypotheses     []GraphHypothesis `json:"hypotheses"`
+	Contradictions []Contradiction   `json:"contradictions"`
+	Changes        []ChangeEvent     `json:"changes"`
+	NotEvaluated   []string          `json:"notEvaluated"`
+	Limitations    []string          `json:"limitations"`
+}
+type GraphCoverage struct {
+	TestedTCPPorts  []string `json:"testedTcpPorts"`
+	FullTCPCoverage bool     `json:"fullTcpCoverage"`
+}
+type GraphNode struct {
+	ID         string            `json:"id"`
+	Type       string            `json:"type"`
+	Statement  string            `json:"statement,omitempty"` // observed, inferred, hypothesis or unresolved
+	Attributes map[string]string `json:"attributes,omitempty"`
+}
+type GraphEdge struct {
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Relation string `json:"relation"`
+}
+
+// RunQuality grades evidence, independent of what it is evidence for.
+type RunQuality struct {
+	Run        string    `json:"run"`
+	Grade      string    `json:"grade"` // good, degraded or poor
+	Reasons    []string  `json:"reasons"`
+	ObservedAt time.Time `json:"observedAt"`
+}
+type GraphHypothesis struct {
+	ID                string    `json:"id"`
+	Family            string    `json:"family"`
+	Subject           string    `json:"subject"`
+	Statement         string    `json:"statement"`
+	Status            string    `json:"status"` // supported, not-supported, unresolved or stale
+	Location          string    `json:"location,omitempty"`
+	ObservationGrade  string    `json:"observationGrade"`
+	Probability       *float64  `json:"probability"`
+	ProbabilityMethod string    `json:"probabilityMethod"`
+	Support           []string  `json:"support"`
+	Against           []string  `json:"against"`
+	Alternatives      []string  `json:"alternatives"`
+	Assumptions       []string  `json:"assumptions"`
+	Reasons           []string  `json:"reasons"`
+	ObservedAt        time.Time `json:"observedAt"`
+	ValidUntil        time.Time `json:"validUntil"`
+}
+type Contradiction struct {
+	Subject string   `json:"subject"`
+	Family  string   `json:"family"`
+	Runs    []string `json:"runs"`
+	Detail  string   `json:"detail"`
+}
+
+// ChangeEvent invalidates hypotheses observed before it for its scope.
+type ChangeEvent struct {
+	At     time.Time `json:"at"`
+	Scope  string    `json:"scope"`  // host:<address> or network
+	Source string    `json:"source"` // declared or detected
+	Detail string    `json:"detail"`
+}

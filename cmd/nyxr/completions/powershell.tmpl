@@ -66,10 +66,10 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
         'horizon' {
             if ($prev -match '^--?policy$') { & $emit @('lab', 'enterprise', 'fragile', 'ot-restricted'); return }
             if ($prev -match '^--?simulate$') { & $emit @('sack', 'stable', 'loss', 'noise', 'shared-limit', 'port-limit'); return }
-            if ($prev -match '^--?(experiment|protocol|main|same-port|reverse|time-separated|null|output|pcapng|pcapng-max-bytes|packetd|permit|allow-targets|allow-ports|target|ports|interface|source-ip|source-mac|next-hop-mac)$') { return }
+            if ($prev -match '^--?(experiment|protocol|main|same-port|reverse|time-separated|null|report|study|change|ttl|now|graph|hypothesis|output|pcapng|pcapng-max-bytes|packetd|permit|allow-targets|allow-ports|target|ports|interface|source-ip|source-mac|next-hop-mac)$') { return }
             if ($wordToComplete.StartsWith('-')) {
-                & $emit @('--experiment', '--protocol', '--main', '--same-port', '--reverse', '--time-separated', '--null', '--policy', '--permit', '--allow-targets', '--allow-ports', '--target', '--ports', '--dry-run', '--simulate', '--interface', '--source-ip', '--source-mac', '--next-hop-mac', '--packetd', '--output', '--pcapng', '--pcapng-max-bytes', '--pcapng-minimize', '--help') 'ParameterName'
-            } elseif ($prev -eq 'horizon') { & $emit @('resolve', 'replay', 'explain', 'references', 'verify-capture', 'environment', 'calibrate', 'cross-port') }
+                & $emit @('--experiment', '--protocol', '--main', '--same-port', '--reverse', '--time-separated', '--null', '--report', '--study', '--change', '--ttl', '--now', '--graph', '--hypothesis', '--policy', '--permit', '--allow-targets', '--allow-ports', '--target', '--ports', '--dry-run', '--simulate', '--interface', '--source-ip', '--source-mac', '--next-hop-mac', '--packetd', '--output', '--pcapng', '--pcapng-max-bytes', '--pcapng-minimize', '--help') 'ParameterName'
+            } elseif ($prev -eq 'horizon') { & $emit @('resolve', 'replay', 'explain', 'references', 'verify-capture', 'environment', 'calibrate', 'cross-port', 'graph') }
         }
         'probe' {
             if ($prev -match '^import$') { return }

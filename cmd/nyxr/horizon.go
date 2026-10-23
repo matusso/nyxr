@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/horizon"
@@ -35,6 +36,8 @@ func runHorizon(args []string, out io.Writer) error {
   nyxr horizon verify-capture report.json evidence.pcapng
   nyxr horizon environment report.json
   nyxr horizon calibrate --protocol protocol.json
+  nyxr horizon graph --report r.json [--study main=a.json,same-port=b.json] [--change TIME@host:IP] [--ttl 24h] [--now TIME] [--output graph.json]
+  nyxr horizon explain --graph graph.json --hypothesis HYP-1
   nyxr horizon cross-port --main main.json [--same-port r.json] [--reverse r.json] [--time-separated r.json] [--null r.json]
 
 v1alpha1 HZ-001 and v1alpha2 bounded send/observe/wait/repeat sequences.
@@ -46,7 +49,9 @@ environment assesses drift, throttling, carryover, clock quality and RTT
 uncertainty offline; calibrate runs a pre-registered synthetic decision-rule
 calibration and exits nonzero when a registered gate fails. cross-port
 replays HZ-003/HZ-004 precondition reports by role and reports shared-state
-candidates with competing explanations.
+candidates with competing explanations. graph builds a versioned provenance
+graph of hypotheses (repeat --report/--study/--change); explain --graph traces
+one hypothesis to its runs, builds and captures.
 Live mode requires an explicit interface source and unicast next-hop MAC.
 Ctrl-C cancels execution and emits partial evidence. No active mode is a default.`)
 		return err
@@ -104,6 +109,35 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 			return errors.New("registered calibration gates failed")
 		}
 		return nil
+	}
+	if args[0] == "explain" && len(args) > 1 && strings.HasPrefix(args[1], "--graph") {
+		fs := flag.NewFlagSet("horizon explain", flag.ContinueOnError)
+		fs.SetOutput(out)
+		path := fs.String("graph", "", "saved evidence graph")
+		id := fs.String("hypothesis", "", "hypothesis ID")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if fs.NArg() != 0 || *path == "" || *id == "" {
+			return errors.New("horizon explain --graph requires --hypothesis ID")
+		}
+		file, err := os.Open(*path)
+		if err != nil {
+			return err
+		}
+		g, err := horizon.LoadGraph(file)
+		if err = errors.Join(err, file.Close()); err != nil {
+			return err
+		}
+		text, err := horizon.ExplainHypothesis(g, *id)
+		if err != nil {
+			return err
+		}
+		_, err = io.WriteString(out, text)
+		return err
+	}
+	if args[0] == "graph" {
+		return horizonGraph(args[1:], out)
 	}
 	if args[0] == "cross-port" {
 		fs := flag.NewFlagSet("horizon cross-port", flag.ContinueOnError)
@@ -394,4 +428,101 @@ func horizonJSON(out io.Writer, value any) error {
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
 	return enc.Encode(value)
+}
+
+type stringList []string
+
+func (s *stringList) String() string     { return strings.Join(*s, ",") }
+func (s *stringList) Set(v string) error { *s = append(*s, v); return nil }
+
+func replayFile(path string) (model.Envelope, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return model.Envelope{}, err
+	}
+	envelope, err := horizon.Replay(file)
+	if err = errors.Join(err, file.Close()); err != nil {
+		return model.Envelope{}, fmt.Errorf("%s: %w", path, err)
+	}
+	return envelope, nil
+}
+
+// horizonGraph replays every input before projecting it; nothing unverified
+// enters the graph.
+func horizonGraph(args []string, out io.Writer) error {
+	fs := flag.NewFlagSet("horizon graph", flag.ContinueOnError)
+	fs.SetOutput(out)
+	var reports, studies, changes stringList
+	fs.Var(&reports, "report", "replayable HZ-001/HZ-002 report (repeatable)")
+	fs.Var(&studies, "study", "cross-port study as role=report,... (repeatable)")
+	fs.Var(&changes, "change", "declared change TIME@host:IP or TIME@network[@detail] (repeatable)")
+	ttl := fs.Duration("ttl", 24*time.Hour, "confidence TTL after the latest supporting run")
+	nowFlag := fs.String("now", "", "evaluation time (RFC 3339); default current time")
+	output := fs.String("output", "", "new private graph file (refuses overwrites)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 || len(reports)+len(studies) == 0 {
+		return errors.New("horizon graph requires --report or --study inputs")
+	}
+	in := horizon.GraphInput{Now: time.Now().UTC(), TTL: *ttl}
+	if *nowFlag != "" {
+		now, err := time.Parse(time.RFC3339, *nowFlag)
+		if err != nil {
+			return fmt.Errorf("--now: %w", err)
+		}
+		in.Now = now
+	}
+	for _, path := range reports {
+		e, err := replayFile(path)
+		if err != nil {
+			return err
+		}
+		in.Reports = append(in.Reports, e)
+	}
+	for _, spec := range studies {
+		study := map[string]model.Envelope{}
+		for _, part := range strings.Split(spec, ",") {
+			role, path, ok := strings.Cut(part, "=")
+			if !ok || !slices.Contains(horizon.CrossPortRoles, role) || study[role].SHA256 != "" {
+				return fmt.Errorf("invalid study entry %q", part)
+			}
+			e, err := replayFile(path)
+			if err != nil {
+				return err
+			}
+			study[role] = e
+		}
+		in.Studies = append(in.Studies, study)
+	}
+	for _, spec := range changes {
+		parts := strings.SplitN(spec, "@", 3)
+		if len(parts) < 2 {
+			return fmt.Errorf("invalid change %q", spec)
+		}
+		at, err := time.Parse(time.RFC3339, parts[0])
+		if err != nil {
+			return fmt.Errorf("change %q: %w", spec, err)
+		}
+		c := model.ChangeEvent{At: at, Scope: parts[1]}
+		if len(parts) == 3 {
+			c.Detail = parts[2]
+		}
+		in.Changes = append(in.Changes, c)
+	}
+	g, err := horizon.BuildGraph(in)
+	if err != nil {
+		return err
+	}
+	if *output != "" {
+		file, err := os.OpenFile(*output, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err != nil {
+			return err
+		}
+		err = horizonJSON(file, g)
+		if err = errors.Join(err, file.Close()); err != nil {
+			return err
+		}
+	}
+	return horizonJSON(out, g)
 }
