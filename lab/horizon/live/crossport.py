@@ -55,6 +55,9 @@ class Topology(lab.Topology):
             self.ip(index, "addr", "add", ipv4, "dev", link)
             self.ip(index, "-6", "addr", "add", ipv6, "dev", link, "nodad")
             self.ip(index, "link", "set", link, "up")
+            # Kernel SYN/ACKs on veth otherwise carry partial (offloaded) TCP
+            # checksums, which HORIZON correlation rejects as invalid.
+            self.ns(index, "ethtool", "-K", link, "tx", "off")
         if routed:
             # The router forwards to the endpoint by DNAT on its own front address,
             # so the IPv4 target stays 10.77.0.2 in every topology. Routed studies
@@ -95,7 +98,9 @@ class Topology(lab.Topology):
         for index, name in enumerate(self.names):
             value[name] = {"addresses": json.loads(self.ip(index, "-j", "addr")), "routes_v4": json.loads(self.ip(index, "-j", "route")),
                            "routes_v6": json.loads(self.ip(index, "-6", "-j", "route")),
-                           "firewall_v4": self.ns(index, "iptables-save", "-c"), "firewall_v6": self.ns(index, "ip6tables-save", "-c")}
+                           "firewall_v4": self.ns(index, "iptables-save", "-c"), "firewall_v6": self.ns(index, "ip6tables-save", "-c"),
+                           "offload": {link: self.ns(index, "ethtool", "-k", link).split("tx-checksumming:")[1].split()[0]
+                                       for link in ("front", "back") if f'"{link}"' in self.ip(index, "-j", "link", "show")}}
         return value
 
 

@@ -302,6 +302,12 @@ limited to one shared-kernel Linux lab.
 
 ### Phase 4 — Cross-Port / Cross-Flow State Interference
 
+**Implemented (#70):** `changedVariable: precondition` with matched no-precondition
+controls, main/reverse/same-port/time-separated/null study roles,
+shared-state candidates with competing explanations, and orthogonal-signal
+gating of infrastructure hypotheses. See [cross-port studies](horizon/cross-port.md)
+for the live ground-truth discrimination and the go/no-go result.
+
 **Goal:** Investigate whether prior interactions alter later response behavior across different flows or ports.
 
 1. Define an experiment primitive with `preconditionFlow`, `measurementFlow`, and matched no-precondition control.
@@ -317,6 +323,12 @@ limited to one shared-kernel Linux lab.
 **Exit gate:** Demonstrate repeatable discrimination of selected known lab topologies with confidence intervals and explicit unresolved cases.
 
 ### Phase 5 — Hypothesis Engine and Evidence Graph
+
+**Implemented (#71):** versioned provenance graph (`horizon graph`, `explain --graph`)
+with per-run observation quality separate from hypothesis status, no
+uncalibrated probabilities, contradictions, unresolved confounded locations,
+TTL decay and declared/detected change invalidation. See
+[evidence graph](horizon/evidence-graph.md). UI integration remains #73.
 
 **Goal:** Represent uncertainty faithfully and choose among competing explanations.
 

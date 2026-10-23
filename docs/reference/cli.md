@@ -9,7 +9,7 @@ nyxr sniff --interface eth0 [flags]    capture and decode live frames
 nyxr history [--db file] [flags]       list or query stored scans, assets and evidence
 nyxr probe import file [--json]        import and summarize an nmap-service-probes file
 nyxr probe validate file [--json]      validate a Nyxr Protocol DSL file
-nyxr horizon resolve|replay|explain|references|verify-capture    bounded HZ-001 experiments and offline evidence
+nyxr horizon resolve|replay|explain|references|verify-capture|environment|calibrate|cross-port|graph    bounded HORIZON experiments and offline evidence
 nyxr calibration evaluate --dataset FILE   evaluate labeled ordinary claims offline
 nyxr serve [--db file] [flags]         serve the REST API and web UI (unprivileged)
 nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
@@ -51,6 +51,19 @@ Optional `--target`/`--ports` assert the file's scope.
 JSON report. `explain REPORT` shows the comparison and limitations.
 `references REPORT` validates the original sealed envelope and emits versioned
 experiment/trial/evidence references without copying raw frames into inventory.
+`environment REPORT` replays a report and prints its Phase 3 environment
+assessment (throttling, carryover, reference loss, clock, drift and RTT
+intervals), assessing older reports offline. `calibrate --protocol FILE` runs a
+pre-registered synthetic decision-rule calibration without network traffic and
+exits nonzero when a registered gate fails. See
+[environmental controls](../horizon/environment-controls.md).
+`cross-port --main R [--same-port R] [--reverse R] [--time-separated R] [--null R]`
+replays HZ-003/HZ-004 precondition reports and classifies the study; see
+[cross-port studies](../horizon/cross-port.md). `graph --report R --study role=R,...
+[--change TIME@host:IP] [--ttl D] [--now T] [--output F]` builds the versioned
+evidence graph, and `explain --graph F --hypothesis ID` traces one hypothesis;
+see [evidence graph](../horizon/evidence-graph.md). `--simulate` also accepts
+`shared-limit` and `port-limit`.
 `--pcapng FILE`, `--pcapng-max-bytes N` and `--pcapng-minimize` export bounded private packet evidence. `verify-capture REPORT PCAPNG` checks the actual capture against the report and packet references. See [Phase 2 correlation and evidence](../horizon/correlation-evidence.md) and the [HORIZON operator guide](../horizon/README.md) for examples and bounds.
 
 ## nyxr scan
