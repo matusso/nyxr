@@ -39,6 +39,11 @@ func runHorizon(args []string, out io.Writer) error {
   nyxr horizon graph --report r.json [--study main=a.json,same-port=b.json] [--change TIME@host:IP] [--ttl 24h] [--now TIME] [--output graph.json]
   nyxr horizon explain --graph graph.json --hypothesis HYP-1
   nyxr horizon cross-port --main main.json [--same-port r.json] [--reverse r.json] [--time-separated r.json] [--null r.json]
+  nyxr horizon adapt --main main.yaml [--same-port ...] --policy lab --permit cross-port --allow-targets CIDR --allow-ports P --simulate S|live opts
+      [--budget-packets N] [--budget-ms N] [--refine direction,cooldown] [--require null] [--full-coverage] [--curtail] [--profile p.json]
+  nyxr horizon adapt --replay main=a.json,same-port=b.json,... [--retro-curtail] [task/budget/profile options]
+  nyxr horizon profile build --study main=a.json,... --class LABEL [--ttl 24h] [--output profile.json]
+  nyxr horizon profile check --profile profile.json --study main=a.json,... [--change TIME@host:IP] [--now TIME]
 
 v1alpha1 HZ-001 and v1alpha2 bounded send/observe/wait/repeat sequences.
 v1alpha2 requires --policy; cross-port requires --permit cross-port.
@@ -51,7 +56,11 @@ calibration and exits nonzero when a registered gate fails. cross-port
 replays HZ-003/HZ-004 precondition reports by role and reports shared-state
 candidates with competing explanations. graph builds a versioned provenance
 graph of hypotheses (repeat --report/--study/--change); explain --graph traces
-one hypothesis to its runs, builds and captures.
+one hypothesis to its runs, builds and captures. adapt chooses study roles by
+expected information under a packet/time budget and records why it stopped;
+statements and ports are tested, profile-inferred or not-tested, and
+--full-coverage never skips a role. profile build/check compress a validated
+study into an expiring profile and invalidate it on drift or change.
 Live mode requires an explicit interface source and unicast next-hop MAC.
 Ctrl-C cancels execution and emits partial evidence. No active mode is a default.`)
 		return err
@@ -138,6 +147,12 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 	}
 	if args[0] == "graph" {
 		return horizonGraph(args[1:], out)
+	}
+	if args[0] == "adapt" {
+		return horizonAdapt(args[1:], out)
+	}
+	if args[0] == "profile" {
+		return horizonProfile(args[1:], out)
 	}
 	if args[0] == "cross-port" {
 		fs := flag.NewFlagSet("horizon cross-port", flag.ContinueOnError)
@@ -234,12 +249,7 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 	target := fs.String("target", "", "assert the literal target in the experiment")
 	ports := fs.String("ports", "", "assert the TCP port in the experiment")
 	dry := fs.Bool("dry-run", false, "compile and print the plan; open no packet backend")
-	sim := fs.String("simulate", "", "sack, stable, loss, noise, shared-limit or port-limit (no network traffic)")
-	device := fs.String("interface", "", "live Ethernet interface")
-	sourceIP := fs.String("source-ip", "", "source IP assigned to the live interface")
-	sourceMAC := fs.String("source-mac", "", "source MAC for unmapped Npcap adapter names")
-	nextHop := fs.String("next-hop-mac", "", "target/gateway unicast MAC")
-	socket := fs.String("packetd", "", "existing packet daemon socket")
+	lf := addLinkFlags(fs)
 	pcapPath := fs.String("pcapng", "", "new private bounded PCAPNG evidence file")
 	pcapMax := fs.Int64("pcapng-max-bytes", 8<<20, "encoded PCAPNG file cap, 256 bytes..8 MiB")
 	pcapMinimize := fs.Bool("pcapng-minimize", false, "omit application payload in PCAPNG; raw JSON remains authoritative")
@@ -295,79 +305,13 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 	if *dry {
 		return horizonJSON(out, p)
 	}
-	if *sim != "" && (*device != "" || *sourceIP != "" || *sourceMAC != "" || *nextHop != "" || *socket != "") {
-		return errors.New("simulation cannot be combined with live packet settings")
+	link, open, err := lf.open(netip.MustParseAddr(e.Spec.Scope.Targets[0]))
+	if err != nil {
+		return err
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	link := horizon.Link{Build: version}
-	var transport packetio.PacketIO
-	if *sim != "" {
-		transport, err = horizon.NewSimulator(*sim)
-		link.Backend = "synthetic/" + *sim
-		link.SourceIP = netip.MustParseAddr("192.0.2.1")
-		if netip.MustParseAddr(e.Spec.Scope.Targets[0]).Is6() {
-			link.SourceIP = netip.MustParseAddr("2001:db8::1")
-		}
-		link.SourceMAC = net.HardwareAddr{2, 0, 0, 0, 0, 1}
-		link.NextHopMAC = net.HardwareAddr{2, 0, 0, 0, 0, 2}
-	} else {
-		if *device == "" || *sourceIP == "" || *nextHop == "" {
-			return errors.New("live mode requires --interface, --source-ip and --next-hop-mac")
-		}
-		link.SourceIP, err = netip.ParseAddr(*sourceIP)
-		if err != nil {
-			return err
-		}
-		link.NextHopMAC, err = net.ParseMAC(*nextHop)
-		if err != nil {
-			return err
-		}
-		iface, lookupErr := net.InterfaceByName(*device)
-		if lookupErr == nil {
-			link.SourceMAC = iface.HardwareAddr
-			addrs, err := iface.Addrs()
-			if err != nil {
-				return err
-			}
-			assigned := false
-			for _, addr := range addrs {
-				if prefix, err := netip.ParsePrefix(addr.String()); err == nil && prefix.Addr() == link.SourceIP {
-					assigned = true
-				}
-			}
-			if !assigned {
-				return errors.New("source IP is not assigned to interface")
-			}
-			if *sourceMAC != "" {
-				mac, err := net.ParseMAC(*sourceMAC)
-				if err != nil {
-					return err
-				}
-				if mac.String() != link.SourceMAC.String() {
-					return errors.New("source MAC does not match interface")
-				}
-			}
-		} else {
-			if *sourceMAC == "" {
-				return errors.New("unmapped adapter requires --source-mac")
-			}
-			link.SourceMAC, err = net.ParseMAC(*sourceMAC)
-			if err != nil {
-				return err
-			}
-		}
-		if len(link.SourceMAC) != 6 || len(link.NextHopMAC) != 6 || link.SourceMAC[0]&1 != 0 || link.NextHopMAC[0]&1 != 0 {
-			return errors.New("live packet addresses must be unicast Ethernet MACs")
-		}
-		open := packetio.OpenLive
-		link.Backend = "raw/" + *device
-		if *socket != "" {
-			open = packetd.Opener(*socket)
-			link.Backend = "packetd/" + *device
-		}
-		transport, err = open(*device)
-	}
+	transport, err := open()
 	if err != nil {
 		return err
 	}
@@ -422,6 +366,105 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 		}
 	}
 	return errors.Join(runErr, horizonJSON(out, envelope))
+}
+
+// linkFlags select a synthetic or live packet transport for active commands.
+type linkFlags struct {
+	sim, device, sourceIP, sourceMAC, nextHop, socket *string
+}
+
+func addLinkFlags(fs *flag.FlagSet) linkFlags {
+	return linkFlags{
+		sim:       fs.String("simulate", "", "sack, stable, loss, noise, shared-limit or port-limit (no network traffic)"),
+		device:    fs.String("interface", "", "live Ethernet interface"),
+		sourceIP:  fs.String("source-ip", "", "source IP assigned to the live interface"),
+		sourceMAC: fs.String("source-mac", "", "source MAC for unmapped Npcap adapter names"),
+		nextHop:   fs.String("next-hop-mac", "", "target/gateway unicast MAC"),
+		socket:    fs.String("packetd", "", "existing packet daemon socket"),
+	}
+}
+
+func (l linkFlags) live() bool {
+	return *l.device != "" || *l.sourceIP != "" || *l.sourceMAC != "" || *l.nextHop != "" || *l.socket != ""
+}
+
+// open validates the link and returns a factory for fresh transports.
+func (l linkFlags) open(target netip.Addr) (horizon.Link, func() (packetio.PacketIO, error), error) {
+	link := horizon.Link{Build: version}
+	if *l.sim != "" {
+		if l.live() {
+			return link, nil, errors.New("simulation cannot be combined with live packet settings")
+		}
+		scenario := *l.sim
+		if _, err := horizon.NewSimulator(scenario); err != nil {
+			return link, nil, err
+		}
+		link.Backend = "synthetic/" + scenario
+		link.SourceIP = netip.MustParseAddr("192.0.2.1")
+		if target.Is6() {
+			link.SourceIP = netip.MustParseAddr("2001:db8::1")
+		}
+		link.SourceMAC = net.HardwareAddr{2, 0, 0, 0, 0, 1}
+		link.NextHopMAC = net.HardwareAddr{2, 0, 0, 0, 0, 2}
+		return link, func() (packetio.PacketIO, error) { return horizon.NewSimulator(scenario) }, nil
+	}
+	if *l.device == "" || *l.sourceIP == "" || *l.nextHop == "" {
+		return link, nil, errors.New("live mode requires --interface, --source-ip and --next-hop-mac")
+	}
+	var err error
+	link.SourceIP, err = netip.ParseAddr(*l.sourceIP)
+	if err != nil {
+		return link, nil, err
+	}
+	link.NextHopMAC, err = net.ParseMAC(*l.nextHop)
+	if err != nil {
+		return link, nil, err
+	}
+	iface, lookupErr := net.InterfaceByName(*l.device)
+	if lookupErr == nil {
+		link.SourceMAC = iface.HardwareAddr
+		addrs, err := iface.Addrs()
+		if err != nil {
+			return link, nil, err
+		}
+		assigned := false
+		for _, addr := range addrs {
+			if prefix, err := netip.ParsePrefix(addr.String()); err == nil && prefix.Addr() == link.SourceIP {
+				assigned = true
+			}
+		}
+		if !assigned {
+			return link, nil, errors.New("source IP is not assigned to interface")
+		}
+		if *l.sourceMAC != "" {
+			mac, err := net.ParseMAC(*l.sourceMAC)
+			if err != nil {
+				return link, nil, err
+			}
+			if mac.String() != link.SourceMAC.String() {
+				return link, nil, errors.New("source MAC does not match interface")
+			}
+		}
+	} else {
+		if *l.sourceMAC == "" {
+			return link, nil, errors.New("unmapped adapter requires --source-mac")
+		}
+		link.SourceMAC, err = net.ParseMAC(*l.sourceMAC)
+		if err != nil {
+			return link, nil, err
+		}
+	}
+	if len(link.SourceMAC) != 6 || len(link.NextHopMAC) != 6 || link.SourceMAC[0]&1 != 0 || link.NextHopMAC[0]&1 != 0 {
+		return link, nil, errors.New("live packet addresses must be unicast Ethernet MACs")
+	}
+	open := packetio.OpenLive
+	link.Backend = "raw/" + *l.device
+	if *l.socket != "" {
+		open = packetd.Opener(*l.socket)
+		link.Backend = "packetd/" + *l.device
+	}
+	device := *l.device
+	return link, func() (packetio.PacketIO, error) { return open(device) }, nil
 }
 
 func horizonJSON(out io.Writer, value any) error {
@@ -481,35 +524,17 @@ func horizonGraph(args []string, out io.Writer) error {
 		in.Reports = append(in.Reports, e)
 	}
 	for _, spec := range studies {
-		study := map[string]model.Envelope{}
-		for _, part := range strings.Split(spec, ",") {
-			role, path, ok := strings.Cut(part, "=")
-			if !ok || !slices.Contains(horizon.CrossPortRoles, role) || study[role].SHA256 != "" {
-				return fmt.Errorf("invalid study entry %q", part)
-			}
-			e, err := replayFile(path)
-			if err != nil {
-				return err
-			}
-			study[role] = e
+		study, err := parseStudy(spec)
+		if err != nil {
+			return err
 		}
 		in.Studies = append(in.Studies, study)
 	}
-	for _, spec := range changes {
-		parts := strings.SplitN(spec, "@", 3)
-		if len(parts) < 2 {
-			return fmt.Errorf("invalid change %q", spec)
-		}
-		at, err := time.Parse(time.RFC3339, parts[0])
-		if err != nil {
-			return fmt.Errorf("change %q: %w", spec, err)
-		}
-		c := model.ChangeEvent{At: at, Scope: parts[1]}
-		if len(parts) == 3 {
-			c.Detail = parts[2]
-		}
-		in.Changes = append(in.Changes, c)
+	declared, err := parseChanges(changes)
+	if err != nil {
+		return err
 	}
+	in.Changes = declared
 	g, err := horizon.BuildGraph(in)
 	if err != nil {
 		return err

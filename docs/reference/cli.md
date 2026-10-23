@@ -9,7 +9,7 @@ nyxr sniff --interface eth0 [flags]    capture and decode live frames
 nyxr history [--db file] [flags]       list or query stored scans, assets and evidence
 nyxr probe import file [--json]        import and summarize an nmap-service-probes file
 nyxr probe validate file [--json]      validate a Nyxr Protocol DSL file
-nyxr horizon resolve|replay|explain|references|verify-capture|environment|calibrate|cross-port|graph    bounded HORIZON experiments and offline evidence
+nyxr horizon resolve|replay|explain|references|verify-capture|environment|calibrate|cross-port|graph|adapt|profile    bounded HORIZON experiments and offline evidence
 nyxr calibration evaluate --dataset FILE   evaluate labeled ordinary claims offline
 nyxr serve [--db file] [flags]         serve the REST API and web UI (unprivileged)
 nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
@@ -64,6 +64,16 @@ replays HZ-003/HZ-004 precondition reports and classifies the study; see
 evidence graph, and `explain --graph F --hypothesis ID` traces one hypothesis;
 see [evidence graph](../horizon/evidence-graph.md). `--simulate` also accepts
 `shared-limit` and `port-limit`.
+`adapt --main F [--same-port F ...] [--budget-packets N] [--budget-ms N]
+[--refine direction,cooldown] [--require ROLES] [--lambda X] [--curtail]
+[--full-coverage] [--profile P] [--evidence-dir D]` runs only the study roles
+that can still change the answer and records why it stopped; it takes
+`resolve`'s scope, policy and link options. `adapt --replay role=R,...
+[--retro-curtail]` evaluates recorded studies without traffic.
+`profile build --study role=R,... --class L [--ttl D]` and
+`profile check --profile P --study role=R,... [--change ...] [--now T]` create
+and check expiring behavior profiles; check exits nonzero when invalid. See
+[adaptive planning and profiles](../horizon/adaptive-profiles.md).
 `--pcapng FILE`, `--pcapng-max-bytes N` and `--pcapng-minimize` export bounded private packet evidence. `verify-capture REPORT PCAPNG` checks the actual capture against the report and packet references. See [Phase 2 correlation and evidence](../horizon/correlation-evidence.md) and the [HORIZON operator guide](../horizon/README.md) for examples and bounds.
 
 ## nyxr scan

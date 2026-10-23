@@ -346,6 +346,15 @@ TTL decay and declared/detected change invalidation. See
 
 ### Phase 6 — Adaptive Experiment Planning and Profile Compression
 
+**Implemented (#72):** budgeted role selection by expected information with
+explicit stop rules, exact sign-test curtailment, expiring behavior profiles
+invalidated by expiry, declared change, vantage/path/host change or drift, and
+tested/profile-inferred/not-tested coverage with a full-coverage mode. A
+retrospective comparison on the #70 corpus kept 30/30 accuracy with 69% fewer
+packets and published counterexamples. See
+[adaptive planning and profiles](horizon/adaptive-profiles.md). The uncertainty
+dashboard remains #73.
+
 **Goal:** Reduce repeated diagnostics while keeping coverage honest.
 
 1. Define experiment cost as packet count, elapsed time, CPU, memory, and expected operational risk.
