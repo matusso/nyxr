@@ -71,7 +71,8 @@ class Topology(lab.Topology):
         server = self.launch(target, ["python3", str(HERE / "crossport-endpoint.py"), str(PORTS["b"]), str(PORTS["a"])], directory / "endpoint.log")
         for _ in range(100):
             try:
-                for address in ("10.77.0.2", "fd77:1::2"):
+                # Routed studies are IPv4-only: no IPv6 DNAT exists to check.
+                for address in ("10.77.0.2",) if routed else ("10.77.0.2", "fd77:1::2"):
                     for port in (PORTS["b"], PORTS["a"]):
                         self.ns(0, "python3", "-c", "import socket,sys; s=socket.create_connection((sys.argv[1],int(sys.argv[2])),.2); "
                                 "assert s.recv(128)==b'horizon-lab\\n'; s.close()", address, str(port))
@@ -110,10 +111,10 @@ def experiment(role, target, seed):
     return re.sub(r"seed: \d+", f"seed: {seed}", text)
 
 
-def plan():
+def plan(topologies=None):
     planned = []
     roles = PROTOCOL["roles"]
-    for topo in PROTOCOL["topologies"]:
+    for topo in topologies or PROTOCOL["topologies"]:
         studies = [(4, roles, n) for n in range(PROTOCOL["studies_per_topology"])]
         if topo in PROTOCOL["ipv6_topologies"]:
             studies += [(6, PROTOCOL["ipv6_roles"], n) for n in range(PROTOCOL["ipv6_studies_per_topology"])]
@@ -137,7 +138,7 @@ def collect(args):
                                         "endpoint_sha256": lab.digest(HERE / "crossport-endpoint.py"),
                                         "experiments_sha256": {p.name: lab.digest(p) for p in sorted(EXPERIMENTS.glob("*.yaml"))},
                                         "image_id": os.environ.get("HORIZON_LAB_IMAGE_ID")})
-    planned = plan()
+    planned = plan(args.topologies.split(",") if args.topologies else None)
     manifest = {"version": PROTOCOL["version"], "protocol_sha256": lab.digest(out / "protocol.json"), "planned": planned, "results": [], "completed": False}
     lab.save(out / "manifest.json", manifest)
     allow = f'{PORTS["b"]},{PORTS["a"]},{PORTS["unrelated"]}'
@@ -188,7 +189,8 @@ def collect(args):
         raise
     finally:
         lab.save(out / "manifest.json", manifest)
-    analyze(out, binary)
+    if not args.topologies:
+        analyze(out, binary)
 
 
 def clopper_pearson(k, n, alpha=0.05):
@@ -209,18 +211,40 @@ def clopper_pearson(k, n, alpha=0.05):
     return [lower, upper]
 
 
-def analyze(out, binary):
-    manifest = json.loads((out / "manifest.json").read_text())
-    if manifest["version"] != PROTOCOL["version"] or json.loads((out / "protocol.json").read_text()) != PROTOCOL:
-        raise ValueError("protocol identity mismatch")
-    plans = {p["id"]: p for p in manifest["planned"]}
+def setup_failure(out, entry):
+    """A study whose topology setup failed before any role sent traffic."""
+    return not any((out / entry["id"] / role / "report.json").exists() for role in entry["roles"])
+
+
+def analyze(outs, binary):
+    """Combine campaigns of one registered protocol. A planned study that failed
+    setup with zero traffic may be replaced by the same planned study from a
+    later campaign; every attempt is listed under `attempts`."""
+    outs = [outs] if isinstance(outs, Path) else outs
+    chosen, attempts = {}, []
+    for out in outs:
+        manifest = json.loads((out / "manifest.json").read_text())
+        if manifest["version"] != PROTOCOL["version"] or json.loads((out / "protocol.json").read_text()) != PROTOCOL:
+            raise ValueError("protocol identity mismatch")
+        for entry in manifest["planned"]:
+            started = entry["id"] in {r["id"] for r in manifest["results"]}
+            failed = started and setup_failure(out, entry)
+            attempts.append({"campaign": out.name, "id": entry["id"], "started": started, "setup_failure": failed,
+                             "collection_error": manifest.get("collection_error") if failed else None})
+            if entry["id"] not in chosen or (chosen[entry["id"]][2] and started and not failed):
+                chosen[entry["id"]] = (out, entry, not started or failed)
+    if set(chosen) != {p["id"] for p in plan()}:
+        raise ValueError("campaigns do not cover exactly the registered plan")
+    out = outs[-1]
+    manifest = {"completed": all(json.loads((o / "manifest.json").read_text())["completed"] for o in outs)}
     rows = []
-    for entry in manifest["planned"]:
-        study = out / entry["id"]
-        row = {"id": entry["id"], "topology": entry["topology"], "family": entry["family"], "truth": entry["truth"]}
+    for entry_id in [p["id"] for p in plan()]:
+        study_out, entry, _ = chosen[entry_id]
+        study = study_out / entry["id"]
+        row = {"id": entry["id"], "campaign": study_out.name, "topology": entry["topology"], "family": entry["family"], "truth": entry["truth"]}
         try:
-            if entry["id"] not in {r["id"] for r in manifest["results"]}:
-                raise ValueError("study not started")
+            if setup_failure(study_out, entry):
+                raise ValueError("study not started or setup failed before traffic")
             target = "10.77.0.2" if entry["family"] == 4 else "fd77:1::2"
             args = []
             for i, role in enumerate(entry["roles"]):
@@ -268,7 +292,8 @@ def analyze(out, binary):
     false_candidates = sum(bool(r.get("candidate")) for r in rows if r["truth"] != "shared-state")
     unsupported = sum(1 for r in rows if r.get("candidate") and not r["candidate"]["signals"] and any(h[1] == "hypothesis" for h in r["candidate"]["hypotheses"]))
     locations = {r["topology"]: {h[2] for h in r["candidate"]["hypotheses"] if h[1] == "hypothesis"} for r in rows if r.get("candidate")}
-    output = {"version": PROTOCOL["version"], "completed": manifest["completed"], "rows": rows, "topologies": by_topology,
+    output = {"version": PROTOCOL["version"], "completed": manifest["completed"], "campaigns": [o.name for o in outs], "attempts": attempts,
+              "rows": rows, "topologies": by_topology,
               "cross_port_accuracy": {"correct": cross, "planned": n, "ci95": cross_ci},
               "isolated_accuracy": {"correct": isolated, "planned": n, "ci95": isolated_ci},
               "gates": {"go": cross_ci[0] > isolated_ci[1],
@@ -284,15 +309,20 @@ def analyze(out, binary):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("run", "analyze"):
-        sub = commands.add_parser(name)
-        sub.add_argument("--binary", required=True)
-        sub.add_argument("--output", required=True)
+    run = commands.add_parser("run")
+    run.add_argument("--binary", required=True)
+    run.add_argument("--output", required=True)
+    run.add_argument("--topologies", help="registered subset, e.g. to replace studies whose setup failed")
+    offline = commands.add_parser("analyze")
+    offline.add_argument("--binary", required=True)
+    offline.add_argument("--output", required=True, action="append", help="campaign directory; repeat in collection order")
     args = parser.parse_args()
     if args.command == "run":
+        if args.topologies and not set(args.topologies.split(",")) <= set(PROTOCOL["topologies"]):
+            parser.error("unknown topology")
         collect(args)
     else:
-        analyze(Path(args.output).resolve(), str(Path(args.binary).resolve()))
+        analyze([Path(o).resolve() for o in args.output], str(Path(args.binary).resolve()))
 
 
 if __name__ == "__main__":
