@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -338,5 +339,49 @@ func TestHorizonCLIAdaptAndProfile(t *testing.T) {
 		if err := run(bad, &bytes.Buffer{}); err == nil {
 			t.Fatalf("accepted %v", bad)
 		}
+	}
+}
+
+// Live link validation is OS-independent and happens before any backend opens.
+func TestHorizonLiveLinkValidation(t *testing.T) {
+	ifaces, _ := net.Interfaces()
+	name := "nyxr-noif0"
+	if len(ifaces) > 0 {
+		name = ifaces[0].Name
+	}
+	base := []string{"horizon", "resolve", "--experiment", "../../lab/horizon/hz-001.yaml", "--allow-targets", "192.0.2.0/24", "--allow-ports", "443"}
+	for reason, extra := range map[string][]string{
+		"missing next hop":         {"--interface", name, "--source-ip", "192.0.2.1"},
+		"simulation plus live":     {"--simulate", "sack", "--interface", name},
+		"unassigned source":        {"--interface", name, "--source-ip", "192.0.2.77", "--next-hop-mac", "02:00:00:00:00:02"},
+		"multicast next hop":       {"--interface", "nyxr-noif0", "--source-ip", "192.0.2.1", "--source-mac", "02:00:00:00:00:01", "--next-hop-mac", "01:00:5e:00:00:01"},
+		"unmapped without src mac": {"--interface", "nyxr-noif0", "--source-ip", "192.0.2.1", "--next-hop-mac", "02:00:00:00:00:02"},
+	} {
+		if err := run(append(append([]string{}, base...), extra...), &bytes.Buffer{}); err == nil {
+			t.Errorf("%s accepted", reason)
+		}
+	}
+}
+
+func TestHorizonCLIAudit(t *testing.T) {
+	dir := t.TempDir()
+	audit := filepath.Join(dir, "audit.jsonl")
+	args := []string{"horizon", "resolve", "--experiment", "../../lab/horizon/hz-001.yaml", "--allow-targets", "192.0.2.0/24", "--allow-ports", "443", "--simulate", "stable", "--audit", audit}
+	if err := run(args, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := run([]string{"horizon", "audit-verify", audit}, &out); err != nil || !strings.Contains(out.String(), "2 entries") {
+		t.Fatalf("audit-verify: %v %s", err, out.String())
+	}
+	// A broken trail refuses the next run before any traffic.
+	if err := os.WriteFile(audit, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := run(args, &bytes.Buffer{}); err == nil {
+		t.Fatal("run accepted with a broken audit trail")
+	}
+	if err := run([]string{"horizon", "audit-verify", audit}, &bytes.Buffer{}); err == nil {
+		t.Fatal("broken trail verified")
 	}
 }

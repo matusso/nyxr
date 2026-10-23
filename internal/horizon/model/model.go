@@ -532,3 +532,27 @@ type ProfileCheck struct {
 	Valid     bool     `json:"valid"`
 	Reasons   []string `json:"reasons"`
 }
+
+const RunVersion = "horizon.nyxr.io/run/v1"
+
+// RunStatus is the API resource for one HORIZON run.
+type RunStatus struct {
+	APIVersion     string       `json:"apiVersion"`
+	Kind           string       `json:"kind"`
+	ID             string       `json:"id"`
+	Mode           string       `json:"mode"`
+	State          string       `json:"state"` // running, completed, cancelled, stopped or failed
+	Experiment     string       `json:"experiment"`
+	ExperimentHash string       `json:"experimentHash"`
+	Target         string       `json:"target"`
+	Ports          []uint16     `json:"ports"`
+	CreatedAt      time.Time    `json:"createdAt"`
+	FinishedAt     *time.Time   `json:"finishedAt"`
+	PacketsTX      int          `json:"packetsTx"`
+	Trials         int          `json:"trials"`
+	StopReason     string       `json:"stopReason,omitempty"`
+	Error          string       `json:"error,omitempty"`
+	Comparison     *Comparison  `json:"comparison,omitempty"`
+	Curtailment    *Curtailment `json:"curtailment,omitempty"`
+	ReportSHA256   string       `json:"reportSha256,omitempty"`
+}

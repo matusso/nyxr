@@ -46,9 +46,14 @@ Flags:
   --horizon-allow-targets CIDRs independent HORIZON target scope
   --horizon-allow-ports ports   independent HORIZON TCP port scope
   --horizon-permit cross-port  independent cross-port permission
+  --horizon-modes list         enabled modes (default recognize,resolve; reconstruct is opt-in)
+  --horizon-audit file         append-only hash-chained audit trail (required for HORIZON)
+  --horizon-max-runs int       retained HORIZON runs, 1..16 (default 8)
+  --horizon-retention dur      drop finished HORIZON runs after this age (default 24h)
   --allow-privileged   run even with root or raw-socket capabilities
 
-A non-loopback --listen address requires a token.
+A non-loopback --listen address requires a token. The HORIZON API always
+requires a token and an audit file; it only drives synthetic transports.
 `)
 }
 
@@ -68,6 +73,10 @@ func runServe(args []string, out io.Writer) error {
 	horizonTargets := fs.String("horizon-allow-targets", "", "HORIZON operator target scope")
 	horizonPorts := fs.String("horizon-allow-ports", "", "HORIZON operator TCP ports")
 	horizonPermit := fs.String("horizon-permit", "", "HORIZON operator permissions")
+	horizonModes := fs.String("horizon-modes", strings.Join(horizon.DefaultModes, ","), "enabled HORIZON modes")
+	horizonAudit := fs.String("horizon-audit", "", "HORIZON audit trail file")
+	horizonMaxRuns := fs.Int("horizon-max-runs", 8, "retained HORIZON runs")
+	horizonRetention := fs.Duration("horizon-retention", 24*time.Hour, "HORIZON run retention")
 	allowPacketSend := fs.Bool("allow-packet-send", false, "enable web UI packet transmission")
 	allowPrivileged := fs.Bool("allow-privileged", false, "allow root or raw-socket capabilities")
 	if err := fs.Parse(args); err != nil {
@@ -80,9 +89,10 @@ func runServe(args []string, out io.Writer) error {
 		return errors.New("serve takes no positional arguments")
 	}
 	var horizonController *horizon.Controller
+	var horizonRuns *horizon.Runs
 	if *horizonSim != "" {
-		if *horizonPolicy == "" || *horizonTargets == "" || *horizonPorts == "" {
-			return errors.New("HORIZON API requires --horizon-policy, --horizon-allow-targets and --horizon-allow-ports")
+		if *horizonPolicy == "" || *horizonTargets == "" || *horizonPorts == "" || *horizonAudit == "" {
+			return errors.New("HORIZON API requires --horizon-policy, --horizon-allow-targets, --horizon-allow-ports and --horizon-audit")
 		}
 		profOK := false
 		for _, p := range dsl.Profiles() {
@@ -114,9 +124,20 @@ func runServe(args []string, out io.Writer) error {
 		}
 		sim.Close()
 		link := horizon.Link{SourceIP: netip.MustParseAddr("192.0.2.1"), SourceMAC: net.HardwareAddr{2, 0, 0, 0, 0, 1}, NextHopMAC: net.HardwareAddr{2, 0, 0, 0, 0, 2}, Build: version, Backend: "synthetic/" + *horizonSim}
+		audit, err := horizon.OpenAudit(*horizonAudit)
+		if err != nil {
+			return err
+		}
+		defer audit.Close()
 		horizonController = horizon.NewController(policy, link, func() (packetio.PacketIO, error) { return horizon.NewSimulator(*horizonSim) })
 		defer horizonController.Close()
-	} else if *horizonPolicy != "" || *horizonTargets != "" || *horizonPorts != "" || *horizonPermit != "" {
+		horizonRuns, err = horizon.NewRuns(horizonController, horizon.RunsConfig{Modes: strings.Split(*horizonModes, ","), Audit: audit,
+			Metrics: horizon.NewMetrics(), MaxRuns: *horizonMaxRuns, Retention: *horizonRetention})
+		if err != nil {
+			return err
+		}
+		defer horizonRuns.Close()
+	} else if *horizonPolicy != "" || *horizonTargets != "" || *horizonPorts != "" || *horizonPermit != "" || *horizonAudit != "" {
 		return errors.New("HORIZON API options require --horizon-simulate")
 	}
 	db, err := dbFlag.resolve()
@@ -142,6 +163,9 @@ func runServe(args []string, out io.Writer) error {
 	}
 	if token != "" && len(token) < 16 {
 		return errors.New("API token must be at least 16 characters")
+	}
+	if horizonRuns != nil && token == "" {
+		return errors.New("the HORIZON API requires --token-file or NYXR_API_TOKEN")
 	}
 	if *protocolRegistry != "" && token == "" {
 		return errors.New("--protocol-registry requires --token-file or NYXR_API_TOKEN for reload authentication")
@@ -200,7 +224,7 @@ func runServe(args []string, out io.Writer) error {
 		// the loopback API from a browser.
 		hosts = []string{"localhost", "127.0.0.1", "::1", strings.Trim(host, "[]")}
 	}
-	handler := api.Handler(api.ServerConfig{Horizon: horizonController, Manager: manager, Store: store, Token: token, AllowedHosts: hosts,
+	handler := api.Handler(api.ServerConfig{Horizon: horizonRuns, Manager: manager, Store: store, Token: token, AllowedHosts: hosts,
 		Version: version, EvidenceDir: *evidenceDir, PacketSendEnabled: *allowPacketSend})
 	l, err := net.Listen("tcp", *listen)
 	if err != nil {

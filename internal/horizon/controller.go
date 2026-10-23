@@ -46,23 +46,44 @@ func (c *Controller) Plan(e model.Experiment) (model.Plan, error) {
 	}
 	return dsl.Compile(e, c.policy)
 }
-func (c *Controller) Run(ctx context.Context, e model.Experiment) (model.Report, error) {
+
+// Execution is one admitted experiment running in the background.
+type Execution struct {
+	cancel context.CancelFunc
+	done   chan struct{}
+	report model.Report
+	err    error
+}
+
+// Cancel stops this execution only; the controller stays usable.
+func (x *Execution) Cancel()               { x.cancel() }
+func (x *Execution) Done() <-chan struct{} { return x.done }
+
+// Result waits for the execution. Partial evidence accompanies an error.
+func (x *Execution) Result() (model.Report, error) {
+	<-x.done
+	return x.report, x.err
+}
+
+// Start admits and reserves the single run slot synchronously, then runs the
+// experiment in the background. The slot is free again before Done closes.
+func (c *Controller) Start(ctx context.Context, e model.Experiment) (*Execution, error) {
 	// Compile before opening a backend. Run admits again at the actual boundary.
 	if _, err := c.Plan(e); err != nil {
-		return model.Report{}, err
+		return nil, err
 	}
 	c.mu.Lock()
 	if c.ctx.Err() != nil {
 		c.mu.Unlock()
-		return model.Report{}, ErrStopped
+		return nil, ErrStopped
 	}
 	if c.running {
 		c.mu.Unlock()
-		return model.Report{}, ErrBusy
+		return nil, ErrBusy
 	}
 	if c.open == nil {
 		c.mu.Unlock()
-		return model.Report{}, errors.New("HORIZON transport is disabled")
+		return nil, errors.New("HORIZON transport is disabled")
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	c.activeCancel = cancel
@@ -70,18 +91,39 @@ func (c *Controller) Run(ctx context.Context, e model.Experiment) (model.Report,
 	c.done = make(chan struct{})
 	done := c.done
 	c.mu.Unlock()
-	defer func() { c.mu.Lock(); c.running = false; c.activeCancel = nil; close(done); c.mu.Unlock() }()
+	x := &Execution{cancel: cancel, done: make(chan struct{})}
+	go func() {
+		defer close(x.done)
+		defer func() { c.mu.Lock(); c.running = false; c.activeCancel = nil; close(done); c.mu.Unlock() }()
+		defer cancel()
+		if c.ctx.Err() != nil {
+			x.err = ErrStopped
+			return
+		}
+		transport, err := c.open()
+		if err != nil {
+			x.err = err
+			return
+		}
+		defer transport.Close()
+		x.report, x.err = Run(runCtx, e, c.policy, c.link, transport)
+	}()
+	return x, nil
+}
 
-	defer cancel()
-	if c.ctx.Err() != nil {
-		return model.Report{}, ErrStopped
-	}
-	transport, err := c.open()
+func (c *Controller) Run(ctx context.Context, e model.Experiment) (model.Report, error) {
+	x, err := c.Start(ctx, e)
 	if err != nil {
 		return model.Report{}, err
 	}
-	defer transport.Close()
-	return Run(runCtx, e, c.policy, c.link, transport)
+	return x.Result()
+}
+
+// Stopped reports whether the kill switch is engaged.
+func (c *Controller) Stopped() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.ctx.Err() != nil
 }
 
 // Stop is idempotent and rejects future plans/runs. In-flight receive, wait,

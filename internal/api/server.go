@@ -42,8 +42,9 @@ const maxBody = 1 << 20
 
 // ServerConfig configures the HTTP layer.
 type ServerConfig struct {
-	// Horizon is opt-in and owns independent server policy and its kill switch.
-	Horizon *horizon.Controller
+	// Horizon is opt-in: independent server policy, enabled modes, audit
+	// trail and kill switch all belong to the operator.
+	Horizon *horizon.Runs
 	Manager *Manager
 	Store   *storage.Store
 	// Token, when set, is required as "Authorization: Bearer <token>" on
@@ -74,6 +75,14 @@ func Handler(cfg ServerConfig) http.Handler {
 	api.HandleFunc("POST /api/v1/horizon/plan", s.horizonPlan)
 	api.HandleFunc("POST /api/v1/horizon/resolve", s.horizonRun)
 	api.HandleFunc("POST /api/v1/horizon/stop", s.horizonStop)
+	api.HandleFunc("GET /api/v1/horizon", s.horizonCapabilities)
+	api.HandleFunc("GET /api/v1/horizon/metrics", s.horizonMetrics)
+	api.HandleFunc("GET /api/v1/horizon/runs", s.horizonListRuns)
+	api.HandleFunc("POST /api/v1/horizon/runs", s.horizonCreateRun)
+	api.HandleFunc("GET /api/v1/horizon/runs/{id}", s.horizonGetRun)
+	api.HandleFunc("POST /api/v1/horizon/runs/{id}/cancel", s.horizonCancelRun)
+	api.HandleFunc("GET /api/v1/horizon/runs/{id}/report", s.horizonRunReport)
+	api.HandleFunc("GET /api/v1/horizon/runs/{id}/evidence-graph", s.horizonRunGraph)
 	api.HandleFunc("GET /api/v1/version", s.version)
 	api.HandleFunc("GET /api/v1/stats", s.stats)
 	api.HandleFunc("GET /api/v1/profiles", s.profiles)
