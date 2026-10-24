@@ -84,9 +84,11 @@ func BuildGraph(in GraphInput) (model.Graph, error) {
 		}
 	}
 	for _, c := range in.Changes {
-		if c.At.IsZero() || (c.Scope != "network" && !strings.HasPrefix(c.Scope, "host:")) {
+		scope, err := CanonicalChangeScope(c.Scope)
+		if c.At.IsZero() || err != nil {
 			return model.Graph{}, errors.New("change events need a time and a host:<address> or network scope")
 		}
+		c.Scope = scope
 		c.Source, c.At = "declared", c.At.UTC()
 		b.g.Changes = append(b.g.Changes, c)
 	}

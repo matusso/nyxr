@@ -261,6 +261,9 @@ func compileGeneral(e model.Experiment, policy model.Policy) (model.Plan, error)
 	if x.Replicates < 2 || x.Replicates > 50 || !x.RandomizedOrder || x.WashoutMS < 0 || x.WashoutMS > 5000 {
 		return p, errors.New("require 2..50 randomized pairs and 0..5000 ms washout")
 	}
+	if x.StopRule != "" && (x.StopRule != "curtail" || s.ChangedVariable != "precondition") {
+		return p, errors.New("stopRule curtail is supported only for precondition experiments")
+	}
 	references := 0
 	if x.ReferenceEvery != 0 {
 		// Reference probes use reserved source-port slot ReferenceProbe.

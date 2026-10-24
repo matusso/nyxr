@@ -137,6 +137,10 @@
               "maximum": 50,
               "default": 0,
               "description": "Insert one interleaved baseline reference probe after every N pairs; must not exceed replicates. Arms then hold at most 31 probes."
+            },
+            "stopRule": {
+              "enum": ["curtail"],
+              "description": "Precondition experiments only: stop after at least 8 complete pairs once no outcome of the remaining pairs can change the fixed-n sign-test decision (exact curtailment)."
             }
           }
         },

@@ -1,0 +1,34 @@
+{
+  "version": "horizon-adaptive-replay/v1",
+  "issue": 72,
+  "registered_at": "2026-10-23T20:30:00Z",
+  "registration_note": "Registered by the implementer in the same session that wrote the planner and before any corpus-wide run; only one recorded study (shared-endpoint-v4-002) had been replayed as a smoke test.",
+  "corpus": "lab/horizon/corpus/2026-10-23-cross-port-linux-arm64/raw-corpus.tar.gz",
+  "design": "retrospective: every configuration draws each requested role from the same recorded report, so configurations differ only in which roles (and, with curtailment, which pairs) they would have used",
+  "configurations": {
+    "fixed": {"args": ["--full-coverage"], "role": "non-adaptive baseline: every recorded role"},
+    "adaptive": {"args": [], "role": "classification task, uncurtailed roles"},
+    "adaptive-curtailed": {"args": ["--retro-curtail"], "role": "classification task, exact sign-test curtailment"},
+    "adaptive-refined": {"args": ["--retro-curtail", "--refine", "direction,cooldown"], "role": "classification plus direction and cooldown"},
+    "profile": {"args": ["--retro-curtail", "--refine", "direction,cooldown", "--profile"], "role": "profile built from study 000 of each topology and address family, applied to every other study of that family"}
+  },
+  "profile_ttl": "24h",
+  "primary_metrics": {
+    "accuracy": "classification statement equals the topology ground truth; unresolved is wrong; every planned study stays in the denominator",
+    "traffic": "measured transmitted packets (SYNs plus RST cleanup) summed over the roles a configuration used"
+  },
+  "gates": {
+    "G1_no_accuracy_loss": "every adaptive configuration is correct on every study where fixed is correct",
+    "G2_traffic": "adaptive-curtailed transmits fewer packets in total than fixed",
+    "G3_honest_coverage": "a statement or port is tested only when a role that measures it was run; fixed tests every recorded role",
+    "G4_profile_invalidation": "a profile is valid exactly when applied to a study of the topology it was built from",
+    "G5_profile_inference": "in valid applications every profile-inferred statement equals the value fixed measured for that study"
+  },
+  "counterexamples": "every study where an adaptive configuration's classification, direction, cooldown or rate-limiter statement differs from fixed is listed, whether or not a gate fails",
+  "limitations": [
+    "Retrospective: a prospective adaptive run would see different pairs; recorded pairs stand in for them.",
+    "Retrospective curtailment's duration ends at the next pair's first send, an upper bound.",
+    "One shared-kernel Linux lab with SYN token-bucket limiters only; repetitions are not independent hosts.",
+    "IPv6 studies recorded only main and same-port, so the null control was never available for them."
+  ]
+}

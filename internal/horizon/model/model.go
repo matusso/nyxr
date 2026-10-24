@@ -61,6 +61,9 @@ type Execution struct {
 	Seed            int64 `json:"seed" yaml:"seed,omitempty"`
 	WashoutMS       int   `json:"washoutMs" yaml:"washoutMs,omitempty"`
 	ReferenceEvery  int   `json:"referenceEvery,omitempty" yaml:"referenceEvery,omitempty"`
+	// StopRule "curtail" ends a precondition experiment once its fixed-n
+	// sign-test decision can no longer change (exact curtailment).
+	StopRule string `json:"stopRule,omitempty" yaml:"stopRule,omitempty"`
 }
 type Limits struct {
 	MaxReceiveFrames   int `json:"maxReceiveFrames,omitempty" yaml:"maxReceiveFrames,omitempty"`
@@ -193,6 +196,7 @@ type Report struct {
 	FinishedAt         time.Time        `json:"finishedAt"`
 	Completed          bool             `json:"completed"`
 	StopReason         string           `json:"stopReason,omitempty"`
+	Curtailment        *Curtailment     `json:"curtailment,omitempty"`
 	PacketsTX          int              `json:"packetsTx"`
 	CaptureBytes       int              `json:"captureBytes"`
 	BackendDrops       uint64           `json:"backendDrops"`
@@ -200,6 +204,14 @@ type Report struct {
 	Comparison         Comparison       `json:"comparison"`
 	Environment        *Environment     `json:"environment,omitempty"`
 	Limitations        []string         `json:"limitations"`
+}
+
+// Curtailment records an exact early stop: after Pairs complete pairs, every
+// possible outcome of the remaining pairs yields the same fixed-n decision.
+type Curtailment struct {
+	Rule     string `json:"rule"`
+	Pairs    int    `json:"pairs"`
+	Decision string `json:"decision"` // significant or not-significant
 }
 
 // Environment is a deterministic post-run quality assessment. Its flags are
@@ -406,4 +418,117 @@ type ChangeEvent struct {
 	Scope  string    `json:"scope"`  // host:<address> or network
 	Source string    `json:"source"` // declared or detected
 	Detail string    `json:"detail"`
+}
+
+const AdaptiveVersion = "horizon.nyxr.io/adaptive/v1"
+
+// AdaptiveStudy records a budgeted, sequentially chosen cross-port study:
+// every candidate the planner weighed, why it stopped and, for each statement
+// and port, whether it was tested now, inferred from a profile or not tested.
+type AdaptiveStudy struct {
+	APIVersion  string              `json:"apiVersion"`
+	Kind        string              `json:"kind"`
+	Task        AdaptiveTask        `json:"task"`
+	Budget      Budget              `json:"budget"`
+	Spent       Budget              `json:"spent"`
+	Steps       []AdaptiveStep      `json:"steps"`
+	StopReason  string              `json:"stopReason"` // sufficient, budget, indistinguishable, model-inconsistent, main-unresolved or full-coverage
+	StopDetail  string              `json:"stopDetail"`
+	Consistent  []string            `json:"consistentHypotheses"`
+	Study       CrossPortStudy      `json:"study"`
+	Statements  []CoverageStatement `json:"statements"`
+	Ports       []PortCoverage      `json:"ports"`
+	Profile     *ProfileCheck       `json:"profile,omitempty"`
+	Limitations []string            `json:"limitations"`
+}
+
+// AdaptiveTask is what the planner must resolve. The cross-port classification
+// is always resolved; Refine adds "direction" and/or "cooldown".
+type AdaptiveTask struct {
+	Refine       []string `json:"refine"`
+	Require      []string `json:"require"`
+	FullCoverage bool     `json:"fullCoverage"`
+	// LambdaBitsPerPacket trades expected information against packet cost.
+	LambdaBitsPerPacket float64 `json:"lambdaBitsPerPacket"`
+}
+
+// Budget bounds packets and wall time; zero means unlimited for that axis.
+type Budget struct {
+	Packets    int   `json:"packets"`
+	DurationMS int64 `json:"durationMs"`
+}
+type AdaptiveStep struct {
+	Role       string      `json:"role"`
+	Candidates []RoleScore `json:"candidates"`
+	Outcome    string      `json:"outcome"` // dependence, no-dependence or unresolved
+	RunID      string      `json:"runId"`
+	Packets    int         `json:"packets"`
+	DurationMS int64       `json:"durationMs"`
+	Curtailed  bool        `json:"curtailed"`
+	Consistent []string    `json:"consistentHypotheses"`
+}
+
+// RoleScore is one candidate experiment: expected information about the task
+// (bits, under the declared prior), its worst-case cost and the net score.
+type RoleScore struct {
+	Role          string  `json:"role"`
+	GainBits      float64 `json:"gainBits"`
+	MaxPackets    int     `json:"maxPackets"`
+	MaxDurationMS int64   `json:"maxDurationMs"`
+	Score         float64 `json:"score"`
+	Excluded      string  `json:"excluded,omitempty"`
+}
+
+// CoverageStatement is tested, profile-inferred or not-tested.
+type CoverageStatement struct {
+	Statement string   `json:"statement"`
+	Value     string   `json:"value"`
+	Coverage  string   `json:"coverage"`
+	Evidence  []string `json:"evidence"`
+}
+type PortCoverage struct {
+	Port     string   `json:"port"`
+	Coverage string   `json:"coverage"`
+	Roles    []string `json:"roles"`
+}
+
+const ProfileVersion = "horizon.nyxr.io/profile/v1"
+
+// BehaviorProfile is a versioned, expiring summary of a validated cross-port
+// study against one target from one vantage point. It is a prediction to be
+// checked, never a substitute for tests in full-coverage mode.
+type BehaviorProfile struct {
+	APIVersion     string       `json:"apiVersion"`
+	Kind           string       `json:"kind"`
+	ID             string       `json:"id"`
+	Class          string       `json:"class"`
+	Target         string       `json:"target"`
+	CreatedAt      time.Time    `json:"createdAt"`
+	EvidenceFrom   time.Time    `json:"evidenceFrom"` // earliest run start
+	ValidUntil     time.Time    `json:"validUntil"`
+	Vantage        Vantage      `json:"vantage"`
+	Fingerprint    Fingerprint  `json:"fingerprint"`
+	Classification string       `json:"classification"`
+	Direction      string       `json:"direction"`
+	Cooldown       string       `json:"cooldown"`
+	Subjects       []string     `json:"subjects"`
+	Hypotheses     []Hypothesis `json:"hypotheses"`
+	Evidence       []string     `json:"evidence"`
+}
+type Vantage struct {
+	SourceIP           string `json:"sourceIp"`
+	Backend            string `json:"backend"`
+	CorrelationVersion string `json:"correlationVersion"`
+}
+
+// Fingerprint is what the target itself replied with: reply TTLs (hop
+// distance) and the non-SACK TCP option layout of its SYN/ACKs.
+type Fingerprint struct {
+	ReplyTTLs []int  `json:"replyTtls"`
+	Options   string `json:"options"`
+}
+type ProfileCheck struct {
+	ProfileID string   `json:"profileId"`
+	Valid     bool     `json:"valid"`
+	Reasons   []string `json:"reasons"`
 }

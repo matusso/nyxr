@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/matusso/nyxr/internal/horizon"
 	"github.com/matusso/nyxr/internal/horizon/model"
@@ -280,5 +281,62 @@ func TestHorizonCLIGraphAndExplain(t *testing.T) {
 	}
 	if err := json.Unmarshal(out.Bytes(), &g); err != nil || g.Hypotheses[0].Status != "stale" {
 		t.Fatalf("declared change: %+v %v", g.Hypotheses, err)
+	}
+}
+
+func TestHorizonCLIAdaptAndProfile(t *testing.T) {
+	dir := t.TempDir()
+	evidence := filepath.Join(dir, "evidence")
+	if err := os.Mkdir(evidence, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"horizon", "adapt", "--policy", "lab", "--permit", "cross-port", "--allow-targets", "192.0.2.0/24", "--allow-ports", "443,8443",
+		"--simulate", "port-limit", "--evidence-dir", evidence, "--output", filepath.Join(dir, "study.json")}
+	for _, role := range []string{"main", "same-port"} {
+		b, err := os.ReadFile("../../lab/horizon/cross-port/" + role + ".yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		fast := strings.NewReplacer("replicates: 12", "replicates: 8", "washoutMs: 600", "washoutMs: 300", "windowMs: 100", "windowMs: 20", "durationMs: 100", "durationMs: 20").Replace(string(b))
+		experiment := filepath.Join(dir, role+".yaml")
+		if err := os.WriteFile(experiment, []byte(fast), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		args = append(args, "--"+role, experiment)
+	}
+	var out bytes.Buffer
+	if err := run(args, &out); err != nil {
+		t.Fatal(err)
+	}
+	var study model.AdaptiveStudy
+	if err := json.Unmarshal(out.Bytes(), &study); err != nil || study.Study.Classification != "per-port-state" || study.StopReason != "sufficient" {
+		t.Fatalf("adapt: %+v %v", study, err)
+	}
+	// Existing evidence or output is refused before any traffic is sent.
+	start := time.Now()
+	if err := run(args, &bytes.Buffer{}); err == nil || time.Since(start) > time.Second {
+		t.Fatalf("collision not refused up front: %v after %s", err, time.Since(start))
+	}
+	replay := "main=" + filepath.Join(evidence, "main.json") + ",same-port=" + filepath.Join(evidence, "same-port.json")
+	out.Reset()
+	if err := run([]string{"horizon", "adapt", "--replay", replay}, &out); err != nil {
+		t.Fatal(err)
+	}
+	profile := filepath.Join(dir, "profile.json")
+	if err := run([]string{"horizon", "profile", "build", "--study", replay, "--class", "lab-per-port", "--output", profile}, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := run([]string{"horizon", "profile", "check", "--profile", profile, "--study", replay}, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range [][]string{
+		{"horizon", "profile", "check", "--profile", profile, "--study", replay, "--change", "2026-10-23T00:00:00Z@hosts:192.0.2.10"},
+		{"horizon", "adapt", "--replay", replay, "--change", "2026-10-23T00:00:00Z@192.0.2.10"},
+		{"horizon", "adapt", "--replay", replay, "--simulate", "stable"},
+		{"horizon", "adapt", "--replay", replay, "--retro-curtail", "--evidence-dir", evidence},
+	} {
+		if err := run(bad, &bytes.Buffer{}); err == nil {
+			t.Fatalf("accepted %v", bad)
+		}
 	}
 }

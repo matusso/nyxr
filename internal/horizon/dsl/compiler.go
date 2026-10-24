@@ -158,7 +158,7 @@ func Compile(e model.Experiment, policy model.Policy) (model.Plan, error) {
 	if e.APIVersion == model.GeneralVersion {
 		return compileGeneral(e, policy)
 	}
-	if e.Spec.CrossPort || e.Spec.Limits.MaxReceiveFrames != 0 || e.Spec.Limits.MaxMemoryBytes != 0 || len(e.Spec.Confounders) != 0 || e.Spec.Execution.ReferenceEvery != 0 {
+	if e.Spec.CrossPort || e.Spec.Limits.MaxReceiveFrames != 0 || e.Spec.Limits.MaxMemoryBytes != 0 || len(e.Spec.Confounders) != 0 || e.Spec.Execution.ReferenceEvery != 0 || e.Spec.Execution.StopRule != "" {
 		return p, errors.New("v1alpha2 fields require v1alpha2")
 	}
 	for _, seq := range []model.Sequence{e.Spec.Control, e.Spec.Treatment} {
