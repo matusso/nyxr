@@ -21,6 +21,7 @@ jobs:
       - run: make check
       - name: Test HORIZON live baseline accounting (no network traffic)
         run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s lab/horizon/live
+      - run: make race
       - run: make fuzz
       - run: make package
       - name: Smoke test deb and rpm packages

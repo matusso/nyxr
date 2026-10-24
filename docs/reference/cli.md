@@ -74,6 +74,10 @@ that can still change the answer and records why it stopped; it takes
 `profile check --profile P --study role=R,... [--change ...] [--now T]` create
 and check expiring behavior profiles; check exits nonzero when invalid. See
 [adaptive planning and profiles](../horizon/adaptive-profiles.md).
+`audit-verify FILE` checks a HORIZON audit trail's hash chain. The `serve`
+HORIZON API (`--horizon-simulate`, `--horizon-modes`, `--horizon-audit`,
+`--horizon-max-runs`, `--horizon-retention`) requires a token and an audit
+file; see [HORIZON operations](../horizon/operations.md).
 `--pcapng FILE`, `--pcapng-max-bytes N` and `--pcapng-minimize` export bounded private packet evidence. `verify-capture REPORT PCAPNG` checks the actual capture against the report and packet references. See [Phase 2 correlation and evidence](../horizon/correlation-evidence.md) and the [HORIZON operator guide](../horizon/README.md) for examples and bounds.
 
 ## nyxr scan

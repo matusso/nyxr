@@ -24,7 +24,7 @@ PKG_VERSION := $(shell case '$(PKG_SEMVER)' in ([0-9]*.[0-9]*.[0-9]*) echo '$(PK
 
 export CGO_ENABLED := 0
 
-.PHONY: all build install uninstall test vet check fuzz benchmark cross linux-packages package checksums clean help
+.PHONY: all build install uninstall test vet check race fuzz benchmark cross linux-packages package checksums clean help
 
 all: check build
 
@@ -69,6 +69,15 @@ fuzz:
 	$(GO) test -run '^$$' -fuzz '^FuzzSequenceBounds$$' -fuzztime=5s -parallel=2 ./internal/horizon/dsl
 	$(GO) test -run '^$$' -fuzz '^FuzzReplay$$' -fuzztime=5s -parallel=2 ./internal/horizon
 	$(GO) test -run '^$$' -fuzz '^FuzzCorrelation$$' -fuzztime=5s -parallel=2 ./internal/horizon
+	$(GO) test -run '^$$' -fuzz '^FuzzLoadProfile$$' -fuzztime=5s -parallel=2 ./internal/horizon
+	$(GO) test -run '^$$' -fuzz '^FuzzLoadGraph$$' -fuzztime=5s -parallel=2 ./internal/horizon
+	$(GO) test -run '^$$' -fuzz '^FuzzVerifyAudit$$' -fuzztime=5s -parallel=2 ./internal/horizon
+	$(GO) test -run '^$$' -fuzz '^FuzzCanonicalChangeScope$$' -fuzztime=5s -parallel=2 ./internal/horizon
+	$(GO) test -run '^$$' -fuzz '^FuzzHorizonRunRequest$$' -fuzztime=5s -parallel=2 ./internal/api
+
+## race: run HORIZON and API tests under the race detector (cancellation, kill switch, audit)
+race:
+	CGO_ENABLED=1 $(GO) test -race -count=1 -run 'Runs|Audit|Horizon|Cancel|KillSwitch|Controller' ./internal/horizon ./internal/api
 
 ## benchmark: save fixed-workload measurements and CPU profile
 benchmark:

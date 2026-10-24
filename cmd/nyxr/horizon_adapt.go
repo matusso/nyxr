@@ -20,6 +20,7 @@ import (
 	"github.com/matusso/nyxr/internal/horizon"
 	"github.com/matusso/nyxr/internal/horizon/dsl"
 	"github.com/matusso/nyxr/internal/horizon/model"
+	"github.com/matusso/nyxr/internal/packetio"
 )
 
 // parseStudy replays every report of a role=report,... study specification.
@@ -91,6 +92,38 @@ func writeNew(path string, value any) error {
 	return errors.Join(horizonJSON(file, value), file.Close())
 }
 
+// openCLIAudit opens an optional audit trail for CLI runs.
+func openCLIAudit(path string) (*horizon.Audit, error) {
+	if path == "" {
+		return nil, nil
+	}
+	return horizon.OpenAudit(path)
+}
+
+// auditedRun records a CLI run before any traffic (failing closed) and its
+// outcome afterwards. Without an audit trail it is horizon.Run.
+func auditedRun(ctx context.Context, audit *horizon.Audit, e model.Experiment, policy model.Policy, link horizon.Link, transport packetio.PacketIO) (model.Report, error) {
+	if audit == nil {
+		return horizon.Run(ctx, e, policy, link, transport)
+	}
+	p, err := dsl.Compile(e, policy)
+	if err != nil {
+		return model.Report{}, err
+	}
+	a := horizon.AuditEntry{Actor: fmt.Sprintf("cli uid=%d backend=%s", os.Getuid(), link.Backend), Action: "cli.run", Mode: horizon.ModeOf(e),
+		ExperimentHash: p.Hash, Target: e.Spec.Scope.Targets[0], Ports: slices.Clone(e.Spec.Scope.TCPPorts), Outcome: "accepted"}
+	if err := audit.Record(a); err != nil {
+		return model.Report{}, fmt.Errorf("audit trail unavailable, run refused: %w", err)
+	}
+	report, runErr := horizon.Run(ctx, e, policy, link, transport)
+	a.Action, a.RunID, a.Outcome = "cli.finish", report.RunID, "completed"
+	if runErr != nil || !report.Completed {
+		a.Outcome = "incomplete"
+	}
+	a.Detail = fmt.Sprintf("packets=%d trials=%d", report.PacketsTX, len(report.Trials))
+	return report, errors.Join(runErr, audit.Record(a))
+}
+
 func splitList(value string) []string {
 	if value == "" {
 		return []string{}
@@ -126,6 +159,7 @@ func horizonAdapt(args []string, out io.Writer) error {
 	fs.Var(&changes, "change", "declared change TIME@host:IP or TIME@network[@detail] (repeatable)")
 	nowFlag := fs.String("now", "", "evaluation time for profile expiry (RFC 3339)")
 	evidenceDir := fs.String("evidence-dir", "", "existing directory for each run role's sealed report")
+	auditPath := fs.String("audit", "", "append each live/simulated role run to this hash-chained audit trail")
 	output := fs.String("output", "", "new private adaptive study file (refuses overwrites)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -164,7 +198,7 @@ func horizonAdapt(args []string, out io.Writer) error {
 				return fmt.Errorf("--replay cannot be combined with --%s", role)
 			}
 		}
-		if *curtail || *policyName != "" || *permissions != "" || *allowTargets != "" || *allowPorts != "" || *lf.sim != "" || lf.live() || *evidenceDir != "" {
+		if *curtail || *policyName != "" || *permissions != "" || *allowTargets != "" || *allowPorts != "" || *lf.sim != "" || lf.live() || *evidenceDir != "" || *auditPath != "" {
 			return errors.New("--replay sends no traffic; it takes no policy, link, curtail or evidence options")
 		}
 		study, err := parseStudy(*replay)
@@ -250,13 +284,20 @@ func horizonAdapt(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
+		audit, err := openCLIAudit(*auditPath)
+		if err != nil {
+			return err
+		}
+		if audit != nil {
+			defer audit.Close()
+		}
 		in.Run = func(ctx context.Context, role string) (model.Report, error) {
 			transport, err := open()
 			if err != nil {
 				return model.Report{}, err
 			}
 			defer transport.Close()
-			report, runErr := horizon.Run(ctx, in.Experiments[role], in.Policy, link, transport)
+			report, runErr := auditedRun(ctx, audit, in.Experiments[role], in.Policy, link, transport)
 			if *evidenceDir != "" && report.APIVersion != "" {
 				envelope, err := horizon.Seal(report)
 				if err == nil {

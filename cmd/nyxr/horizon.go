@@ -44,6 +44,7 @@ func runHorizon(args []string, out io.Writer) error {
   nyxr horizon adapt --replay main=a.json,same-port=b.json,... [--retro-curtail] [task/budget/profile options]
   nyxr horizon profile build --study main=a.json,... --class LABEL [--ttl 24h] [--output profile.json]
   nyxr horizon profile check --profile profile.json --study main=a.json,... [--change TIME@host:IP] [--now TIME]
+  nyxr horizon audit-verify audit.jsonl
 
 v1alpha1 HZ-001 and v1alpha2 bounded send/observe/wait/repeat sequences.
 v1alpha2 requires --policy; cross-port requires --permit cross-port.
@@ -154,6 +155,21 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 	if args[0] == "profile" {
 		return horizonProfile(args[1:], out)
 	}
+	if args[0] == "audit-verify" {
+		if len(args) != 2 {
+			return errors.New("horizon audit-verify requires one audit file")
+		}
+		file, err := os.Open(args[1])
+		if err != nil {
+			return err
+		}
+		n, err := horizon.VerifyAudit(file)
+		if err = errors.Join(err, file.Close()); err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(out, "audit chain verified: %d entries\n", n)
+		return err
+	}
 	if args[0] == "cross-port" {
 		fs := flag.NewFlagSet("horizon cross-port", flag.ContinueOnError)
 		fs.SetOutput(out)
@@ -254,6 +270,7 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 	pcapMax := fs.Int64("pcapng-max-bytes", 8<<20, "encoded PCAPNG file cap, 256 bytes..8 MiB")
 	pcapMinimize := fs.Bool("pcapng-minimize", false, "omit application payload in PCAPNG; raw JSON remains authoritative")
 	output := fs.String("output", "", "new private evidence file (refuses overwrites)")
+	auditPath := fs.String("audit", "", "append this run to a hash-chained audit trail (fails closed)")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -333,7 +350,14 @@ Ctrl-C cancels execution and emits partial evidence. No active mode is a default
 		}
 		defer pcapFile.Close()
 	}
-	report, runErr := horizon.Run(ctx, e, policy, link, transport)
+	audit, err := openCLIAudit(*auditPath)
+	if err != nil {
+		return err
+	}
+	if audit != nil {
+		defer audit.Close()
+	}
+	report, runErr := auditedRun(ctx, audit, e, policy, link, transport)
 	if report.APIVersion == "" {
 		return runErr
 	}
