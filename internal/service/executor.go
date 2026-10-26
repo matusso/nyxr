@@ -50,6 +50,10 @@ func (e *Engine) executeProbe(ctx context.Context, t Target, name string, redisH
 		machine = probeFunc(e.probeModbus)
 	case ProbeEtherNetIP:
 		machine = probeFunc(e.probeEtherNetIP)
+	case ProbeS7:
+		machine = probeFunc(e.probeS7)
+	case ProbeOPCUA:
+		machine = probeFunc(e.probeOPCUA)
 	case ProbeDatabase:
 		machine = probeFunc(func(ctx context.Context, t Target, o *observe.Observation) bool {
 			return e.probeDatabase(ctx, t, o, redisHint)

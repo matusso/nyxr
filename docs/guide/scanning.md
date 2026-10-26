@@ -67,14 +67,14 @@ profile     ot-safe
 targets     1 (192.0.2.10)
 allow       192.0.2.0/24
 protocols   tcp
-ports       80,443,502,44818
+ports       80,102,443,502,4840,44818
 timeout     3s
 rate        5/s
 workers     4
 tcp-mode    connect
-tasks       4
-service     modbus, ethernetip (fallback none)
-svc-timeout 3s, 4 workers, 5/s
+tasks       6
+service     modbus, ethernetip, s7, opcua (fallback none)
+svc-timeout 5s, 4 workers, 5/s
 db          ~/.nyxr/nyxr.db
 fingerprint enabled
 ```

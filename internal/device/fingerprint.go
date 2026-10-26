@@ -96,8 +96,9 @@ func (c *Collector) Results() []observe.Observation {
 			continue
 		}
 		signals := append([]observe.DeviceSignal(nil), s.signals...)
-		if s.verified["modbus"] || s.verified["ethernetip"] {
-			for port, service := range map[uint16]string{502: "modbus", 44818: "ethernetip"} {
+		industrial := s.verified["modbus"] || s.verified["ethernetip"] || s.verified["s7"]
+		if industrial {
+			for port, service := range map[uint16]string{502: "modbus", 44818: "ethernetip", 102: "s7"} {
 				if s.ports[port] && !s.verified[service] {
 					signals = append(signals, observe.DeviceSignal{Source: fmt.Sprintf("port:tcp/%d", port), Transport: "tcp", Port: port, Detail: "open industrial protocol port"})
 				}
@@ -108,7 +109,9 @@ func (c *Collector) Results() []observe.Observation {
 		}
 		class := "networked device"
 		switch {
-		case s.verified["modbus"] || s.verified["ethernetip"]:
+		// OPC UA is not on this list: its servers are as often PC or
+		// gateway software as controllers.
+		case industrial:
 			class = "industrial device"
 		case s.verified["bacnet"]:
 			class = "building automation device"

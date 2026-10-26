@@ -73,3 +73,23 @@ func TestAmbiguousBSDFamilyAcceptsApplicationAliases(t *testing.T) {
 		t.Fatal("conflicting family accepted")
 	}
 }
+
+func TestS7IsIndustrialButOPCUAAloneIsNot(t *testing.T) {
+	plc, gateway := netip.MustParseAddr("192.0.2.8"), netip.MustParseAddr("192.0.2.9")
+	c := New()
+	for _, o := range []observe.Observation{
+		{Kind: observe.KindService, Target: plc, Transport: "tcp", Port: 102, Service: "s7", Fingerprint: observe.FingerprintMatched, Reason: "validated identity"},
+		{Kind: observe.KindPort, Target: plc, Transport: "tcp", Port: 502, State: "open"},
+		{Kind: observe.KindService, Target: gateway, Transport: "tcp", Port: 4840, Service: "opcua", Fingerprint: observe.FingerprintMatched, Reason: "validated identity"},
+		{Kind: observe.KindService, Target: gateway, Transport: "tcp", Port: 22, Service: "ssh", Fingerprint: observe.FingerprintMatched, Reason: "validated identity"},
+	} {
+		c.Add(o)
+	}
+	classes := map[netip.Addr]string{}
+	for _, d := range c.Results() {
+		classes[d.Target] = d.Attributes["device.class"]
+	}
+	if classes[plc] != "industrial device" || classes[gateway] != "networked device" {
+		t.Fatalf("classes: %v", classes)
+	}
+}

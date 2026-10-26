@@ -13,7 +13,7 @@ import (
 // product/version claim still requires a protocol parser and its evidence.
 var serviceFamilies = []string{
 	ProbeTLS, ProbeHTTP, ProbeDNS, ProbeSOCKS, ProbeModbus,
-	ProbeEtherNetIP, ProbeDatabase, ProbeSSH,
+	ProbeEtherNetIP, ProbeS7, ProbeOPCUA, ProbeDatabase, ProbeSSH,
 	ProbeSMB, ProbeRDP, ProbeMSRPC,
 	ProbeLDAP, ProbeKerberos, ProbeNFS, "unknown",
 }
@@ -33,6 +33,8 @@ var probeModel = map[string]struct {
 	ProbeSOCKS:         {0.96, 1.15},
 	ProbeModbus:        {0.96, 1.45},
 	ProbeEtherNetIP:    {0.96, 1.45},
+	ProbeS7:            {0.94, 1.60},
+	ProbeOPCUA:         {0.95, 1.60},
 	ProbeDatabase:      {0.90, 1.35},
 	ProbeSMB:           {0.97, 1.40},
 	ProbeRDP:           {0.97, 1.30},
@@ -105,6 +107,7 @@ func newProbePlannerFor(e *Engine, port uint16, transport string) *probePlanner 
 			{tlsPorts, ProbeTLS, 24}, {httpPorts, ProbeHTTP, 20},
 			{dnsPorts, ProbeDNS, 30}, {socksPorts, ProbeSOCKS, 30},
 			{modbusPorts, ProbeModbus, 30}, {ethernetIPPorts, ProbeEtherNetIP, 30},
+			{s7Ports, ProbeS7, 30}, {opcuaPorts, ProbeOPCUA, 30},
 			{databasePorts, ProbeDatabase, 24},
 			{smbPorts, ProbeSMB, 30}, {rdpPorts, ProbeRDP, 30}, {msrpcPorts, ProbeMSRPC, 30},
 			{ldapPorts, ProbeLDAP, 30}, {kerberosPorts, ProbeKerberos, 30}, {nfsPorts, ProbeNFS, 30},

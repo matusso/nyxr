@@ -58,6 +58,8 @@ from the current evidence:
    | --- | --- |
    | TCP/53 | `dns` (CHAOS `version.bind`) |
    | TCP/1080 | `socks` |
+   | TCP/502, TCP/44818 | `modbus`, `ethernetip` |
+   | TCP/102, TCP/4840 | `s7`, `opcua` |
    | TLS ports such as 443, 8443, 993 | `tls`, `http` |
    | HTTP ports such as 80, 8080 | `http`, `tls` |
 
@@ -114,11 +116,12 @@ Unrecognized or absent responses produce `fingerprint: "unknown"` with the raw
 bytes retained, so they can seed future signatures.
 
 All probes are unauthenticated, read-only handshakes. `ot-safe` permits only
-the Modbus and EtherNet/IP identity reads.
+the Modbus, EtherNet/IP, S7 and OPC UA identity reads; see
+[OT and IoT](ot-and-iot.md#industrial-identity-probes).
 
 Available probes for `--service-probes`: `banner`, `ssh`, `tls`, `http`, `dns`,
-`socks`, `modbus`, `ethernetip`, `database`, `nmap`, `smb`, `rdp`, `msrpc`,
-`ldap`, `kerberos`, `nfs`.
+`socks`, `modbus`, `ethernetip`, `s7`, `opcua`, `database`, `nmap`, `smb`,
+`rdp`, `msrpc`, `ldap`, `kerberos`, `nfs`.
 
 The `smb`, `rdp`, `msrpc`, `ldap` and `kerberos` probes identify the services
 Windows and Active Directory hosts propagate; see
