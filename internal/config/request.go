@@ -57,6 +57,7 @@ type Request struct {
 	ServiceRate         *int   `yaml:"service_rate" json:"service_rate,omitempty"`
 	NmapServiceProbes   string `yaml:"nmap_service_probes" json:"nmap_service_probes,omitempty"`
 	ProtocolDefinitions string `yaml:"protocol_definitions" json:"protocol_definitions,omitempty"`
+	ServiceTLSProfiles  string `yaml:"service_tls_profiles" json:"service_tls_profiles,omitempty"`
 	NSEScripts          string `yaml:"nse_scripts" json:"nse_scripts,omitempty"`
 	NSETimeout          string `yaml:"nse_timeout" json:"nse_timeout,omitempty"`
 	Fingerprint         bool   `yaml:"fingerprint" json:"fingerprint,omitempty"`
@@ -195,7 +196,7 @@ func (r Request) Resolve(o ResolveOptions) (Resolved, error) {
 	cfg.TargetPorts = restrict
 	svc, err := BuildService(cfg, ServiceOptions{Enable: r.Service, Probes: r.ServiceProbes, Fallback: r.ServiceFallback,
 		Timeout: r.ServiceTimeout, Workers: r.ServiceWorkers, Rate: r.ServiceRate, NmapProbes: r.NmapServiceProbes,
-		ProtocolDefinitions: r.ProtocolDefinitions, BaseDir: o.BaseDir})
+		ProtocolDefinitions: r.ProtocolDefinitions, TLSProfiles: r.ServiceTLSProfiles, BaseDir: o.BaseDir})
 	if err != nil {
 		return Resolved{}, err
 	}

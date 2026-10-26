@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/matusso/nyxr/internal/probe"
+	"github.com/matusso/nyxr/internal/service"
 )
 
 // Config is shared by the CLI and scan engine. A future API can use the same
@@ -19,6 +21,7 @@ type Config struct {
 	Targets       []netip.Addr
 	TargetStream  *TargetStream  // compact IPv4 ranges for large SYN scans
 	AllowTargets  []netip.Prefix // explicit CIDR/IP authorization for target policy
+	TargetNames   TargetNames    // DNS names behind Targets, used as TLS SNI only
 	Ports         []uint16
 	UDPPorts      []uint16 // UDP ports when they differ from Ports; nil means Ports
 	TCP           bool
@@ -385,9 +388,40 @@ func ParsePorts(s string) ([]uint16, error) {
 	return ports, nil
 }
 
+// TargetNames maps an address to the operator-supplied DNS names that
+// resolved to it, in input order and at most service.MaxTargetHostnames per
+// address. A name is only a TLS SNI hint: authorization always applies to
+// the resolved address.
+type TargetNames map[netip.Addr][]string
+
+// lookupIP is a test hook for DNS target resolution.
+var lookupIP = net.LookupIP
+
+func (n TargetNames) add(name string, a netip.Addr) {
+	if n == nil {
+		return
+	}
+	name = strings.ToLower(strings.TrimSuffix(name, "."))
+	if slices.Contains(n[a], name) || len(n[a]) >= service.MaxTargetHostnames {
+		return
+	}
+	n[a] = append(n[a], name)
+}
+
 // ParseTargets accepts addresses, CIDRs, inclusive address ranges, and DNS
 // names. Large ranges are refused before scan tasks are generated.
 func ParseTargets(inputs []string) ([]netip.Addr, error) {
+	return parseTargets(inputs, nil)
+}
+
+// ParseTargetsNamed is ParseTargets that also keeps the DNS names.
+func ParseTargetsNamed(inputs []string) ([]netip.Addr, TargetNames, error) {
+	names := TargetNames{}
+	targets, err := parseTargets(inputs, names)
+	return targets, names, err
+}
+
+func parseTargets(inputs []string, names TargetNames) ([]netip.Addr, error) {
 	seen := make(map[netip.Addr]bool)
 	add := func(a netip.Addr) error {
 		a = a.Unmap()
@@ -442,7 +476,7 @@ func ParseTargets(inputs []string) ([]netip.Addr, error) {
 					continue
 				}
 			}
-			ips, err := net.LookupIP(token)
+			ips, err := lookupIP(token)
 			if err != nil {
 				return nil, fmt.Errorf("resolve %q: %w", token, err)
 			}
@@ -452,6 +486,7 @@ func ParseTargets(inputs []string) ([]netip.Addr, error) {
 					if err := add(a); err != nil {
 						return nil, err
 					}
+					names.add(token, a.Unmap())
 				}
 			}
 		}

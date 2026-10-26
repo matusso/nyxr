@@ -21,8 +21,20 @@ var errHostKeyCaptured = errors.New("SSH host key captured")
 
 // probeSSHHostKey completes key exchange and stops before authentication.
 // x/crypto/ssh verifies the server's key-exchange signature before invoking
-// HostKeyCallback, so only a proven key becomes an identity signal.
-func (e *Engine) probeSSHHostKey(ctx context.Context, target Target, o *observe.Observation) observe.Evidence {
+// HostKeyCallback, so only a proven key becomes an identity signal. The
+// cleartext KEXINIT offers of both sides are kept as negotiation metadata
+// and a configuration fingerprint, even when no algorithm is shared.
+func (e *Engine) probeSSHHostKey(ctx context.Context, target Target, o *observe.Observation) {
+	ev := e.sshHostKeyExchange(ctx, target, o)
+	o.Evidence = append(o.Evidence, ev)
+	negotiationErr := ""
+	if ev.Matched == "" {
+		negotiationErr = ev.Error
+	}
+	recordSSHNegotiation(o, len(o.Evidence)-1, negotiationErr)
+}
+
+func (e *Engine) sshHostKeyExchange(ctx context.Context, target Target, o *observe.Observation) observe.Evidence {
 	ev := observe.Evidence{Probe: probeSSHHostKey, Layer: "tcp", Started: time.Now().UTC()}
 	timeout := e.timeout(ProbeSSH)
 	conn, err := e.dial(ctx, target, timeout)

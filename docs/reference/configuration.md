@@ -88,6 +88,7 @@ Accepted only with the `research` profile. See [Research packets](../guide/resea
 | `service` | `--service` | boolean | Run the service stage on open TCP ports |
 | `service_probes` | `--service-probes` | string | Allowed service probes |
 | `service_fallback` | `--service-fallback` | string | Probes for silent ports without a hint, or `none` |
+| `service_tls_profiles` | `--service-tls-profiles` | string | Alternative TLS ClientHello profiles, `all` or `none` |
 | `service_timeout` | `--service-timeout` | duration | Upper bound per service probe |
 | `service_workers` | `--service-workers` | integer | Concurrent service workers |
 | `service_rate` | `--service-rate` | integer | New service connections per second |

@@ -242,7 +242,7 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 				}
 			}
 			if eligible && ctx.Err() == nil {
-				t := service.Target{Addr: o.Target, Port: o.Port, Transport: o.Transport, State: o.State}
+				t := service.Target{Addr: o.Target, Port: o.Port, Transport: o.Transport, State: o.State, Hostnames: cfg.TargetNames[o.Target]}
 				if cfg.Profile == "ot-safe" && opts.Service.Enabled {
 					otOpen = append(otOpen, t)
 				} else if engine != nil {

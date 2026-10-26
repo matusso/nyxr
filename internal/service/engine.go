@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"sync"
 	"time"
 
@@ -94,6 +95,10 @@ type Config struct {
 	// built-in matchers do not recognize is matched against the database's
 	// NULL-probe rules. It sends no additional traffic.
 	Nmap *nmapdb.Database
+	// TLSProfiles names alternative ClientHello profiles (TLSProfileNames)
+	// tried after the default handshake identifies TLS. Empty sends only
+	// the default ClientHello.
+	TLSProfiles []string
 	// Definitions are validated protocol state machines loaded for this scan.
 	Definitions     []ProtocolDefinition
 	RegistryVersion uint64
@@ -129,6 +134,11 @@ func (c Config) Validate() error {
 	for _, n := range Names() {
 		known[n] = true
 	}
+	for _, p := range c.TLSProfiles {
+		if !slices.Contains(TLSProfileNames(), p) {
+			return fmt.Errorf("unknown TLS profile %q (known: %v)", p, TLSProfileNames())
+		}
+	}
 	for _, list := range [][]string{c.Probes, c.Fallback} {
 		for _, p := range list {
 			if !known[p] {
@@ -145,6 +155,9 @@ type Target struct {
 	Port      uint16
 	Transport string // empty defaults to tcp
 	State     string // discovery state, including open|filtered for UDP
+	// Hostnames are the operator's names that resolved to Addr, at most
+	// MaxTargetHostnames. They are SNI only; Addr alone was authorized.
+	Hostnames []string
 }
 
 // Engine runs a fixed pool of interrogation workers.

@@ -99,7 +99,7 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 				planner.recordUpdate(&o, ProbeBanner, "matched", 0, before, matched)
 				if matched == ProbeSSH && ctx.Err() == nil {
 					o.ProbesAttempted = append(o.ProbesAttempted, probeSSHHostKey)
-					o.Evidence = append(o.Evidence, e.probeSSHHostKey(ctx, t, &o))
+					e.probeSSHHostKey(ctx, t, &o)
 				}
 				o.Fingerprint, o.ProbeStopReason = observe.FingerprintMatched, "identified"
 				return o

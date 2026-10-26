@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/netip"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -367,5 +368,22 @@ func TestManualSeparationPreservesOtherReviewedJoins(t *testing.T) {
 		if len(asset.Addresses) == 2 && (asset.Addresses[0].Address != b || asset.Addresses[1].Address != c) {
 			t.Fatalf("reviewed pair split: %+v", graph)
 		}
+	}
+}
+
+func TestApplicationFingerprintsAreNotMergeKeys(t *testing.T) {
+	ssh := observe.Observation{Kind: observe.KindService, State: "open", Confidence: 100, Service: "ssh", Probe: "ssh",
+		Attributes:      map[string]string{"ssh.host_key_type": "ssh-ed25519", "ssh.host_key_sha256": strings.Repeat("ab", 32)},
+		SSH:             &observe.SSH{KEX: []string{"curve25519-sha256"}},
+		AppFingerprints: []observe.AppFingerprint{{Method: observe.FingerprintSSHServer, Value: strings.Repeat("cd", 32), Status: "observed"}}}
+	values := strongIdentityValues(ssh)
+	if len(values) != 1 || values[0].kind != "ssh.host_key_sha256" {
+		t.Fatalf("only the verified host key may join addresses: %+v", values)
+	}
+	tlsObs := observe.Observation{Kind: observe.KindService, State: "open", Confidence: 100, Service: "https", Probe: "tls+http",
+		TLS:             &observe.TLS{ServerName: "app.example.test", Certificates: []observe.Certificate{{SHA256: strings.Repeat("ef", 32)}}},
+		AppFingerprints: []observe.AppFingerprint{{Method: observe.FingerprintTLSServer, Value: strings.Repeat("01", 32), Status: "observed"}}}
+	if values := strongIdentityValues(tlsObs); len(values) != 0 {
+		t.Fatalf("TLS fingerprints, SNI and certificates are shared values, not merge keys: %+v", values)
 	}
 }
