@@ -43,6 +43,7 @@ func (e *Engine) probeTLS(ctx context.Context, t Target, o *observe.Observation)
 	}
 	tc, ev, ok := e.handshake(ctx, t, alpn)
 	o.Evidence = append(o.Evidence, ev)
+	handshakeIndex := len(o.Evidence) - 1
 	if !ok {
 		if desc, alert := tlsrecord.Alert(ev.Response); alert && desc == tlsrecord.NoApplicationProtocol {
 			return e.directPostgres(ctx, t, o)
@@ -57,9 +58,13 @@ func (e *Engine) probeTLS(ctx context.Context, t Target, o *observe.Observation)
 		}
 		return false
 	}
+	// Deferred first so it runs after the connection below is closed.
+	defer e.collectTLSProfiles(ctx, t, alpn, o)
 	defer tc.Close()
 	state := tc.ConnectionState()
 	o.TLS = summarizeTLS(state)
+	o.TLS.Profile = defaultTLSProfile.name
+	recordTLSFingerprint(o, handshakeIndex, defaultTLSProfile.name, state.ServerName)
 	o.Service, o.Confidence, o.Probe = "tls", 100, ProbeTLS
 	o.Reason = "TLS handshake completed"
 
@@ -163,8 +168,18 @@ func (e *Engine) bannerInsideTLS(o *observe.Observation, ev *observe.Evidence, d
 }
 
 func (e *Engine) handshake(ctx context.Context, t Target, alpn []string) (*tls.Conn, observe.Evidence, bool) {
+	return e.handshakeProfile(ctx, t, alpn, defaultTLSProfile, t.serverName())
+}
+
+// handshakeProfile sends the ClientHello of profile with SNI serverName,
+// which is empty for an address-only target. Authorization is unaffected:
+// the connection always goes to the already-approved t.Addr.
+func (e *Engine) handshakeProfile(ctx context.Context, t Target, alpn []string, profile tlsProfile, serverName string) (*tls.Conn, observe.Evidence, bool) {
 	timeout := e.timeout(ProbeTLS)
 	ev := observe.Evidence{Probe: ProbeTLS, Layer: "tcp", Started: time.Now().UTC()}
+	if profile.name != defaultTLSProfile.name {
+		ev.Probe = probeTLSProfile + profile.name
+	}
 	raw, err := e.dial(ctx, t, timeout)
 	if err != nil {
 		ev.Error, ev.Duration = errorText(err), time.Since(ev.Started)
@@ -175,9 +190,11 @@ func (e *Engine) handshake(ctx context.Context, t Target, alpn []string) (*tls.C
 	defer stop()
 	tc := tls.Client(rc, &tls.Config{
 		InsecureSkipVerify: true, // identification, not trust: the chain is recorded instead
-		MinVersion:         tls.VersionTLS10,
-		CipherSuites:       clientCipherSuites,
+		MinVersion:         profile.min,
+		MaxVersion:         profile.max,
+		CipherSuites:       profile.suites,
 		NextProtos:         alpn,
+		ServerName:         serverName,
 	})
 	err = tc.HandshakeContext(ctx)
 	e.finish(&ev, rc, err)
@@ -185,7 +202,7 @@ func (e *Engine) handshake(ctx context.Context, t Target, alpn []string) (*tls.C
 		_ = raw.Close()
 		return nil, ev, false
 	}
-	ev.Matched = ProbeTLS
+	ev.Matched = ev.Probe
 	return tc, ev, true
 }
 

@@ -78,7 +78,12 @@ type Observation struct {
 	// Attributes holds protocol fields such as http.server or ssh.software.
 	Attributes map[string]string `json:"attributes,omitempty"`
 	TLS        *TLS              `json:"tls,omitempty"`
+	SSH        *SSH              `json:"ssh,omitempty"`
 	NSE        *NSEResult        `json:"nse,omitempty"`
+	// AppFingerprints are versioned TLS/SSH configuration fingerprints with
+	// the evidence they came from; Conflicts keeps disagreeing exchanges.
+	AppFingerprints      []AppFingerprint      `json:"app_fingerprints,omitempty"`
+	FingerprintConflicts []FingerprintConflict `json:"fingerprint_conflicts,omitempty"`
 	// Evidence lists every deep-probe exchange, matched or not.
 	Evidence          []Evidence     `json:"evidence,omitempty"`
 	EvidenceTruncated bool           `json:"evidence_truncated,omitempty"`
@@ -191,9 +196,12 @@ type TLS struct {
 	CipherSuite  string        `json:"cipher_suite"`
 	ALPN         string        `json:"alpn,omitempty"`
 	ServerName   string        `json:"server_name,omitempty"` // SNI sent, if any
+	Profile      string        `json:"profile,omitempty"`     // ClientHello profile of this handshake
 	OCSPStapled  bool          `json:"ocsp_stapled,omitempty"`
 	SCTs         int           `json:"scts,omitempty"`
 	Certificates []Certificate `json:"certificates,omitempty"`
+	// Profiles are the bounded alternative ClientHello variants, when enabled.
+	Profiles []TLSProfileResult `json:"profiles,omitempty"`
 }
 
 // Certificate summarizes one presented certificate, leaf first.

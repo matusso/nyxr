@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"math"
-	"net"
 	"net/netip"
 	"sort"
 	"strings"
@@ -29,6 +28,10 @@ func ipv4Address(n uint32) netip.Addr {
 }
 
 func ParseTargetStream(inputs []string) (*TargetStream, error) {
+	return parseTargetStream(inputs, nil)
+}
+
+func parseTargetStream(inputs []string, names TargetNames) (*TargetStream, error) {
 	var ranges []ipv4Range
 	add := func(first, last netip.Addr) error {
 		first, last = first.Unmap(), last.Unmap()
@@ -76,7 +79,7 @@ func ParseTargetStream(inputs []string) (*TargetStream, error) {
 					continue
 				}
 			}
-			ips, err := net.LookupIP(token)
+			ips, err := lookupIP(token)
 			if err != nil {
 				return nil, fmt.Errorf("resolve %q: %w", token, err)
 			}
@@ -86,6 +89,7 @@ func ParseTargetStream(inputs []string) (*TargetStream, error) {
 					if err := add(addr, addr); err != nil {
 						return nil, err
 					}
+					names.add(token, addr.Unmap())
 				}
 			}
 		}

@@ -6,6 +6,7 @@ listening, and keeps probe evidence so the claim can be checked.
 - [Enable the service stage](#enable-the-service-stage)
 - [How a port is identified](#how-a-port-is-identified)
 - [TLS](#tls)
+- [TLS and SSH fingerprints](#tls-and-ssh-fingerprints)
 - [HTTP](#http)
 - [SOCKS](#socks)
 - [Evidence](#evidence)
@@ -141,8 +142,69 @@ with the same banner rules, so IMAPS or SMTPS on an unusual port is still
 named. A PostgreSQL 17+ listener that refuses the HTTP ALPN offer is retried
 with ALPN `postgresql` (direct SSL).
 
-SNI for hostname targets and alternative ClientHello profiles are not
-implemented yet.
+### Hostnames and SNI
+
+A target given as a DNS name is resolved once, when the scan is planned. Every
+resolved address must pass `--allow-targets` like a literal address; the name
+authorizes nothing. nyxr keeps up to four names per address, in the order
+given, lower case. The first name is sent as SNI in the default handshake, and
+`tls.server_name` records the SNI that was actually sent (empty for an
+address-only target). `tls.profile` names the ClientHello that produced the
+record (`default`).
+
+### Alternative ClientHello profiles
+
+`--service-tls-profiles` (request field `service_tls_profiles`) adds a bounded
+set of extra handshakes after the default handshake has identified TLS. Each
+one is a separate connection with the TLS probe's own deadline and the
+service rate limit, and nothing is sent after it completes:
+
+| Profile | ClientHello |
+| --- | --- |
+| `tls13` | TLS 1.3 only |
+| `tls12` | TLS 1.2 only, Go's secure cipher suites |
+| `legacy` | TLS 1.0–1.1, every suite Go implements |
+| `no-sni` | The default offer without SNI; only for hostname targets |
+| `vhosts` | The default offer once for each additional name (at most three) |
+
+Use a comma list, `all`, or `none` (the default). Each result in
+`tls.profiles` has an `outcome`: `negotiated` (with version, suite, ALPN and
+leaf SHA-256), `alert` (with the alert name, for example `protocol_version`
+or `unrecognized_name`), `plaintext` (a non-TLS answer such as an HTTP 400),
+`no-response` or `error`. `ot-safe` refuses alternative profiles.
+
+When handshakes that sent the same SNI present different leaf certificates,
+both values are kept in `fingerprint_conflicts` with the evidence of each
+side. This can mean several backends behind one address or an intercepting
+middlebox; nyxr does not decide which.
+
+## TLS and SSH fingerprints
+
+nyxr derives versioned, normalized fingerprints from bytes it already
+retained, so they cost no extra traffic:
+
+- `nyxr-tls-server/v1`: the negotiated version, cipher suite and ServerHello
+  extension order, from each handshake whose ServerHello was fully retained.
+  The value depends on the client offer, so compare values only within the
+  same `profile`.
+- `nyxr-ssh-kexinit/v1`: the server's KEXINIT kex, host-key and
+  server-to-client cipher, MAC and compression lists, in wire order.
+
+Each `app_fingerprints` entry has the `method`, the normalized string, its
+SHA-256 `value`, the `profile` and `server_name` where relevant, and the index
+of its source `evidence`. A value computed from a cut-off exchange is not
+guessed; if the message is incomplete there is no entry.
+
+For SSH, the host-key exchange also fills `ssh`: the server's algorithm lists
+(observed) and `negotiated`, the algorithms both offers would select under the
+RFC 4253 rule. `negotiated` is labeled `inferred` because the server never
+states it. When the two sides share no algorithm, the server's offer is still
+recorded and `negotiation_error` explains why no host key was verified.
+
+These fingerprints describe software configuration. Many unrelated hosts share
+them, so they never join assets (only a signature-verified SSH host key does),
+and they never confirm an operating system, device class or intermediary
+role.
 
 ## HTTP
 

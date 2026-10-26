@@ -55,6 +55,7 @@ type stageFlags struct {
 	serviceRate         *int
 	nmapProbes          *string
 	protocolDefinitions *string
+	tlsProfiles         *string
 	nseScripts          *string
 	nseTimeout          *time.Duration
 	pcapng              *string
@@ -73,6 +74,7 @@ func addStageFlags(fs *flag.FlagSet) *stageFlags {
 	s.serviceRate = fs.Int("service-rate", -1, "new service connections per second (0 unlimited)")
 	s.nmapProbes = fs.String("nmap-service-probes", "", "import this nmap-service-probes file for banner matching")
 	s.protocolDefinitions = fs.String("protocol-definitions", "", "comma-separated local Nyxr Protocol DSL files")
+	s.tlsProfiles = fs.String("service-tls-profiles", "", "alternative TLS ClientHello profiles: tls13, tls12, legacy, no-sni, vhosts, all or none")
 	s.nseScripts = fs.String("nse-scripts", "", "comma list of installed safe Nmap NSE scripts")
 	s.nseTimeout = fs.Duration("nse-timeout", 0, "maximum Nmap NSE execution time per host (default 30s)")
 	s.pcapng = fs.String("pcapng", "", "write packet evidence to this pcapng file")
@@ -100,6 +102,7 @@ func (s *stageFlags) overlay(r *config.Request) error {
 	r.ServiceRate = mergeInt(*s.serviceRate, r.ServiceRate)
 	r.NmapServiceProbes = first(*s.nmapProbes, r.NmapServiceProbes)
 	r.ProtocolDefinitions = first(*s.protocolDefinitions, r.ProtocolDefinitions)
+	r.ServiceTLSProfiles = first(*s.tlsProfiles, r.ServiceTLSProfiles)
 	r.NSEScripts = first(*s.nseScripts, r.NSEScripts)
 	r.NSETimeout = first(timeoutText(*s.nseTimeout), r.NSETimeout)
 	r.PCAPNG = first(*s.pcapng, r.PCAPNG)
@@ -130,6 +133,9 @@ func emitStagePlan(out io.Writer, r config.Resolved, db string, asJSON bool, sty
 		}
 		if len(p.ProtocolDefinitions) > 0 {
 			fmt.Fprintf(out, "%s%s\n", key("protocol DSL"), strings.Join(p.ProtocolDefinitions, ", "))
+		}
+		if len(p.TLSProfiles) > 0 {
+			fmt.Fprintf(out, "%s%s\n", key("tls-profiles"), strings.Join(p.TLSProfiles, ", "))
 		}
 	}
 	if p := plan.NSE; p != nil {

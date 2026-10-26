@@ -168,3 +168,93 @@ func Alert(data []byte) (byte, bool) {
 	}
 	return data[6], true
 }
+
+// AlertName returns the IANA name of an alert description.
+func AlertName(description byte) string {
+	if a, ok := alerts[description]; ok {
+		return a[0]
+	}
+	return fmt.Sprintf("alert %d", description)
+}
+
+// maxHandshake bounds the handshake bytes reassembled to find a ServerHello;
+// the message itself is far smaller.
+const maxHandshake = 1 << 14
+
+// ServerHello is the cleartext part of a server's first handshake message.
+type ServerHello struct {
+	// Version is the negotiated version: supported_versions when present
+	// (TLS 1.3), otherwise legacy_version.
+	Version     uint16
+	CipherSuite uint16
+	Extensions  []uint16 // extension types in wire order
+	// HelloRetry marks a HelloRetryRequest, which shares the message type.
+	HelloRetry bool
+}
+
+// helloRetryRandom is the fixed random of a HelloRetryRequest (RFC 8446 §4.1.3).
+var helloRetryRandom = [32]byte{
+	0xcf, 0x21, 0xad, 0x74, 0xe5, 0x9a, 0x61, 0x11, 0xbe, 0x1d, 0x8c, 0x02, 0x1e, 0x65, 0xb8, 0x91,
+	0xc2, 0xa2, 0x11, 0x16, 0x7a, 0xbb, 0x8c, 0x5e, 0x07, 0x9e, 0x09, 0xe2, 0xc8, 0xa8, 0x33, 0x9c,
+}
+
+// ParseServerHello finds the first ServerHello in data, reassembling it from
+// consecutive handshake records. It reports false for anything else,
+// including a ServerHello cut off by the retention limit.
+func ParseServerHello(data []byte) (ServerHello, bool) {
+	var hs []byte
+	for off := 0; off+headerLen <= len(data) && len(hs) < maxHandshake; {
+		ct, length := data[off], int(binary.BigEndian.Uint16(data[off+3:]))
+		if ct != 22 || data[off+1] != 3 || length > maxRecord || off+headerLen+length > len(data) {
+			break
+		}
+		hs = append(hs, data[off+headerLen:off+headerLen+length]...)
+		off += headerLen + length
+	}
+	if len(hs) < 4 || hs[0] != 2 {
+		return ServerHello{}, false
+	}
+	n := int(hs[1])<<16 | int(hs[2])<<8 | int(hs[3])
+	if n > len(hs)-4 {
+		return ServerHello{}, false
+	}
+	return parseServerHelloBody(hs[4 : 4+n])
+}
+
+func parseServerHelloBody(b []byte) (ServerHello, bool) {
+	if len(b) < 2+32+1 {
+		return ServerHello{}, false
+	}
+	var h ServerHello
+	h.Version = binary.BigEndian.Uint16(b)
+	h.HelloRetry = [32]byte(b[2:34]) == helloRetryRandom
+	b = b[34:]
+	sid := int(b[0])
+	if sid > 32 || len(b) < 1+sid+3 {
+		return ServerHello{}, false
+	}
+	b = b[1+sid:]
+	h.CipherSuite = binary.BigEndian.Uint16(b)
+	b = b[3:] // cipher suite and compression method
+	if len(b) == 0 {
+		return h, true // no extensions (SSL 3.0-era servers)
+	}
+	if len(b) < 2 || int(binary.BigEndian.Uint16(b)) != len(b)-2 {
+		return ServerHello{}, false
+	}
+	for b = b[2:]; len(b) > 0; {
+		if len(b) < 4 || len(h.Extensions) >= 64 {
+			return ServerHello{}, false
+		}
+		typ, size := binary.BigEndian.Uint16(b), int(binary.BigEndian.Uint16(b[2:]))
+		if size > len(b)-4 {
+			return ServerHello{}, false
+		}
+		if typ == 43 && size == 2 { // supported_versions
+			h.Version = binary.BigEndian.Uint16(b[4:])
+		}
+		h.Extensions = append(h.Extensions, typ)
+		b = b[4+size:]
+	}
+	return h, true
+}

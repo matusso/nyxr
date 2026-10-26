@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -31,6 +32,7 @@ type ServiceOptions struct {
 	Rate                *int
 	NmapProbes          string // path to an nmap-service-probes file; enables the nmap probe
 	ProtocolDefinitions string // comma-separated local YAML protocol definitions
+	TLSProfiles         string // comma list of alternative ClientHello profiles, all, or none
 	BaseDir             string
 }
 
@@ -50,6 +52,7 @@ type Service struct {
 	DefinitionFiles []string
 	Definitions     []service.ProtocolDefinition
 	RegistryVersion uint64
+	TLSProfiles     []string
 }
 
 // ServicePlan summarizes the stage for --dry-run.
@@ -62,6 +65,7 @@ type ServicePlan struct {
 	NmapProbes          string   `json:"nmap_service_probes,omitempty"`
 	ProtocolDefinitions []string `json:"protocol_definitions,omitempty"`
 	RegistryVersion     uint64   `json:"protocol_registry_version,omitempty"`
+	TLSProfiles         []string `json:"tls_profiles,omitempty"`
 }
 
 // Plan returns nil when the stage is disabled.
@@ -71,12 +75,12 @@ func (s Service) Plan() *ServicePlan {
 	}
 	return &ServicePlan{Probes: s.Probes, Fallback: s.Fallback, Timeout: s.Timeout.String(),
 		Workers: s.Workers, Rate: s.Rate, NmapProbes: s.NmapProbesFile, ProtocolDefinitions: s.DefinitionFiles,
-		RegistryVersion: s.RegistryVersion}
+		RegistryVersion: s.RegistryVersion, TLSProfiles: s.TLSProfiles}
 }
 
 // Engine converts the stage into the service package configuration.
 func (s Service) Engine() service.Config {
-	return service.Config{Probes: s.Probes, Fallback: s.Fallback, Timeout: s.Timeout, Workers: s.Workers, Rate: s.Rate, Definitions: s.Definitions, RegistryVersion: s.RegistryVersion}
+	return service.Config{Probes: s.Probes, Fallback: s.Fallback, Timeout: s.Timeout, Workers: s.Workers, Rate: s.Rate, Definitions: s.Definitions, RegistryVersion: s.RegistryVersion, TLSProfiles: s.TLSProfiles}
 }
 
 // defaultService applies when a profile without its own service settings is
@@ -86,7 +90,7 @@ var defaultService = ServiceDefaults{Probes: "banner,ssh,tls,http,dns,socks", Fa
 // BuildService resolves the deep-probe stage for an already validated
 // discovery Config, using the same profile.
 func BuildService(cfg Config, o ServiceOptions) (Service, error) {
-	if cfg.Research != nil && (o.Enable != nil && *o.Enable || o.Probes != "" || o.Fallback != "" || o.Timeout != "" || o.Workers != nil || o.Rate != nil || o.ProtocolDefinitions != "") {
+	if cfg.Research != nil && (o.Enable != nil && *o.Enable || o.Probes != "" || o.Fallback != "" || o.Timeout != "" || o.Workers != nil || o.Rate != nil || o.ProtocolDefinitions != "" || o.TLSProfiles != "") {
 		return Service{}, errors.New("research packet experiments cannot run deep service probes")
 	}
 	profile, ok := LookupProfile(cfg.Profile)
@@ -98,7 +102,7 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 		enabled = *o.Enable
 	}
 	nmapFile := strings.TrimSpace(o.NmapProbes)
-	overridden := o.Probes != "" || o.Fallback != "" || o.Timeout != "" || o.Workers != nil || o.Rate != nil || nmapFile != "" || o.ProtocolDefinitions != ""
+	overridden := o.Probes != "" || o.Fallback != "" || o.Timeout != "" || o.Workers != nil || o.Rate != nil || nmapFile != "" || o.ProtocolDefinitions != "" || o.TLSProfiles != ""
 	if !enabled {
 		if overridden && o.Enable == nil {
 			return Service{}, errors.New("service probe options require --service or a service profile")
@@ -202,8 +206,13 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 	if err != nil {
 		return Service{}, fmt.Errorf("service timeout: %w", err)
 	}
+	tlsProfiles, err := tlsProfileList(o.TLSProfiles)
+	if err != nil {
+		return Service{}, err
+	}
 	s := Service{Enabled: true, Probes: probes, Fallback: fallback, Timeout: timeout,
-		Workers: valueOr(o.Workers, d.Workers), Rate: valueOr(o.Rate, d.Rate), NmapProbesFile: nmapFile, DefinitionFiles: files, Definitions: definitions}
+		Workers: valueOr(o.Workers, d.Workers), Rate: valueOr(o.Rate, d.Rate), NmapProbesFile: nmapFile, DefinitionFiles: files, Definitions: definitions,
+		TLSProfiles: tlsProfiles}
 	if err := s.ValidateFor(cfg); err != nil {
 		return Service{}, err
 	}
@@ -240,6 +249,9 @@ func (s Service) ValidateFor(cfg Config) error {
 		if len(s.Fallback) != 0 {
 			return errors.New("ot-safe does not allow fallback service probes")
 		}
+		if len(s.TLSProfiles) != 0 {
+			return errors.New("ot-safe does not allow alternative TLS profiles")
+		}
 		for _, name := range s.Probes {
 			if name != service.ProbeModbus && name != service.ProbeEtherNetIP {
 				return fmt.Errorf("ot-safe does not allow service probe %q", name)
@@ -250,6 +262,29 @@ func (s Service) ValidateFor(cfg Config) error {
 		}
 	}
 	return nil
+}
+
+// tlsProfileList parses alternative ClientHello profiles: a comma list,
+// "all", or "none"/empty for the default ClientHello only.
+func tlsProfileList(s string) ([]string, error) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	switch s {
+	case "", "none":
+		return nil, nil
+	case "all":
+		return service.TLSProfileNames(), nil
+	}
+	var out []string
+	for _, part := range strings.Split(s, ",") {
+		name := strings.TrimSpace(part)
+		if !slices.Contains(service.TLSProfileNames(), name) {
+			return nil, fmt.Errorf("unknown TLS profile %q (known: %s, all, none)", name, strings.Join(service.TLSProfileNames(), ", "))
+		}
+		if !slices.Contains(out, name) {
+			out = append(out, name)
+		}
+	}
+	return out, nil
 }
 
 func serviceList(s string) ([]string, error) {

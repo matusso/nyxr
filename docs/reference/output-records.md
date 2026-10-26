@@ -73,6 +73,9 @@ or `GET /api/v1/scans/<id>`.
 | `fields` | map | Extracted protocol fields, such as `dns.rcode` or `bacnet.device_id` |
 | `attributes` | map | Service details, such as `ssh.software` or `nmap.*` provenance |
 | `tls` | object | [TLS details](#tls), for services reached over TLS |
+| `ssh` | object | [SSH negotiation](#ssh), from the host-key exchange |
+| `app_fingerprints` | list | Versioned TLS/SSH configuration fingerprints: `method` (`nyxr-tls-server/v1` or `nyxr-ssh-kexinit/v1`), `value` (SHA-256 of `normalized`), `normalized`, optional `profile` and `server_name`, source `evidence` index, `status` (`observed` or `partial`). Never asset merge keys |
+| `fingerprint_conflicts` | list | Exchanges that disagree on a value expected to be stable: `field`, `values`, `evidence` indices, `detail` |
 | `nse` | object | For `script`: Nmap script `id`, readable `output`, and recursive XML `fields` (`kind`, `key`, `value`, `children`) |
 | `evidence` | list | [Probe exchanges](#evidence) |
 | `signals` | list | For `device`: the observations that support the claim (`source`, `transport`, `port`, `detail`) |
@@ -204,9 +207,21 @@ neither merges inventory assets nor enables experiment API/UI or live execution.
 | Field | Meaning |
 | --- | --- |
 | `version`, `cipher_suite`, `alpn` | Negotiated parameters |
-| `server_name` | SNI sent, if any |
+| `server_name` | SNI sent, if any: the first operator-supplied hostname for the address |
+| `profile` | ClientHello profile of this handshake (`default`) |
+| `profiles` | Alternative ClientHello results: `profile`, `server_name`, `outcome` (`negotiated`, `alert`, `plaintext`, `no-response`, `error`), `version`, `cipher_suite`, `alpn`, `leaf_sha256`, `alert`, `error`, `evidence` index |
 | `ocsp_stapled`, `scts` | OCSP stapling and Signed Certificate Timestamp count |
 | `certificates` | Chain as presented, leaf first: `subject`, `issuer`, `serial`, `dns_names`, `ip_addresses`, `not_before`, `not_after`, `public_key_algorithm`, `key_bits`, `signature_algorithm`, `self_signed`, `sha256` |
+
+### SSH
+
+| Field | Meaning |
+| --- | --- |
+| `kex`, `host_key` | Server KEXINIT key-exchange and host-key algorithms, in wire order (observed) |
+| `ciphers_client_server`, `ciphers_server_client`, `macs_client_server`, `macs_server_client`, `compression_server_client` | Server KEXINIT lists (observed) |
+| `negotiated` | `claim_status: inferred` plus `kex`, `host_key`, `cipher_server_client`, `mac_server_client`, `compression_server_client` selected by the RFC 4253 rule; empty when nothing is shared |
+| `negotiation_error` | Why no host key was verified, for example no common algorithm |
+| `evidence`, `truncated` | Source evidence index; whether retained bytes were cut off |
 
 ## Packet evidence
 

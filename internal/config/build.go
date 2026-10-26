@@ -268,17 +268,19 @@ func Build(o Options) (Config, error) {
 
 	var targets []netip.Addr
 	var targetStream *TargetStream
+	names := TargetNames{}
 	if mode == "syn" {
-		targetStream, err = ParseTargetStream(o.Targets)
+		targetStream, err = parseTargetStream(o.Targets, names)
 		if err != nil {
 			return Config{}, err
 		}
 		if targetStream.Count() <= MaxTargets {
 			targetStream = nil
-			targets, err = ParseTargets(o.Targets)
+			names = TargetNames{}
+			targets, err = parseTargets(o.Targets, names)
 		}
 	} else {
-		targets, err = ParseTargets(o.Targets)
+		targets, err = parseTargets(o.Targets, names)
 	}
 	if err != nil {
 		return Config{}, err
@@ -289,7 +291,7 @@ func Build(o Options) (Config, error) {
 	}
 
 	cfg := Config{
-		Targets: targets, TargetStream: targetStream, AllowTargets: allowTargets, Ports: ports, UDPPorts: udpPorts, TCP: tcp, UDP: udp, ICMP: icmp, ARP: arp, NDP: ndp,
+		Targets: targets, TargetStream: targetStream, AllowTargets: allowTargets, TargetNames: names, Ports: ports, UDPPorts: udpPorts, TCP: tcp, UDP: udp, ICMP: icmp, ARP: arp, NDP: ndp,
 		Timeout: timeout, Rate: rate, HostRate: valueOr(o.HostRate, 0), SubnetRate: valueOr(o.SubnetRate, 0),
 		InterfaceRate: valueOr(o.InterfaceRate, 0), Workers: workers, Profile: name,
 		UDPProbes: udpProbes, UDPMode: udpMode, UDPRetries: retries, NmapUDPSource: o.NmapUDPProbes, NmapUDPSHA: nmapUDPSHA,

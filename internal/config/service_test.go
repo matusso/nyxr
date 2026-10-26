@@ -98,10 +98,25 @@ func TestServiceRejections(t *testing.T) {
 		"option w/o flag":   {Options{Profile: "tcp-basic"}, ServiceOptions{Probes: "http"}, "require --service"},
 		"bad timeout":       {Options{Profile: "tcp-common"}, ServiceOptions{Timeout: "soon"}, "service timeout"},
 		"empty name":        {Options{Profile: "tcp-common"}, ServiceOptions{Probes: "http,,tls"}, "empty service probe"},
+		"tls profile":       {Options{Profile: "tcp-common"}, ServiceOptions{TLSProfiles: "sslv2"}, "unknown TLS profile"},
+		"ot-safe tls":       {Options{Profile: "ot-safe", AllowTargets: []string{"192.0.2.1"}}, ServiceOptions{TLSProfiles: "tls13"}, "does not allow alternative TLS profiles"},
 	} {
 		_, err := BuildService(build(t, tc.opts), tc.svc)
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Fatalf("%s: want %q, got %v", name, tc.want, err)
+		}
+	}
+}
+
+func TestServiceTLSProfiles(t *testing.T) {
+	cfg := build(t, Options{Profile: "tcp-common"})
+	for in, want := range map[string]string{"": "", "none": "", "all": "tls13,tls12,legacy,no-sni,vhosts", "vhosts, tls13,vhosts": "vhosts,tls13"} {
+		s, err := BuildService(cfg, ServiceOptions{TLSProfiles: in})
+		if err != nil || strings.Join(s.TLSProfiles, ",") != want || strings.Join(s.Engine().TLSProfiles, ",") != want {
+			t.Fatalf("%q: got %v %v", in, s.TLSProfiles, err)
+		}
+		if want != "" && strings.Join(s.Plan().TLSProfiles, ",") != want {
+			t.Fatalf("%q: plan %+v", in, s.Plan())
 		}
 	}
 }
