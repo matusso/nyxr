@@ -32,7 +32,7 @@ payload); `deep-scan` runs both transports.
 | `web` | Common HTTP and HTTPS ports with TLS and HTTP identification | None |
 | `database` | Database ports with response-validated identity probes | None |
 | `iot` | TCP service identity and multi-source device fingerprinting | None |
-| `ot-safe` | Allowlisted, paced TCP connect scan plus Modbus and EtherNet/IP identity reads | None |
+| `ot-safe` | Allowlisted, paced TCP connect scan plus Modbus, EtherNet/IP, S7 and OPC UA identity reads | None |
 | `research` | Allowlisted, paced raw TCP/UDP/ICMP/SCTP/IP packet experiments | Raw Ethernet |
 | `custom` | Minimal profile; set protocols, ports and timeout explicitly | Depends on protocols |
 

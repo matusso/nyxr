@@ -59,7 +59,7 @@ func TestServiceProfilesEnableStage(t *testing.T) {
 		t.Fatalf("database identity stage: %+v %v", db, err)
 	}
 	ot, err := BuildService(build(t, Options{Profile: "ot-safe", AllowTargets: []string{"192.0.2.1"}}), ServiceOptions{})
-	if err != nil || !ot.Enabled || strings.Join(ot.Probes, ",") != "modbus,ethernetip" {
+	if err != nil || !ot.Enabled || strings.Join(ot.Probes, ",") != "modbus,ethernetip,s7,opcua" {
 		t.Fatalf("ot-safe identity stage: %+v %v", ot, err)
 	}
 	s, err := BuildService(build(t, Options{Profile: "tcp-basic"}), ServiceOptions{})

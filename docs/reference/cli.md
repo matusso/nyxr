@@ -152,7 +152,7 @@ Guide: [Research packets](../guide/research-packets.md).
 | Flag | Meaning |
 | --- | --- |
 | `--service` | Deep probes on open TCP ports, or UDP ports with QUIC, DTLS or Protocol DSL definitions (on for `tcp-common`, `tcp-full`, `udp-common`, `udp-full`, `deep-scan`, `windows`, `filesystem`, `web`, `database`, `iot`, `ot-safe`) |
-| `--service-probes LIST` | `banner`, `ssh`, `tls`, `http`, `dns`, `socks`, `modbus`, `ethernetip`, `nmap`, `database`, `smb`, `rdp`, `msrpc`, `ldap`, `kerberos`, `nfs`, `quic`, `dtls` |
+| `--service-probes LIST` | `banner`, `ssh`, `tls`, `http`, `dns`, `socks`, `modbus`, `ethernetip`, `s7`, `opcua`, `nmap`, `database`, `smb`, `rdp`, `msrpc`, `ldap`, `kerberos`, `nfs`, `quic`, `dtls` |
 | `--service-fallback LIST` | Probes for silent ports without a port hint, or `none` |
 | `--service-tls-profiles LIST` | Alternative TLS ClientHello profiles after the default handshake: `tls13`, `tls12`, `legacy`, `no-sni`, `vhosts`, `all` or `none` (default) |
 | `--service-timeout DURATION` | Upper bound for each service probe |

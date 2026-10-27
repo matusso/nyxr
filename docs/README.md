@@ -15,7 +15,7 @@ New to nyxr? Start with **[Getting started](getting-started.md)**.
 | [Scan profiles](guide/profiles.md) | The profile catalog and how to choose one; the database profile |
 | [UDP scanning](guide/udp.md) | Result classification, probe strategies, built-in catalog, custom probes |
 | [Service identification](guide/service-identification.md) | Banner, SSH, TLS, HTTP, SOCKS and database probes; evidence; Nmap interoperability |
-| [OT and IoT](guide/ot-and-iot.md) | The `ot-safe` profile, Modbus, EtherNet/IP, BACnet, device fingerprinting |
+| [OT and IoT](guide/ot-and-iot.md) | The `ot-safe` profile, Modbus, EtherNet/IP, S7, OPC UA, BACnet, device fingerprinting |
 | [TCP/IP stack fingerprinting](guide/tcp-stack-fingerprinting.md) | Native SYN/ACK/reset evidence, OS-family hypotheses, confidence and limits |
 | [Raw packet scanning](guide/raw-packets.md) | Raw SYN, ARP/NDP, ICMP, platform requirements |
 | [Research packets](guide/research-packets.md) | Crafted TCP flags, SCTP, raw IP protocols, fragmentation |

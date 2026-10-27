@@ -253,7 +253,7 @@ func (s Service) ValidateFor(cfg Config) error {
 			return errors.New("ot-safe does not allow alternative TLS profiles")
 		}
 		for _, name := range s.Probes {
-			if name != service.ProbeModbus && name != service.ProbeEtherNetIP {
+			if !slices.Contains(otSafeProbes, name) {
 				return fmt.Errorf("ot-safe does not allow service probe %q", name)
 			}
 		}
@@ -263,6 +263,11 @@ func (s Service) ValidateFor(cfg Config) error {
 	}
 	return nil
 }
+
+// otSafeProbes are the identity reads reviewed for ot-safe: each is a
+// bounded, documented read-only exchange with no writes, mode changes,
+// sessions or credentials.
+var otSafeProbes = []string{service.ProbeModbus, service.ProbeEtherNetIP, service.ProbeS7, service.ProbeOPCUA}
 
 // tlsProfileList parses alternative ClientHello profiles: a comma list,
 // "all", or "none"/empty for the default ClientHello only.

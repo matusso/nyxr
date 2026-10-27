@@ -131,7 +131,7 @@ func (c Config) Validate() error {
 			return errors.New("ot-safe requires rate 1..5, workers <=4 and timeout >=3s")
 		}
 		for _, port := range c.Ports {
-			if port != 80 && port != 443 && port != 502 && port != 44818 {
+			if !otSafePorts[port] {
 				return fmt.Errorf("ot-safe does not permit port %d", port)
 			}
 		}
@@ -407,6 +407,10 @@ func (n TargetNames) add(name string, a netip.Addr) {
 	}
 	n[a] = append(n[a], name)
 }
+
+// otSafePorts are reviewed identity-read ports: HTTP(S), S7 (102), Modbus
+// (502), OPC UA (4840) and EtherNet/IP (44818).
+var otSafePorts = map[uint16]bool{80: true, 102: true, 443: true, 502: true, 4840: true, 44818: true}
 
 // ParseTargets accepts addresses, CIDRs, inclusive address ranges, and DNS
 // names. Large ranges are refused before scan tasks are generated.

@@ -28,6 +28,8 @@ const (
 	ProbeSOCKS      = "socks"      // SOCKS4/5 identity and SOCKS5 UDP relay allocation
 	ProbeModbus     = "modbus"     // Read Device Identification (function 43/14)
 	ProbeEtherNetIP = "ethernetip" // ListIdentity encapsulation request
+	ProbeS7         = "s7"         // S7comm setup and read-only SZL module/component identity
+	ProbeOPCUA      = "opcua"      // OPC UA Hello and sessionless GetEndpoints discovery
 	ProbeNmap       = "nmap"       // match a connect banner against an imported nmap-service-probes database
 	ProbeDatabase   = "database"   // read-only SQL/NoSQL/graph/cache identity exchanges
 	ProbeSMB        = "smb"        // SMB2 negotiate plus an NTLM challenge read for host and OS identity
@@ -42,7 +44,7 @@ const (
 
 // Names lists every probe in the order they are documented.
 func Names() []string {
-	return []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDNS, ProbeSOCKS, ProbeModbus, ProbeEtherNetIP, ProbeNmap, ProbeDatabase, ProbeSMB, ProbeRDP, ProbeMSRPC, ProbeLDAP, ProbeKerberos, ProbeNFS, ProbeQUIC, ProbeDTLS}
+	return []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDNS, ProbeSOCKS, ProbeModbus, ProbeEtherNetIP, ProbeS7, ProbeOPCUA, ProbeNmap, ProbeDatabase, ProbeSMB, ProbeRDP, ProbeMSRPC, ProbeLDAP, ProbeKerberos, ProbeNFS, ProbeQUIC, ProbeDTLS}
 }
 
 // Per-probe time budgets. Config.Timeout caps each of them.
@@ -54,6 +56,8 @@ var probeTimeouts = map[string]time.Duration{
 	ProbeSOCKS:      3 * time.Second,
 	ProbeModbus:     3 * time.Second,
 	ProbeEtherNetIP: 3 * time.Second,
+	ProbeS7:         4 * time.Second,
+	ProbeOPCUA:      5 * time.Second,
 	ProbeDatabase:   4 * time.Second,
 	ProbeSMB:        5 * time.Second,
 	ProbeRDP:        5 * time.Second,

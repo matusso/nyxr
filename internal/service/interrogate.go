@@ -25,6 +25,8 @@ var (
 	socksPorts      = portSet(1080)
 	modbusPorts     = portSet(502)
 	ethernetIPPorts = portSet(44818)
+	s7Ports         = portSet(102)
+	opcuaPorts      = portSet(4840)
 	// Windows-propagated services. SMB answers on the NetBIOS session port
 	// (139) and the direct-TCP port (445); RDP on 3389; the DCE/RPC endpoint
 	// mapper on 135.
