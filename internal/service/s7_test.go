@@ -96,11 +96,15 @@ func (t teeConn) Read(p []byte) (int, error) { return t.r.Read(p) }
 
 func (s *s7Sim) serve(c net.Conn) {
 	var got bytes.Buffer
-	defer func() {
-		s.mu.Lock()
-		s.received = append(s.received, got.Bytes())
-		s.mu.Unlock()
-	}()
+	var record sync.Once
+	recordNow := func() {
+		record.Do(func() {
+			s.mu.Lock()
+			s.received = append(s.received, got.Bytes())
+			s.mu.Unlock()
+		})
+	}
+	defer recordNow()
 	in := teeConn{c, io.TeeReader(c, &got)}
 	read := func() []byte {
 		b, err := readTPKT(in)
@@ -118,6 +122,9 @@ func (s *s7Sim) serve(c net.Conn) {
 		return
 	}
 	if cr[14] != s.slot {
+		// Record before refusing: the probe dials the next slot as soon as
+		// it sees the disconnect, and connections must be logged in order.
+		recordNow()
 		_, _ = c.Write(tpkt([]byte{6, 0x80, 0, 1, 0, 0, 0})) // disconnect request
 		return
 	}
