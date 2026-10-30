@@ -561,11 +561,11 @@ QUIC:
 
 ## Implementation status (October 2026)
 
-**Implemented:** `--fingerprint` with raw IPv4 SYN mode uses a fixed native
-option/ECN probe and retains bounded, token-correlated SYN/ACK and RST/ACK
+**Implemented:** `--fingerprint` with raw IPv4 or IPv6 SYN mode uses a fixed
+native option/ECN probe (`nyxr-syn-v1`, or `nyxr-syn6-v1` with MSS 1440) and retains bounded, token-correlated SYN/ACK and RST/ACK
 samples within the existing timeout. Evidence covers window, MSS, scale,
-TTL/initial-TTL estimate, DF, option bytes/order, SACK, timestamps, ECN,
-sampled IP ID behavior, repeat timing and reset behavior. Native rules emit
+TTL/initial-TTL (hop limit) estimate, IPv4-only DF, option bytes/order, SACK, timestamps, ECN,
+sampled IPv4 IP ID behavior, repeat timing and reset behavior. Native rules emit
 cautious Linux, Windows and BSD/macOS hypotheses; unknown, conflicting and
 truncated collections retain evidence. Stable signatures normalize counters.
 JSON, history, API, text and web UI expose the results. Device synthesis
@@ -573,7 +573,9 @@ combines network/application evidence with separate OS confidence and conflict
 reporting; asset profiles retain family claims without merging on signatures.
 See the [TCP/IP stack fingerprinting guide](guide/tcp-stack-fingerprinting.md).
 
-**Remaining:** Live calibration, IPv6 raw SYN collection, kernel/version and
+IPv6 samples omit DF and IP ID and use `nx_tcp6_v1_` signatures ([#81](https://github.com/matusso/nyxr/issues/81)).
+
+**Remaining:** Live calibration (including IPv6 family rules), kernel/version and
 specific embedded-stack rules, verified intermediary/device roles, cross-flow
 IP ID analysis and longer controlled retransmission experiments. Connect scans
 do not expose headers. Receive times are batch estimates; duplicates cannot

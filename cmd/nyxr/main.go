@@ -143,7 +143,7 @@ Flags:
   --tcp-mode string     connect (default) or raw Ethernet syn
   --interface string    Ethernet interface for SYN mode
   --xdp-pin-dir dir     use Linux AF_XDP with pinned Nyxr XDP maps (SYN mode)
-  --source-ip string    interface IPv4 address for SYN mode (auto if unique)
+  --source-ip string    interface IPv4/IPv6 address for SYN mode (auto if unique)
   --source-mac string   source Ethernet MAC (for Npcap adapter names)
   --next-hop-mac string destination or gateway MAC for SYN mode
   --payload file        native YAML UDP probe definition
@@ -335,7 +335,7 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	tcpModeFlag := fs.String("tcp-mode", "", "connect or syn")
 	interfaceFlag := fs.String("interface", "", "Ethernet interface for SYN mode")
 	xdpPinDirFlag := fs.String("xdp-pin-dir", "", "pinned Nyxr AF_XDP maps for SYN mode")
-	sourceIPFlag := fs.String("source-ip", "", "interface IPv4 address for SYN mode")
+	sourceIPFlag := fs.String("source-ip", "", "interface IPv4 or IPv6 address for SYN mode")
 	sourceMACFlag := fs.String("source-mac", "", "source Ethernet MAC for SYN mode")
 	nextHopMACFlag := fs.String("next-hop-mac", "", "destination or gateway MAC for SYN mode")
 	probeFlag := fs.String("payload", "", "native YAML UDP probe definition")

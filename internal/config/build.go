@@ -271,10 +271,13 @@ func Build(o Options) (Config, error) {
 	names := TargetNames{}
 	if mode == "syn" {
 		targetStream, err = parseTargetStream(o.Targets, names)
-		if err != nil {
+		if errors.Is(err, errStreamIPv6) {
+			targetStream, err = nil, nil
+			names = TargetNames{}
+			targets, err = parseTargets(o.Targets, names)
+		} else if err != nil {
 			return Config{}, err
-		}
-		if targetStream.Count() <= MaxTargets {
+		} else if targetStream.Count() <= MaxTargets {
 			targetStream = nil
 			names = TargetNames{}
 			targets, err = parseTargets(o.Targets, names)
@@ -312,9 +315,19 @@ func Build(o Options) (Config, error) {
 var EgressInterface func(netip.Addr) (string, error)
 
 // defaultSYNInterface picks the interface that routes the first target, as
-// the explicit --interface would.
+// the explicit --interface would. A link-local target's zone names its link;
+// without one the link is ambiguous and --interface stays required.
 func (c *Config) defaultSYNInterface() error {
-	if c.TCPMode != "syn" || c.Interface != "" || EgressInterface == nil {
+	if c.TCPMode != "syn" || c.Interface != "" {
+		return nil
+	}
+	for _, t := range c.Targets {
+		if t.Zone() != "" {
+			c.Interface = t.Zone()
+			return nil
+		}
+	}
+	if EgressInterface == nil {
 		return nil
 	}
 	var target netip.Addr
@@ -322,7 +335,7 @@ func (c *Config) defaultSYNInterface() error {
 		target = t
 		return false
 	})
-	if !target.Is4() {
+	if !target.IsValid() || target.IsLinkLocalUnicast() {
 		return nil
 	}
 	iface, err := EgressInterface(target)

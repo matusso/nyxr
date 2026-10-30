@@ -50,6 +50,17 @@ func loadIPv4Routes(device string) (func(netip.Addr) (netip.Addr, error), error)
 // egressInterface names the interface the main IPv4 table sends target
 // through: the longest prefix, then the lowest metric.
 func egressInterface(target netip.Addr) (string, error) {
+	if target.Is6() {
+		routes, err := readIPv6Routes("")
+		if err != nil {
+			return "", err
+		}
+		route, ok := bestIPv6Route(routes, target.WithZone(""))
+		if !ok {
+			return "", fmt.Errorf("no IPv6 route to %s", target)
+		}
+		return route.device, nil
+	}
 	f, err := os.Open("/proc/net/route")
 	if err != nil {
 		return "", fmt.Errorf("read IPv4 routes: %w", err)
@@ -136,4 +147,100 @@ func contiguousMask(mask [4]byte) (int, bool) {
 		}
 	}
 	return bits, true
+}
+
+type ipv6Route struct {
+	prefix  netip.Prefix
+	gateway netip.Addr // invalid when the prefix is on-link
+	metric  uint32
+	device  string
+}
+
+// loadIPv6Routes returns the next hop for an IPv6 target on device. Link-local
+// targets are on-link by definition and never consult the table.
+func loadIPv6Routes(device string) (func(netip.Addr) (netip.Addr, error), error) {
+	routes, err := readIPv6Routes(device)
+	if err != nil {
+		return nil, err
+	}
+	return func(target netip.Addr) (netip.Addr, error) {
+		target = target.WithZone("")
+		if target.IsLinkLocalUnicast() {
+			return target, nil
+		}
+		route, ok := bestIPv6Route(routes, target)
+		if !ok {
+			return netip.Addr{}, fmt.Errorf("no IPv6 route to %s on %s", target, device)
+		}
+		if !route.gateway.IsValid() {
+			return target, nil
+		}
+		return route.gateway, nil
+	}, nil
+}
+
+func readIPv6Routes(device string) ([]ipv6Route, error) {
+	f, err := os.Open("/proc/net/ipv6_route")
+	if err != nil {
+		return nil, fmt.Errorf("read IPv6 routes: %w", err)
+	}
+	defer f.Close()
+	return parseIPv6Routes(f, device)
+}
+
+func bestIPv6Route(routes []ipv6Route, target netip.Addr) (ipv6Route, bool) {
+	best := -1
+	for i, route := range routes {
+		if route.prefix.Contains(target) && (best < 0 || route.prefix.Bits() > routes[best].prefix.Bits() ||
+			(route.prefix.Bits() == routes[best].prefix.Bits() && route.metric < routes[best].metric)) {
+			best = i
+		}
+	}
+	if best < 0 {
+		return ipv6Route{}, false
+	}
+	return routes[best], true
+}
+
+// parseIPv6Routes reads /proc/net/ipv6_route: destination, prefix length,
+// source, source length, next hop, metric, refcount, use, flags and device.
+// Down, reject and multicast routes are skipped; an empty device keeps all.
+// No routes is not an error: link-local targets never need one.
+func parseIPv6Routes(r io.Reader, device string) ([]ipv6Route, error) {
+	var routes []ipv6Route
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 10 || (device != "" && fields[9] != device) {
+			continue
+		}
+		flags, err1 := strconv.ParseUint(fields[8], 16, 32)
+		bits, err2 := strconv.ParseUint(fields[1], 16, 8)
+		metric, err3 := strconv.ParseUint(fields[5], 16, 32)
+		network, err4 := parseIPv6RouteAddress(fields[0])
+		gateway, err5 := parseIPv6RouteAddress(fields[4])
+		if err1 != nil || err2 != nil || err3 != nil || err4 != nil || err5 != nil || flags&0x1 == 0 || flags&0x200 != 0 || bits > 128 || network.IsMulticast() {
+			continue
+		}
+		if gateway.IsUnspecified() {
+			gateway = netip.Addr{}
+		}
+		routes = append(routes, ipv6Route{prefix: netip.PrefixFrom(network, int(bits)).Masked(), gateway: gateway, metric: uint32(metric), device: fields[9]})
+	}
+	return routes, scanner.Err()
+}
+
+func parseIPv6RouteAddress(hexText string) (netip.Addr, error) {
+	if len(hexText) != 32 {
+		return netip.Addr{}, fmt.Errorf("IPv6 route address %q", hexText)
+	}
+	var b [16]byte
+	for i := range b {
+		v, err := strconv.ParseUint(hexText[2*i:2*i+2], 16, 8)
+		if err != nil {
+			return netip.Addr{}, err
+		}
+		b[i] = byte(v)
+	}
+	return netip.AddrFrom16(b), nil
 }

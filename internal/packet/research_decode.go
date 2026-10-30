@@ -14,6 +14,7 @@ type ResearchDecoded struct {
 	TCPFlags             uint8
 	TCPAck               uint32
 	TCPSeq               uint32
+	TCPWindow            uint16
 	TTL                  uint8
 	TCPOptions           []byte
 	HeaderLength         int // Ethernet/IP/transport headers; excludes application payload
@@ -141,6 +142,7 @@ func parseResearchBody(p ResearchDecoded, b []byte) (ResearchDecoded, bool) {
 		p.SourcePort, p.DestPort = binary.BigEndian.Uint16(b[0:2]), binary.BigEndian.Uint16(b[2:4])
 		p.TCPAck, p.TCPFlags = binary.BigEndian.Uint32(b[8:12]), b[13]
 		p.TCPSeq = binary.BigEndian.Uint32(b[4:8])
+		p.TCPWindow = binary.BigEndian.Uint16(b[14:16])
 		p.TCPOptions = b[20 : int(b[12]>>4)*4]
 		p.HeaderLength += int(b[12]>>4) * 4
 	case 17:

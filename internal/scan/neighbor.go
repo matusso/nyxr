@@ -85,6 +85,21 @@ func resolveNextHopsWithLookup(ctx context.Context, cfg config.Config, io packet
 // are outstanding. Silent hosts cost one batch timeout rather than one timeout
 // per host. Each actual send is paced before it reaches the backend.
 func resolveARPBatch(parent context.Context, io packetio.PacketIO, sourceMAC net.HardwareAddr, sourceIP netip.Addr, hops []netip.Addr, timeout time.Duration, limiter *probeLimiter) (map[netip.Addr]net.HardwareAddr, error) {
+	request := func(hop netip.Addr) ([]byte, error) { return packet.ARPRequest(sourceMAC, sourceIP, hop) }
+	reply := func(frame []byte) (netip.Addr, net.HardwareAddr, bool) {
+		hop, ok := arpReplySource(frame)
+		if !ok {
+			return netip.Addr{}, nil, false
+		}
+		mac, valid := packet.ARPReplyMAC(frame, hop, sourceIP)
+		return hop, mac, valid
+	}
+	return resolveNeighborBatch(parent, io, "ARP", hops, timeout, limiter, request, reply)
+}
+
+// resolveNeighborBatch is the family-neutral ARP/NDP loop: request builds
+// one solicitation and reply validates a frame and names the hop it answers.
+func resolveNeighborBatch(parent context.Context, io packetio.PacketIO, protocol string, hops []netip.Addr, timeout time.Duration, limiter *probeLimiter, request func(netip.Addr) ([]byte, error), reply func([]byte) (netip.Addr, net.HardwareAddr, bool)) (map[netip.Addr]net.HardwareAddr, error) {
 	if timeout < 200*time.Millisecond {
 		timeout = 200 * time.Millisecond
 	}
@@ -108,18 +123,16 @@ func resolveARPBatch(parent context.Context, io packetio.PacketIO, sourceMAC net
 			buf[0] = storage[:]
 			n, err := io.ReceiveBatch(ctx, buf)
 			if n > 0 {
-				if hop, ok := arpReplySource(buf[0]); ok {
-					if mac, valid := packet.ARPReplyMAC(buf[0], hop, sourceIP); valid {
-						mu.Lock()
-						if pending[hop] {
-							delete(pending, hop)
-							resolved[hop] = mac
-							if len(pending) == 0 {
-								close(all)
-							}
+				if hop, mac, ok := reply(buf[0]); ok {
+					mu.Lock()
+					if pending[hop] {
+						delete(pending, hop)
+						resolved[hop] = mac
+						if len(pending) == 0 {
+							close(all)
 						}
-						mu.Unlock()
 					}
+					mu.Unlock()
 				}
 			}
 			if err != nil {
@@ -134,7 +147,7 @@ func resolveARPBatch(parent context.Context, io packetio.PacketIO, sourceMAC net
 			<-done
 			return nil, err
 		}
-		frame, err := packet.ARPRequest(sourceMAC, sourceIP, hop)
+		frame, err := request(hop)
 		if err != nil {
 			cancel()
 			<-done
@@ -143,7 +156,7 @@ func resolveARPBatch(parent context.Context, io packetio.PacketIO, sourceMAC net
 		if n, err := io.SendBatch(ctx, [][]byte{frame}); err != nil || n != 1 {
 			cancel()
 			<-done
-			return nil, fmt.Errorf("send ARP %s: %d/1 frames: %v", hop, n, err)
+			return nil, fmt.Errorf("send %s %s: %d/1 frames: %v", protocol, hop, n, err)
 		}
 	}
 	var readErr error
@@ -162,8 +175,8 @@ func resolveARPBatch(parent context.Context, io packetio.PacketIO, sourceMAC net
 		return false
 	}
 	if !wait(timeout/2) && !readerFinished && parent.Err() == nil {
-		// ARP is lossy, and a single missed reply used to suppress every SYN
-		// routed through that hop. Retry only neighbors still unresolved.
+		// ARP and NDP are lossy, and a single missed reply used to suppress
+		// every SYN routed through that hop. Retry only unresolved neighbors.
 		mu.Lock()
 		retry := make([]netip.Addr, 0, len(pending))
 		for hop := range pending {
@@ -176,7 +189,7 @@ func resolveARPBatch(parent context.Context, io packetio.PacketIO, sourceMAC net
 				<-done
 				return nil, err
 			}
-			frame, err := packet.ARPRequest(sourceMAC, sourceIP, hop)
+			frame, err := request(hop)
 			if err != nil {
 				cancel()
 				<-done
@@ -185,7 +198,7 @@ func resolveARPBatch(parent context.Context, io packetio.PacketIO, sourceMAC net
 			if n, err := io.SendBatch(ctx, [][]byte{frame}); err != nil || n != 1 {
 				cancel()
 				<-done
-				return nil, fmt.Errorf("retry ARP %s: %d/1 frames: %v", hop, n, err)
+				return nil, fmt.Errorf("retry %s %s: %d/1 frames: %v", protocol, hop, n, err)
 			}
 		}
 		wait(timeout / 2)

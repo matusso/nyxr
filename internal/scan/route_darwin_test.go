@@ -58,3 +58,45 @@ default link#31 UCSIg utun10
 		}
 	}
 }
+
+func TestDarwinIPv6RouteSnapshot(t *testing.T) {
+	table := `Routing tables
+
+Internet6:
+Destination                             Gateway                                 Flags               Netif Expire
+default                                 fe80::1%en0                             UGcg                  en0
+default                                 fe80::%utun0                            UGcIg               utun0
+::1                                     ::1                                     UHL                   lo0
+2001:db8:1::/64                         link#15                                 UC                    en0
+2001:db8:1::10                          a4:83:e7:0:0:1                          UHLWI                 en0
+2001:db8:7::/48                         2001:db8:1::fe                          UGc                   en0
+fe80::%en0/64                           link#15                                 UCI                   en0
+ff00::/8                                link#15                                 UmCI                  en0
+`
+	routes, err := parseDarwinRoutes6(strings.NewReader(table))
+	if err != nil || len(routes) != 5 {
+		t.Fatalf("routes: %+v %v", routes, err)
+	}
+	next := darwinNextHop(routes, "en0", "IPv6")
+	for target, want := range map[string]string{
+		"2001:db8:1::20": "2001:db8:1::20",
+		"2001:db8:1::10": "2001:db8:1::10",
+		"2001:db8:7::5":  "2001:db8:1::fe",
+		"2001:db8:9::1":  "fe80::1",
+	} {
+		hop, err := next(netip.MustParseAddr(target))
+		if err != nil || hop != netip.MustParseAddr(want) || hop.Zone() != "" {
+			t.Fatalf("%s via %v %v", target, hop, err)
+		}
+	}
+	if egress, err := darwinEgress(routes, netip.MustParseAddr("2001:db8:9::1")); err != nil || egress != "en0" {
+		t.Fatalf("egress %q %v", egress, err)
+	}
+	only, err := parseDarwinRoutes6(strings.NewReader("fe80::%en0/64 link#15 UCI en0\n"))
+	if err != nil || len(only) != 0 {
+		t.Fatalf("link-local-only table: %+v %v", only, err)
+	}
+	if _, err := darwinNextHop(only, "en0", "IPv6")(netip.MustParseAddr("2001:db8::1")); err == nil {
+		t.Fatal("routed a global target through an empty table")
+	}
+}

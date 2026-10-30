@@ -149,10 +149,56 @@ func (d *Decoder) Decode(frame []byte) (Decoded, bool) {
 			result.ICMPCode = uint8(d.icmp6.TypeCode.Code())
 			if result.ICMPType == 1 && len(d.icmp6.Payload) >= 4 {
 				result.UDPQuote = parseQuotedUDP(d.icmp6.Payload[4:])
+				result.Quote = parseQuotedTCP6(d.icmp6.Payload[4:])
 			}
 		}
 	}
+	if result.IPVersion == 6 && result.Protocol == "" {
+		// gopacket stops at hop-by-hop, routing and destination options
+		// headers; walk the bounded chain natively instead.
+		return decodeIPv6Extended(frame)
+	}
 	return result, hasIP && !fragmented && result.Protocol != ""
+}
+
+// decodeIPv6Extended handles TCP and ICMPv6 behind at most eight
+// non-fragment extension headers. Fragments, ESP and truncated chains fail.
+func decodeIPv6Extended(frame []byte) (Decoded, bool) {
+	p, ok := DecodeResearch(frame)
+	if !ok || !p.Source.Is6() {
+		return Decoded{}, false
+	}
+	result := Decoded{Source: p.Source, Destination: p.Destination, IPVersion: 6, TTL: p.TTL,
+		SourcePort: p.SourcePort, DestPort: p.DestPort}
+	switch p.Protocol {
+	case 6:
+		result.Protocol = "tcp"
+		result.TCPFlags, result.TCPSeq, result.TCPAck, result.TCPWindow = p.TCPFlags, p.TCPSeq, p.TCPAck, p.TCPWindow
+		result.TCPOptionsLen = uint8(copy(result.TCPOptions[:], p.TCPOptions))
+	case 58:
+		result.Protocol = "icmp6"
+		result.ICMPType, result.ICMPCode = p.ICMPType, p.ICMPCode
+		result.SourcePort, result.DestPort = 0, 0
+		if q := p.Quote; p.ICMPType == 1 && q.Valid && q.Protocol == 6 && q.SequencePresent && q.Source.Is6() {
+			result.Quote = QuotedTCP{Source: q.Source, Destination: q.Destination, SourcePort: q.SourcePort, DestPort: q.DestPort, Sequence: q.Sequence, Valid: true}
+		}
+	default:
+		return Decoded{}, false
+	}
+	return result, true
+}
+
+// ICMPv6 errors quote as much of the original packet as fits; a SYN quote
+// needs the IPv6 header, any extension headers and the TCP sequence.
+func parseQuotedTCP6(raw []byte) QuotedTCP {
+	if len(raw) < 48 || raw[0]>>4 != 6 {
+		return QuotedTCP{}
+	}
+	q := parseResearchQuote(raw)
+	if !q.Valid || q.Protocol != 6 || !q.SequencePresent {
+		return QuotedTCP{}
+	}
+	return QuotedTCP{Source: q.Source, Destination: q.Destination, SourcePort: q.SourcePort, DestPort: q.DestPort, Sequence: q.Sequence, Valid: true}
 }
 
 func parseQuotedUDP(raw []byte) QuotedUDP {

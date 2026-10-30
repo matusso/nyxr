@@ -25,8 +25,8 @@ Targets are positional arguments and can be mixed freely:
 | CIDR | `192.0.2.0/24`, `2001:db8::/120` |
 | Inclusive range | `192.0.2.10-192.0.2.50` |
 
-Raw IPv4 SYN scans stream large ranges. Other scan modes accept at most 65,536
-unique addresses per scan.
+Raw SYN scans of IPv4-only targets stream large ranges. IPv6 targets, and
+other scan modes, accept at most 65,536 unique addresses per scan.
 
 ## Ports
 
@@ -49,7 +49,7 @@ When `--ports` is omitted, the profile supplies its default port list.
 `research` profile also accepts `sctp` and `ip`.
 
 TCP uses ordinary `connect()` calls by default, so it needs no privileges.
-`--tcp-mode syn` sends raw IPv4 SYN packets instead; see
+`--tcp-mode syn` sends raw IPv4 or IPv6 SYN packets instead; see
 [Raw packet scanning](raw-packets.md). UDP behavior is described in
 [UDP scanning](udp.md).
 

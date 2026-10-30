@@ -18,7 +18,10 @@ and update the [Roadmap](../roadmap.md) when a gate passes.
 Run `sudo bash tests/lab/linux-netns.sh` on Linux with `iproute2`, Python 3,
 Go, and optionally `iptables`. The script builds nyxr, creates two disposable
 network namespaces and a veth pair, and verifies automatic ARP resolution,
-raw SYN open/closed/filtered classification, and IPv4 ARP/IPv6 NDP discovery,
+raw SYN open/closed/filtered classification, IPv4 ARP/IPv6 NDP discovery, and
+IPv6 raw SYN open/closed/filtered classification for a ULA target (automatic
+route and NDP next hop) and a zoned link-local target, including
+`nyxr-syn6-v1` stack evidence without DF or IP ID,
 plus UDP open/closed/filtered classification with an echo responder and a
 closed port. The UDP gate checks that a raw ICMP listener opened in the source
 namespace; packet fixtures separately check exact ICMP quote correlation.
@@ -27,7 +30,9 @@ reply loss, and source-veth TX/RX packet and drop deltas across that scan in
 `tests/performance/latest-linux/`, alongside the command, environment and
 per-probe results. Pass another directory as the script argument to save a
 named run.
-The filtered case needs `iptables`.
+The filtered cases need `iptables` and `ip6tables`; each is skipped with a
+message when its tool is missing. Every lab parser ignores the trailing
+`kind: scan` summary record.
 No external target or permanent network setting is used. A container needs
 `CAP_NET_ADMIN` and `CAP_NET_RAW` in addition to root.
 
@@ -45,7 +50,8 @@ recording a performance comparison. A Linux cross-build alone does not pass
 this gate. In a container where `ip netns exec` hides `/sys/fs/bpf`, mount
 bpffs outside `/sys` and set `NYXR_LAB_BPFFS` to that mountpoint. Set
 `NYXR_LAB_SKIP_NDP=1` only when verifying AF_XDP in an environment that lacks
-working IPv6 neighbor discovery; record that the NDP gate was skipped.
+working IPv6 neighbor discovery; this also skips the IPv6 SYN gate. Record that
+both were skipped. AF_XDP itself is IPv4-only.
 
 ## macOS BPF manual gate
 
@@ -59,6 +65,12 @@ go build -o /tmp/nyxr-smoke ./cmd/nyxr
 sudo /tmp/nyxr-smoke sniff --interface "$INTERFACE" --count 1 --timeout 10s
 sudo /tmp/nyxr-smoke scan --tcp-mode syn --interface "$INTERFACE" --next-hop-mac "$NEXT_HOP_MAC" --protocols tcp --ports "$OPEN_PORT,$CLOSED_PORT" --workers 1 --timeout 500ms --json "$TARGET_IP"
 ```
+
+For IPv6, repeat the scan without `--next-hop-mac` against `TARGET_IP6` (a
+global or unique-local responder address) and against the responder's
+link-local address written as `fe80::…%$INTERFACE`. Require the same states,
+`next-hop NDP unanswered` never appearing, and link-local results reported
+with the interface zone.
 
 Generate a packet on the interface while `sniff` runs. Require a decoded
 Ethernet/IP observation, then JSON states `open` and `closed` with one

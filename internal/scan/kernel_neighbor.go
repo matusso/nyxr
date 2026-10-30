@@ -100,8 +100,9 @@ func observeKernelNeighbors(parent context.Context, io packetio.PacketIO, device
 	return wire, resolved, nil
 }
 
-// kernelProbeFrame matches an outgoing IPv4/UDP frame from local and returns
-// its UDP source port with the frame's Ethernet source and destination.
+// kernelProbeFrame matches an outgoing IPv4/UDP or IPv6/UDP frame from local
+// and returns its UDP source port with the frame's Ethernet source and
+// destination. The kernel adds no IPv6 extension headers to these datagrams.
 func kernelProbeFrame(frame []byte, local netip.Addr) (uint16, net.HardwareAddr, net.HardwareAddr, bool) {
 	offset := 12
 	if len(frame) < offset+2 {
@@ -116,13 +117,22 @@ func kernelProbeFrame(frame []byte, local netip.Addr) (uint16, net.HardwareAddr,
 		ethType = binary.BigEndian.Uint16(frame[offset : offset+2])
 	}
 	ip := frame[offset+2:]
-	if ethType != 0x0800 || len(ip) < 20 || ip[0]>>4 != 4 || ip[9] != 17 {
-		return 0, nil, nil, false
-	}
-	ihl := int(ip[0]&15) * 4
-	src := local.As4()
-	if ihl < 20 || len(ip) < ihl+8 || string(ip[12:16]) != string(src[:]) {
-		return 0, nil, nil, false
+	var ihl int
+	if local.Is6() {
+		src := local.As16()
+		if ethType != 0x86dd || len(ip) < 48 || ip[0]>>4 != 6 || ip[6] != 17 || string(ip[8:24]) != string(src[:]) {
+			return 0, nil, nil, false
+		}
+		ihl = 40
+	} else {
+		if ethType != 0x0800 || len(ip) < 20 || ip[0]>>4 != 4 || ip[9] != 17 {
+			return 0, nil, nil, false
+		}
+		ihl = int(ip[0]&15) * 4
+		src := local.As4()
+		if ihl < 20 || len(ip) < ihl+8 || string(ip[12:16]) != string(src[:]) {
+			return 0, nil, nil, false
+		}
 	}
 	dst, from := make(net.HardwareAddr, 6), make(net.HardwareAddr, 6)
 	copy(dst, frame[:6])
@@ -133,26 +143,38 @@ func kernelProbeFrame(frame []byte, local netip.Addr) (uint16, net.HardwareAddr,
 	return binary.BigEndian.Uint16(ip[ihl : ihl+2]), from, dst, true
 }
 
-// dialKernelProbe pins a discard-port UDP socket to device with TTL 1, so the
-// datagram can only leave through the scanned interface toward hop.
+// dialKernelProbe pins a discard-port UDP socket to device with TTL (hop
+// limit) 1, so the datagram can only leave through the scanned interface
+// toward hop. Link-local addresses are scoped to device.
 func dialKernelProbe(device string, source, hop netip.Addr) (*net.UDPConn, error) {
 	iface, err := net.InterfaceByName(device)
 	if err != nil {
 		return nil, err
 	}
-	d := net.Dialer{LocalAddr: &net.UDPAddr{IP: source.AsSlice()}, Control: func(_, _ string, c syscall.RawConn) error {
+	network, level, boundIF, ttl := "udp4", syscall.IPPROTO_IP, syscall.IP_BOUND_IF, syscall.IP_TTL
+	local := &net.UDPAddr{IP: source.AsSlice()}
+	if hop.Is6() {
+		network, level, boundIF, ttl = "udp6", syscall.IPPROTO_IPV6, syscall.IPV6_BOUND_IF, syscall.IPV6_UNICAST_HOPS
+		if source.IsLinkLocalUnicast() {
+			local.Zone = device
+		}
+		if hop.IsLinkLocalUnicast() {
+			hop = hop.WithZone(device)
+		}
+	}
+	d := net.Dialer{LocalAddr: local, Control: func(_, _ string, c syscall.RawConn) error {
 		var optErr error
 		if err := c.Control(func(fd uintptr) {
-			optErr = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_BOUND_IF, iface.Index)
+			optErr = syscall.SetsockoptInt(int(fd), level, boundIF, iface.Index)
 			if optErr == nil {
-				optErr = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_TTL, 1)
+				optErr = syscall.SetsockoptInt(int(fd), level, ttl, 1)
 			}
 		}); err != nil {
 			return err
 		}
 		return optErr
 	}}
-	conn, err := d.Dial("udp4", netip.AddrPortFrom(hop, 9).String())
+	conn, err := d.Dial(network, netip.AddrPortFrom(hop, 9).String())
 	if err != nil {
 		return nil, err
 	}

@@ -246,11 +246,38 @@ func TestBuildRawSYNRequirements(t *testing.T) {
 	for _, tc := range []Options{
 		{Targets: base.Targets, TCPMode: "syn"},
 		{Targets: base.Targets, TCPMode: "syn", Interface: "eth0", NextHopMAC: "ff:ff:ff:ff:ff:ff"},
-		{Targets: []string{"2001:db8::1"}, TCPMode: "syn", Interface: "eth0", NextHopMAC: base.NextHopMAC},
 		{Targets: base.Targets, Profile: "ot-safe", TCPMode: "syn", Interface: "eth0", NextHopMAC: base.NextHopMAC},
 	} {
 		if _, err := Build(tc); err == nil {
 			t.Fatalf("accepted unsafe SYN configuration: %+v", tc)
+		}
+	}
+}
+
+func TestBuildIPv6RawSYN(t *testing.T) {
+	cfg, err := Build(Options{Targets: []string{"2001:db8::1", "192.0.2.1", "2001:db8::/126"}, TCPMode: "syn", Interface: "eth0"})
+	if err != nil || cfg.TargetStream != nil || len(cfg.Targets) != 5 {
+		t.Fatalf("mixed-family SYN plan: %+v, %v", cfg, err)
+	}
+	scoped, err := Build(Options{Targets: []string{"fe80::1%eth1"}, TCPMode: "syn", AllowTargets: []string{"fe80::/64"}})
+	if err != nil || scoped.Interface != "eth1" || scoped.Targets[0].Zone() != "eth1" {
+		t.Fatalf("zone did not select the link: %+v, %v", scoped, err)
+	}
+	if _, err := Build(Options{Targets: []string{"2001:db8::1"}, TCPMode: "syn", Interface: "eth0", SourceIP: "2001:db8::10"}); err != nil {
+		t.Fatalf("IPv6 source: %v", err)
+	}
+	for _, tc := range []struct {
+		opts Options
+		want string
+	}{
+		{Options{Targets: []string{"2001:db8::1", "192.0.2.1"}, TCPMode: "syn", Interface: "eth0", SourceIP: "192.0.2.10"}, "separately"},
+		{Options{Targets: []string{"fe80::1%eth1"}, TCPMode: "syn", Interface: "eth0"}, "not --interface"},
+		{Options{Targets: []string{"fe80::1%eth0", "fe80::2%eth1"}, TCPMode: "syn", Interface: "eth0"}, "one link"},
+		{Options{Targets: []string{"2001:db8::1"}, TCPMode: "syn", Interface: "eth0", XDPPinDir: "/sys/fs/bpf/nyxr"}, "AF_XDP"},
+		{Options{Targets: []string{"2001:db8::1"}, TCPMode: "syn", Interface: "eth0", SourceIP: "ff02::1"}, "unicast"},
+	} {
+		if _, err := Build(tc.opts); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("%+v: got %v, want %q", tc.opts, err, tc.want)
 		}
 	}
 }

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"net"
+	"net/netip"
 	"os"
 	"testing"
 )
@@ -78,10 +80,19 @@ func FuzzDecoder(f *testing.F) {
 		}
 		f.Add(frame)
 	}
+	// IPv6 SYN replies behind extension headers and in ICMPv6 quotes.
+	syn, _ := NewSYNTemplate(net.HardwareAddr{2, 1, 2, 3, 4, 5}, net.HardwareAddr{2, 6, 7, 8, 9, 10}, netip.MustParseAddr("2001:db8:1::10"), 50000)
+	syn.EnableFingerprint()
+	request := syn.Frame(netip.MustParseAddr("2001:db8:2::20"), 443, 7)
+	f.Add(request)
+	f.Add(ipv6Frame(0, append([]byte{60, 0, 1, 4, 0, 0, 0, 0, 6, 0, 1, 4, 0, 0, 0, 0}, request[54:]...)))
+	f.Add(ipv6Frame(58, append([]byte{1, 1, 0, 0, 0, 0, 0, 0}, request[14:]...)))
 	f.Fuzz(func(t *testing.T, frame []byte) {
 		_, _ = NewDecoder().Decode(frame)
 		_, _ = DecodeResearch(frame)
 		_ = parseQuotedTCP(frame)
+		_ = parseQuotedTCP6(frame)
+		_, _ = NeighborAdvertisementTarget(frame)
 	})
 }
 
