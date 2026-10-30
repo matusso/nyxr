@@ -58,6 +58,13 @@ decision with a reason. See [Asset identity graph](asset-identity.md).
 **Services** lists identified services across scans, **profiles** shows the
 catalog, and **packets** watches live traffic (below).
 
+**Evidence trace.** *Trace evidence* on a stored service observation opens its
+planner decisions, retained exchanges and indexed capture packets, with an
+explicit `available`, `partial` or `unavailable` packet status. *Open in editor*
+loads an evidence frame into the packet editor. *Clone probe* drafts an editable
+Protocol DSL definition with dry run, offline replay and confirmed live resend.
+See [Evidence navigation and probe replay](evidence-and-replay.md).
+
 ![Services](../images/services.png)
 
 ## Live packets and frame editing
@@ -104,6 +111,10 @@ All paths are under `/api/v1`.
 | `GET /assets/topology/timeline?at=RFC3339&limit=500` | `nyxr/topology/v1alpha1` address/interface/VLAN point claims and TTL-bounded LLDP adjacency; limit 1–1000 |
 | `POST /assets/topology/reviews` | Record a finite, audited interface join/separation interval without changing asset identity |
 | `GET /observations` | Observations across scans |
+| `GET /evidence/trace?observation=ID` | `nyxr/evidence-trace/v1`: a stored claim's decisions, exchanges, flow packets with capture status, and replays |
+| `GET /scans/{id}/frames?ids=1,2` | Up to 256 indexed frames as hex from a verified capture in `--evidence-dir`; absent IDs are listed in `missing` |
+| `POST /evidence/clone` | `{observation_id, exchange}` → `{definition}`, an editable Protocol DSL draft; nothing is written on the server |
+| `POST /probes/replay` | `{observation_id, exchange, definition, mode, dry_run, target}`; `mode` is `offline` or `live`. `dry_run` returns the plan. Otherwise it returns `201` with a `nyxr/probe-run/v1` record. Live needs the original `target`, a token and `--allow-packet-send`, and is refused for `ot-safe` scans |
 | `GET /packets/watch?interface=eth0` | Live Ethernet frames as Server-Sent Events; requires `--packetd` |
 | `POST /packets/send` | Submit one hex-encoded Ethernet frame; requires `--packetd --allow-packet-send` |
 
@@ -179,7 +190,7 @@ trails are planned; see the [Roadmap](../roadmap.md#phase-9--enterprise-hardenin
 | `--evidence-dir` | | Directory for API pcapng captures |
 | `--packetd` | | nyxr-packetd socket for raw scans, capture and live packets |
 | `--protocol-registry` | | Operator-selected protocol definition files; `POST /api/v1/protocol-definitions/reload` with `{}` validates and publishes a new version for future scans |
-| `--allow-packet-send` | off | Enable frame transmission from the packets page |
+| `--allow-packet-send` | off | Enable frame transmission from the packets page and, with a token, live probe resends |
 | `--allow-privileged` | off | Allow running as root or with raw-socket capabilities |
 
 ### Optional HORIZON API

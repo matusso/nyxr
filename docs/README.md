@@ -21,6 +21,8 @@ New to nyxr? Start with **[Getting started](getting-started.md)**.
 | [Research packets](guide/research-packets.md) | Crafted TCP flags, SCTP, raw IP protocols, fragmentation |
 | [HORIZON PoC](horizon/README.md) | Scoped paired TCP-option trials, synthetic lab and evidence replay |
 | [Packet capture and analysis](guide/packet-capture.md) | pcapng evidence, `decode`, the terminal packet browser, `sniff` |
+| [Protocol DSL](guide/protocol-dsl.md) | Stateful YAML service definitions, v2 modules, fixtures and the server registry |
+| [Evidence navigation and probe replay](guide/evidence-and-replay.md) | Claim → exchange → packet traces, probe cloning, offline replay and explicit live resend |
 | [Storage and history](guide/storage-and-history.md) | The SQLite database, `nyxr history`, retention |
 | [Asset identity graph](guide/asset-identity.md) | Correlation, confidence, reviews, membership history, passive topology and limits |
 | [Web UI and REST API](guide/web-ui-and-api.md) | `nyxr serve`, UI tour, API endpoints, live events, security model |

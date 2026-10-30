@@ -426,6 +426,8 @@ func (e *Engine) probeProtocol(ctx context.Context, t Target, d ProtocolDefiniti
 				err = nil
 			}
 			_ = active.SetReadDeadline(end)
+		case (s.StartTLS || s.TLS) && e.retainedPlaintext:
+			// Retained TLS-layer evidence is already decrypted application data.
 		case s.StartTLS:
 			if d.Transport != "tcp" {
 				err = errors.New("start_tls requires tcp")
@@ -541,7 +543,7 @@ func receiveProtocol(c net.Conn, s *receiveSpec) ([]byte, error) {
 	l := s.Length
 	head := make([]byte, l.Offset+l.Bytes)
 	if n, err := io.ReadFull(c, head); err != nil {
-		return head[:n], err
+		return head[:n], shortFrame(err, n)
 	}
 	var n uint32
 	b := head[l.Offset:]
@@ -574,5 +576,15 @@ func receiveProtocol(c net.Conn, s *receiveSpec) ([]byte, error) {
 	frame := make([]byte, len(head)+int(wanted))
 	copy(frame, head)
 	nread, err := io.ReadFull(c, frame[len(head):])
-	return frame[:len(head)+nread], err
+	return frame[:len(head)+nread], shortFrame(err, len(head)+nread)
+}
+
+// shortFrame keeps a deadline that cut a framed message short visible as an
+// error. Evidence otherwise treats a deadline after some bytes as a normal
+// end of a server's reply, which is not true when a length was promised.
+func shortFrame(err error, received int) error {
+	if received > 0 && errors.Is(err, os.ErrDeadlineExceeded) {
+		return fmt.Errorf("framed response incomplete after %d bytes: deadline exceeded", received)
+	}
+	return err
 }

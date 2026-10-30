@@ -9,10 +9,8 @@ package api
 import (
 	"bufio"
 	"bytes"
-	"crypto/sha256"
 	"crypto/subtle"
 	"embed"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/matusso/nyxr/internal/capture"
 	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/horizon"
 	"github.com/matusso/nyxr/internal/observe"
@@ -108,6 +107,10 @@ func Handler(cfg ServerConfig) http.Handler {
 	api.HandleFunc("POST /api/v1/assets/topology/reviews", s.reviewTopology)
 	api.HandleFunc("GET /api/v1/observations", s.observations)
 	api.HandleFunc("POST /api/v1/evidence/resolve", s.resolveSource)
+	api.HandleFunc("GET /api/v1/evidence/trace", s.evidenceTrace)
+	api.HandleFunc("POST /api/v1/evidence/clone", s.cloneProbe)
+	api.HandleFunc("POST /api/v1/probes/replay", s.replayProbe)
+	api.HandleFunc("GET /api/v1/scans/{id}/frames", s.scanFrames)
 	api.HandleFunc("GET /api/v1/packets/watch", s.watchPackets)
 	api.HandleFunc("POST /api/v1/packets/send", s.sendPacket)
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
@@ -453,56 +456,42 @@ func (s *server) scanEvidence(w http.ResponseWriter, r *http.Request) {
 // scanPCAPNG serves a capture only when it lies inside the evidence
 // directory; CLI captures elsewhere on disk are never exposed.
 func (s *server) scanPCAPNG(w http.ResponseWriter, r *http.Request) {
-	sc, ok, err := s.scanSummary(r, r.PathValue("id"))
+	f, fi, code, err := s.openCapture(r, r.PathValue("id"))
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if !ok || sc.Capture == nil || s.cfg.EvidenceDir == "" || sc.Status == "running" {
-		writeError(w, http.StatusNotFound, "no finished capture for this scan")
-		return
-	}
-	dir, err := filepath.Abs(s.cfg.EvidenceDir)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	path, err := filepath.Abs(sc.Capture.Path)
-	if err != nil || filepath.Dir(path) != dir {
-		writeError(w, http.StatusNotFound, "capture is outside the evidence directory")
-		return
-	}
-	f, err := os.Open(path)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "capture file is missing")
+		writeError(w, code, err.Error())
 		return
 	}
 	defer f.Close()
-	fi, err := f.Stat()
-	if err != nil || !fi.Mode().IsRegular() {
-		writeError(w, http.StatusNotFound, "capture file is missing")
-		return
-	}
-	if sc.Capture.ArtifactID != "" {
-		// Verify the retained container outside packet RX. Use the same opened
-		// file for download so path replacement cannot select different bytes.
-		digest := sha256.New()
-		if fi.Size() != sc.Capture.Bytes {
-			writeError(w, http.StatusNotFound, "capture artifact is unavailable: size changed")
-			return
-		}
-		if _, err := io.Copy(digest, io.LimitReader(f, sc.Capture.Bytes+1)); err != nil || "sha256:"+hex.EncodeToString(digest.Sum(nil)) != sc.Capture.ArtifactID {
-			writeError(w, http.StatusNotFound, "capture artifact is unavailable: hash mismatch")
-			return
-		}
-		if _, err := f.Seek(0, io.SeekStart); err != nil {
-			writeError(w, http.StatusInternalServerError, "cannot read capture")
-			return
-		}
-	}
 	w.Header().Set("Content-Type", "application/vnd.tcpdump.pcap")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+filepath.Base(path)+`"`)
-	http.ServeContent(w, r, filepath.Base(path), fi.ModTime(), f)
+	w.Header().Set("Content-Disposition", `attachment; filename="`+fi.Name()+`"`)
+	http.ServeContent(w, r, fi.Name(), fi.ModTime(), f)
+}
+
+// openCapture opens a finished scan's capture only when it lies inside the
+// evidence directory, verified against its artifact ID outside packet RX.
+// Callers read the same opened file, so path replacement cannot select
+// different bytes.
+func (s *server) openCapture(r *http.Request, id string) (*os.File, os.FileInfo, int, error) {
+	sc, ok, err := s.scanSummary(r, id)
+	if err != nil {
+		return nil, nil, http.StatusInternalServerError, err
+	}
+	if !ok || sc.Capture == nil || s.cfg.EvidenceDir == "" || sc.Status == "running" {
+		return nil, nil, http.StatusNotFound, errors.New("no finished capture for this scan")
+	}
+	dir, err := filepath.Abs(s.cfg.EvidenceDir)
+	if err != nil {
+		return nil, nil, http.StatusInternalServerError, err
+	}
+	path, err := filepath.Abs(sc.Capture.Path)
+	if err != nil || filepath.Dir(path) != dir {
+		return nil, nil, http.StatusNotFound, errors.New("capture is outside the evidence directory")
+	}
+	f, fi, err := capture.OpenVerified(path, sc.Capture.Bytes, sc.Capture.ArtifactID)
+	if err != nil {
+		return nil, nil, http.StatusNotFound, err
+	}
+	return f, fi, http.StatusOK, nil
 }
 
 // assets lists stored addresses. open=true keeps only open ports (and the

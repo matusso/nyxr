@@ -33,7 +33,7 @@ _nyxr() {
     done
 
     if [[ -z "$cmd" ]]; then
-        COMPREPLY=($(compgen -W "scan profiles decode sniff history probe horizon serve completion version help" -- "$cur"))
+        COMPREPLY=($(compgen -W "scan profiles decode sniff history probe evidence horizon serve completion version help" -- "$cur"))
         return 0
     fi
 
@@ -103,7 +103,7 @@ _nyxr() {
                     COMPREPLY=($(compgen -f -- "$cur"))
                 fi
             else
-                COMPREPLY=($(compgen -W "import validate" -- "$cur"))
+                COMPREPLY=($(compgen -W "import validate fixtures clone replay" -- "$cur"))
             fi
             ;;
         profiles)

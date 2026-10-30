@@ -11,7 +11,7 @@ Every record carries:
 | Field | Meaning |
 | --- | --- |
 | `schema` | `nyxr/v1`. Consumers should reject an unknown major version |
-| `kind` | `host`, `port`, `service`, `script`, `device`, `packet-evidence` or `scan` |
+| `kind` | `host`, `port`, `service`, `script`, `device`, `packet-evidence`, `probe-replay` or `scan` |
 | `scan_id` | Sortable scan identifier, such as `20261001T195109Z-c3b4a07e3884` |
 
 A stream may interleave kinds, so readers should switch on `kind`. The `scan`
@@ -25,6 +25,7 @@ summary is always emitted last.
 | `script` | Nmap NSE result on a discovered open port or its host |
 | `device` | Multi-source device classification |
 | `packet-evidence` | Captured frames that belong to one flow |
+| `probe-replay` | Result of an explicit live probe resend, stored in its own `probe-replay` scan; never a service claim |
 | `scan` | Summary of the run |
 
 All discovery scans, including `--no-db`, use this pipeline. JSON readers that
@@ -234,6 +235,32 @@ Emitted at the end of a scan with `--pcapng`, one per flow:
 | `capture_artifact_id` | SHA-256 of the retained pcapng container; combine with `scan_id`, packet `id` and direction. Absent for historical captures whose exact container was not hashed |
 | `packets` | Indexed frames: `id`, `timestamp`, `direction` (`tx` or `rx`), `length`, `summary` |
 | `truncated` | More frames belonged to the flow than were indexed |
+
+## Evidence trace
+
+`nyxr evidence show --json` and `GET /api/v1/evidence/trace` return
+`schema: nyxr/evidence-trace/v1`:
+
+| Field | Meaning |
+| --- | --- |
+| `observation` | The stored claim, with its `source` reference |
+| `exchanges` | Per retained exchange: `index`, `source`, `probe`, `layer`, `matched`, `error`, `completeness`, `truncated`, `started`, `duration_ns`, `request_bytes`, `response_bytes`, `decisions` (indexes into `probe_updates`), `packets` (packet IDs captured during the exchange) |
+| `capture` | `status` (`available`, `partial`, `unavailable`), `reasons`, `capture`, `capture_artifact_id`, `flow_truncated`, `dropped_queue`, `dropped_limit`, `backend_drops`, `packet_association` (`time-window`), `packets` |
+| `runs` | Recorded `nyxr/probe-run/v1` replays of this claim's exchanges |
+
+Packet IDs are exact; associating one with an exchange by capture time is an
+inference.
+
+## Probe runs
+
+`schema: nyxr/probe-run/v1` records one replay of an edited definition:
+`run_id`, `mode` (`offline` or `live`), `created_at`, `source` (the replayed
+exchange reference), `protocol`, `definition_sha256`, `target`, `transport`,
+`port`, `status` (`matched`, `unmatched`, `partial`, `failed`), `error`,
+`request_matches_evidence`, `scan_id` (live runs only) and `result`, a
+`probe-replay` observation. An offline result has `state: offline` and
+`claim_status: inferred`. Its response bytes are the retained evidence, not a new
+reply. Runs never modify the source observation.
 
 ## Scan summary
 

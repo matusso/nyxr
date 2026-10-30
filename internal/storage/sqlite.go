@@ -233,6 +233,22 @@ var migrations = []string{
 	);
 	CREATE INDEX topology_reviews_time ON topology_reviews(valid_from, valid_until, id);
 	CREATE INDEX topology_reviews_address ON topology_reviews(address, valid_from);`,
+	// Replays never change the exchange they came from. source_scan_id is
+	// provenance, not a foreign key, so a live run outlives a pruned original.
+	`CREATE TABLE probe_runs (
+		id                 TEXT PRIMARY KEY,
+		mode               TEXT NOT NULL CHECK(mode IN ('offline', 'live')),
+		created_at         TEXT NOT NULL,
+		source_artifact_id TEXT NOT NULL,
+		source_pointer     TEXT NOT NULL,
+		source_scan_id     TEXT NOT NULL,
+		definition_sha256  TEXT NOT NULL,
+		definition         BLOB NOT NULL,
+		status             TEXT NOT NULL,
+		scan_id            TEXT REFERENCES scans(id) ON DELETE CASCADE,
+		record             BLOB NOT NULL
+	);
+	CREATE INDEX probe_runs_source ON probe_runs(source_artifact_id, created_at);`,
 }
 
 // Store is safe for concurrent use.
@@ -561,12 +577,14 @@ func scanRow(row interface{ Scan(...any) error }) (observe.Scan, error) {
 
 // Filter selects observations. Zero fields match everything.
 type Filter struct {
-	ScanID    string
-	Address   netip.Addr
-	Kind      string
-	Transport string
-	Port      uint16
-	Service   string
+	// ObservationID is the row number of a store:<namespace>/<n> ID.
+	ObservationID int64
+	ScanID        string
+	Address       netip.Addr
+	Kind          string
+	Transport     string
+	Port          uint16
+	Service       string
 	// Unknown selects observations with an unknown fingerprint.
 	Unknown bool
 	Limit   int
@@ -577,6 +595,9 @@ func (s *Store) Observations(ctx context.Context, f Filter) ([]observe.Observati
 	var where []string
 	var args []any
 	add := func(clause string, v any) { where = append(where, clause); args = append(args, v) }
+	if f.ObservationID != 0 {
+		add("o.id = ?", f.ObservationID)
+	}
 	if f.ScanID != "" {
 		add("o.scan_id = ?", f.ScanID)
 	}
@@ -830,6 +851,16 @@ func (s *Store) Prune(ctx context.Context, r Retention, now time.Time) (int, err
 		}
 		n, _ := res.RowsAffected()
 		deleted += int(n)
+	}
+	// Live runs cascade with their own scan. An offline run only describes
+	// retained evidence, so it goes when its source scan goes.
+	if r.OlderThan > 0 {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM probe_runs WHERE created_at < ?`, ts(now.Add(-r.OlderThan))); err != nil {
+			return 0, err
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM probe_runs WHERE scan_id IS NULL AND source_scan_id NOT IN (SELECT id FROM scans)`); err != nil {
+		return 0, err
 	}
 	removed, err := tx.QueryContext(ctx, `SELECT m.asset_id, m.identity_id FROM identity_members m
 		WHERE m.asset_id NOT IN (SELECT asset_id FROM observations)

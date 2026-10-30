@@ -77,6 +77,7 @@ make fuzz
 | `FuzzPCAPReader` | `internal/packet` |
 | `FuzzDefinitionAndMatcher` | `internal/probe` |
 | `FuzzResponseParsers` | `internal/service` |
+| `FuzzCloneAndOfflineReplay` | `internal/service` (any retained exchange clones to a definition that replays offline without network I/O) |
 | `FuzzParse` | `internal/nmapdb` |
 | `FuzzSourceReference` | `internal/observe` (artifact identity and RFC 6901 pointers) |
 

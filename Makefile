@@ -64,6 +64,7 @@ fuzz:
 	$(GO) test -run '^$$' -fuzz '^FuzzPCAPReader$$' -fuzztime=5s -parallel=2 ./internal/packet
 	$(GO) test -run '^$$' -fuzz '^FuzzDefinitionAndMatcher$$' -fuzztime=5s -parallel=2 ./internal/probe
 	$(GO) test -run '^$$' -fuzz '^FuzzResponseParsers$$' -fuzztime=5s -parallel=2 ./internal/service
+	$(GO) test -run '^$$' -fuzz '^FuzzCloneAndOfflineReplay$$' -fuzztime=5s -parallel=2 ./internal/service
 	$(GO) test -run '^$$' -fuzz '^FuzzParse$$' -fuzztime=5s -parallel=2 ./internal/nmapdb
 	$(GO) test -run '^$$' -fuzz '^FuzzAdmission$$' -fuzztime=5s -parallel=2 ./internal/horizon/dsl
 	$(GO) test -run '^$$' -fuzz '^FuzzSequenceBounds$$' -fuzztime=5s -parallel=2 ./internal/horizon/dsl

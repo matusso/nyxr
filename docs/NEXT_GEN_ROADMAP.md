@@ -366,6 +366,21 @@ references the original envelope without a second capture store or graph. These
 unit, loopback and replay checks do not establish privileged/live HORIZON gates.
 See [output records](reference/output-records.md#source-references).
 
+**Implemented workflow (#82):** `nyxr evidence show`, the API trace endpoint and
+the web UI's evidence page link a stored claim to its planner decisions, its
+retained exchanges and the exact indexed pcapng packets of its flow. The packet
+status (`available`, `partial` or `unavailable`) and its reasons are explicit.
+Evidence frames open in the existing packet editor. `nyxr probe clone` and
+`POST /api/v1/evidence/clone` draft an editable Protocol DSL definition, and
+`probe replay` validates it against the exact target, transport and traffic
+bounds. Replay is offline (retained bytes, no traffic) unless a live resend is
+requested explicitly. Every run is a new `nyxr/probe-run/v1` record, and live
+runs are stored as their own scan. The CLI and API use the existing
+authorization (token and `--allow-packet-send`), path redaction, retention and
+the `ot-safe` refusal. Unit, loopback, offline-determinism and fuzz checks cover
+this workflow; they do not establish live validation against production
+services. See [Evidence navigation and probe replay](guide/evidence-and-replay.md).
+
 Every service identification should carry evidence.
 
 Instead of:
@@ -1249,9 +1264,9 @@ nyxr diff scan-old.json scan-new.json
 
 nyxr asset show NYXR-A83F92
 
-nyxr evidence show <service-id>
+nyxr evidence show <observation-id>          # implemented (#82)
 
-nyxr probe replay <evidence-id>
+nyxr probe replay --definition f.yaml <observation-id>   # implemented (#82)
 
 nyxr scan 10.0.0.0/8 --distributed
 ```
