@@ -107,3 +107,26 @@ func icmpv6Checksum(source, destination, message []byte) uint16 {
 	}
 	return ^uint16(sum)
 }
+
+// NeighborAdvertisementTarget names the address an advertisement claims so a
+// batch resolver can find its pending solicitation. It does not validate the
+// frame; NeighborAdvertisementMAC does that once the target is known.
+func NeighborAdvertisementTarget(frame []byte) (netip.Addr, bool) {
+	if len(frame) < 14 {
+		return netip.Addr{}, false
+	}
+	offset := 12
+	ethType := binary.BigEndian.Uint16(frame[offset : offset+2])
+	if ethType == 0x8100 || ethType == 0x88a8 {
+		offset += 4
+		if len(frame) < offset+2 {
+			return netip.Addr{}, false
+		}
+		ethType = binary.BigEndian.Uint16(frame[offset : offset+2])
+	}
+	ip := frame[offset+2:]
+	if ethType != 0x86dd || len(ip) < 40+24 || ip[0]>>4 != 6 || ip[6] != 58 || ip[40] != 136 {
+		return netip.Addr{}, false
+	}
+	return netip.AddrFrom16([16]byte(ip[48:64])), true
+}

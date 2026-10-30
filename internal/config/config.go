@@ -114,7 +114,7 @@ func (c Config) Validate() error {
 		}
 		allowed := false
 		for _, prefix := range c.AllowTargets {
-			if prefix.Contains(target) {
+			if prefix.Contains(target.WithZone("")) {
 				allowed = true
 				break
 			}
@@ -195,11 +195,8 @@ func (c Config) Validate() error {
 		if len(c.SourceMAC) == 6 && (c.SourceMAC[0]&1 != 0 || isZeroMAC(c.SourceMAC)) {
 			return errors.New("source MAC must be a unicast Ethernet address")
 		}
-		if c.SourceIP.IsValid() && !c.SourceIP.Is4() {
-			return errors.New("TCP SYN mode currently requires an IPv4 source")
-		}
-		if c.SourceIP.IsValid() && (c.SourceIP.IsUnspecified() || c.SourceIP.IsMulticast()) {
-			return errors.New("TCP SYN source must be a unicast IPv4 address")
+		if c.SourceIP.IsValid() && (c.SourceIP.IsUnspecified() || c.SourceIP.IsMulticast() || c.SourceIP.Is4In6()) {
+			return errors.New("TCP SYN source must be a unicast IPv4 or IPv6 address")
 		}
 		if len(c.NextHopMAC) != 0 && len(c.NextHopMAC) != 6 {
 			return errors.New("TCP SYN next-hop MAC must be an Ethernet address")
@@ -207,9 +204,31 @@ func (c Config) Validate() error {
 		if len(c.NextHopMAC) == 6 && (c.NextHopMAC[0]&1 != 0 || isZeroMAC(c.NextHopMAC)) {
 			return errors.New("TCP SYN next-hop MAC must be a unicast Ethernet address")
 		}
+		zone := ""
 		for _, target := range c.Targets {
-			if !target.Is4() {
-				return errors.New("TCP SYN mode currently supports IPv4 targets only")
+			// One --source-ip cannot serve both families; scan each separately.
+			if c.SourceIP.IsValid() && target.Is4() != c.SourceIP.Is4() {
+				return fmt.Errorf("TCP SYN source %s cannot reach %s; scan IPv4 and IPv6 targets separately when setting --source-ip", c.SourceIP, target)
+			}
+			if target.Zone() == "" {
+				continue
+			}
+			if !target.IsLinkLocalUnicast() {
+				return fmt.Errorf("IPv6 target %s has a zone but is not link-local", target)
+			}
+			if zone != "" && target.Zone() != zone {
+				return fmt.Errorf("TCP SYN targets name zones %s and %s; scan one link at a time", zone, target.Zone())
+			}
+			zone = target.Zone()
+			if target.Zone() != c.Interface {
+				return fmt.Errorf("IPv6 target %s is scoped to %s, not --interface %s", target, target.Zone(), c.Interface)
+			}
+		}
+		if c.XDPPinDir != "" {
+			for _, target := range c.Targets {
+				if target.Is6() {
+					return errors.New("AF_XDP SYN supports IPv4 targets only")
+				}
 			}
 		}
 	}

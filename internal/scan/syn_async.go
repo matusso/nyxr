@@ -78,7 +78,11 @@ func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observatio
 		// Reserve the source port in the host TCP stack while XDP redirects
 		// replies for it. This prevents an unrelated connection from being
 		// assigned the same ephemeral port and losing its packets to Nyxr.
-		listener, err := net.ListenTCP("tcp4", &net.TCPAddr{IP: net.IP(source.AsSlice())})
+		network := "tcp4"
+		if source.Is6() {
+			network = "tcp6"
+		}
+		listener, err := net.ListenTCP(network, &net.TCPAddr{IP: net.IP(source.AsSlice())})
 		if err != nil {
 			return fmt.Errorf("reserve AF_XDP SYN port: %w", err)
 		}
@@ -198,7 +202,7 @@ func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observatio
 		switch {
 		case p.Protocol == "tcp" && p.Destination == source && p.TCPFlags&16 != 0:
 			key = synKey{p.Source, p.SourcePort, p.TCPAck - 1}
-		case p.Protocol == "icmp" && p.ICMPType == 3 && p.Destination == source && p.Quote.Valid && p.Quote.Source == source:
+		case synUnreachable(p) && p.Destination == source && p.Quote.Source == source:
 			key = synKey{p.Quote.Destination, p.Quote.DestPort, p.Quote.Sequence}
 		default:
 			return nil
@@ -220,8 +224,8 @@ func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observatio
 			default:
 				return nil
 			}
-		} else if p.Protocol == "icmp" && p.Quote.SourcePort == port {
-			o.State, o.Confidence, o.Reason = "filtered", 95, fmt.Sprintf("ICMP destination unreachable (code %d)", p.ICMPCode)
+		} else if p.Protocol != "tcp" && p.Quote.SourcePort == port {
+			o.State, o.Confidence, o.Reason = "filtered", 95, unreachableReason(p)
 		} else {
 			return nil
 		}
@@ -309,7 +313,7 @@ func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observatio
 				continue
 			}
 			var batch [synBatchSize][]byte
-			var storage [synBatchSize][74]byte
+			var storage [synBatchSize][packet.MaxSYNFrame]byte
 			var entries [synBatchSize]*synPending
 			count := 0
 			add := func(work synWork) error {
@@ -322,6 +326,9 @@ func runSYNAsync(parent context.Context, cfg config.Config, emit func(Observatio
 					if len(mac) == 0 {
 						o := base(t, "tcp-syn")
 						o.State, o.Confidence, o.Reason = "no-response", 80, "next-hop ARP unanswered; SYN not sent"
+						if t.target.Is6() {
+							o.Reason = "next-hop NDP unanswered; SYN not sent"
+						}
 						return emit(o)
 					}
 					if err := tmpl.SetDestination(mac); err != nil {

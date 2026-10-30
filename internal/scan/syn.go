@@ -17,9 +17,38 @@ import (
 
 type liveOpener = packetio.Opener
 
-// runSYN keeps a bounded set of probes in flight. The receive workers own
-// their decoders; one sender owns the transmit handle and batches frames.
+// runSYN scans IPv4 targets first and then IPv6 targets, each family through
+// its own front end and the shared asynchronous engine.
 func runSYN(parent context.Context, cfg config.Config, emit func(Observation) error, open liveOpener) error {
+	if cfg.TargetStream != nil {
+		return runSYN4(parent, cfg, emit, open) // streams hold IPv4 ranges only
+	}
+	var v4, v6 []netip.Addr
+	for _, target := range cfg.Targets {
+		if target.Is4() {
+			v4 = append(v4, target)
+		} else {
+			v6 = append(v6, target)
+		}
+	}
+	if len(v4) > 0 {
+		family := cfg
+		family.Targets = v4
+		if err := runSYN4(parent, family, emit, open); err != nil {
+			return err
+		}
+	}
+	if len(v6) > 0 {
+		family := cfg
+		family.Targets = v6
+		return runSYN6(parent, family, emit, open)
+	}
+	return nil
+}
+
+// runSYN4 keeps a bounded set of probes in flight. The receive workers own
+// their decoders; one sender owns the transmit handle and batches frames.
+func runSYN4(parent context.Context, cfg config.Config, emit func(Observation) error, open liveOpener) error {
 	iface, lookupErr := net.InterfaceByName(cfg.Interface)
 	var source netip.Addr
 	var srcMAC net.HardwareAddr
@@ -235,14 +264,21 @@ func runSYNWithIOResolved(parent context.Context, cfg config.Config, emit func(O
 }
 
 func synToken(h hash.Hash, t task, sourcePort uint16, ordinal uint64) uint32 {
-	var input [16]byte
-	addr := t.target.As4()
-	copy(input[:4], addr[:])
-	binary.BigEndian.PutUint16(input[4:6], t.port)
-	binary.BigEndian.PutUint16(input[6:8], sourcePort)
-	binary.BigEndian.PutUint64(input[8:16], ordinal)
+	var input [28]byte
+	at := 4
+	if t.target.Is4() {
+		addr := t.target.As4()
+		copy(input[:4], addr[:])
+	} else {
+		addr := t.target.As16()
+		copy(input[:16], addr[:])
+		at = 16
+	}
+	binary.BigEndian.PutUint16(input[at:at+2], t.port)
+	binary.BigEndian.PutUint16(input[at+2:at+4], sourcePort)
+	binary.BigEndian.PutUint64(input[at+4:at+12], ordinal)
 	h.Reset()
-	_, _ = h.Write(input[:])
+	_, _ = h.Write(input[:at+12])
 	var digest [32]byte
 	sum := h.Sum(digest[:0])
 	return binary.BigEndian.Uint32(sum[:4])
@@ -276,7 +312,7 @@ func receiveSYN(parent context.Context, io packetio.PacketIO, channels []chan pa
 						switch {
 						case p.Protocol == "tcp" && p.Destination == source:
 							port = p.DestPort
-						case p.Protocol == "icmp" && p.ICMPType == 3 && p.Destination == source && p.Quote.Valid && p.Quote.Source == source:
+						case synUnreachable(p) && p.Destination == source && p.Quote.Source == source:
 							port = p.Quote.SourcePort
 						}
 						if port >= basePort && int(port-basePort) < len(channels) {
@@ -326,9 +362,16 @@ func receiveSYN(parent context.Context, io packetio.PacketIO, channels []chan pa
 	}
 }
 
+// synUnreachable reports an ICMP or ICMPv6 destination-unreachable error
+// that quotes a TCP header; the caller still validates the quoted tuple.
+func synUnreachable(p packet.Decoded) bool {
+	return p.Quote.Valid && ((p.Protocol == "icmp" && p.ICMPType == 3) || (p.Protocol == "icmp6" && p.ICMPType == 1))
+}
+
 // Filter obvious unrelated frames before they occupy the bounded decode queues.
+// IPv6 extension headers are left to the decoder's bounded walk.
 func candidateSYNFrame(frame []byte, local netip.Addr) bool {
-	if len(frame) < 34 || !local.Is4() {
+	if len(frame) < 34 || !local.IsValid() {
 		return false
 	}
 	offset := 12
@@ -340,10 +383,14 @@ func candidateSYNFrame(frame []byte, local netip.Addr) bool {
 		offset += 4
 		ethType = binary.BigEndian.Uint16(frame[offset : offset+2])
 	}
+	ip := frame[offset+2:]
+	if local.Is6() {
+		dst := local.As16()
+		return ethType == 0x86dd && len(ip) >= 40 && ip[0]>>4 == 6 && string(ip[24:40]) == string(dst[:])
+	}
 	if ethType != 0x0800 {
 		return false
 	}
-	ip := frame[offset+2:]
 	if len(ip) < 20 || ip[0]>>4 != 4 || ip[0]&15 < 5 || (ip[9] != 6 && ip[9] != 1) {
 		return false
 	}
@@ -366,8 +413,8 @@ func waitSYN(ctx context.Context, responses <-chan packet.Decoded, t task, sourc
 				default:
 					continue
 				}
-			} else if p.Protocol == "icmp" && p.ICMPType == 3 && p.Quote.Valid && p.Quote.Source == source && p.Quote.Destination == t.target && p.Quote.SourcePort == sourcePort && p.Quote.DestPort == t.port && p.Quote.Sequence == seq {
-				o.State, o.Confidence, o.Reason = "filtered", 95, fmt.Sprintf("ICMP destination unreachable (code %d)", p.ICMPCode)
+			} else if synUnreachable(p) && p.Quote.Source == source && p.Quote.Destination == t.target && p.Quote.SourcePort == sourcePort && p.Quote.DestPort == t.port && p.Quote.Sequence == seq {
+				o.State, o.Confidence, o.Reason = "filtered", 95, unreachableReason(p)
 			} else {
 				continue
 			}
@@ -383,4 +430,11 @@ func waitSYN(ctx context.Context, responses <-chan packet.Decoded, t task, sourc
 			return o
 		}
 	}
+}
+
+func unreachableReason(p packet.Decoded) string {
+	if p.Protocol == "icmp6" {
+		return fmt.Sprintf("ICMPv6 destination unreachable (code %d)", p.ICMPCode)
+	}
+	return fmt.Sprintf("ICMP destination unreachable (code %d)", p.ICMPCode)
 }

@@ -17,6 +17,11 @@ import (
 const MaxSamples = 8
 const ProbeProfile = "nyxr-syn-v1"
 
+// ProbeProfile6 is the IPv6 probe: the same option order with an MSS for a
+// 40-byte IPv6 header. Its signatures carry their own prefix, so IPv4 and
+// IPv6 evidence never compare as one population.
+const ProbeProfile6 = "nyxr-syn6-v1"
+
 // Sample owns all retained values; no bytes alias a packet receive buffer.
 func Sample(p packet.Decoded) observe.StackSample {
 	s := observe.StackSample{Received: p.Received, Response: "other", IPVersion: p.IPVersion,
@@ -131,6 +136,9 @@ func Analyze(f *observe.TCPStack) {
 	key := signatureKey(first)
 	sum := sha256.Sum256([]byte(key))
 	f.Signature = "nx_tcp_v1_" + hex.EncodeToString(sum[:12])
+	if first.IPVersion == 6 {
+		f.ProbeProfile, f.Signature = ProbeProfile6, "nx_tcp6_v1_"+hex.EncodeToString(sum[:12])
+	}
 	consistent := true
 	for i, s := range f.Samples {
 		if signatureKey(s) != key {
@@ -227,8 +235,12 @@ func classify(s observe.StackSample) []observe.StackCandidate {
 	if family == "" {
 		return nil
 	}
+	ttl := "TTL"
+	if s.IPVersion == 6 {
+		ttl = "hop limit"
+	}
 	return []observe.StackCandidate{{Family: family, Confidence: confidence, Method: "heuristic", Model: "nyxr-tcp-stack/v1", Reasons: []string{
-		"native SYN/ACK option-order rule", fmt.Sprintf("estimated initial TTL %d (observed %d)", s.InitialTTL, s.TTL),
+		"native SYN/ACK option-order rule", fmt.Sprintf("estimated initial %s %d (observed %d)", ttl, s.InitialTTL, s.TTL),
 		"MSS, SACK and window scaling observed; OS versions and intermediary roles remain unverified"}}}
 }
 

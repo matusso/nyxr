@@ -127,8 +127,8 @@ Guide: [UDP scanning](../guide/udp.md).
 | Flag | Meaning |
 | --- | --- |
 | `--tcp-mode MODE` | `connect` (default) or raw Ethernet `syn` |
-| `--interface NAME` | Ethernet interface for raw modes and capture |
-| `--source-ip IP` | Interface IPv4 address for SYN mode (automatic if unique) |
+| `--interface NAME` | Ethernet interface for raw modes and capture; a link-local target's `%zone` selects it for SYN |
+| `--source-ip IP` | Interface IPv4 or IPv6 address for SYN mode (IPv4 automatic if unique; IPv6 chosen per target scope) |
 | `--source-mac MAC` | Source Ethernet MAC (for Npcap adapter names) |
 | `--next-hop-mac MAC` | Destination or gateway MAC; overrides automatic resolution |
 | `--packetd SOCKET` | Use nyxr-packetd for raw I/O instead of local privilege |

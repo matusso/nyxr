@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"net/netip"
@@ -31,12 +32,19 @@ func ParseTargetStream(inputs []string) (*TargetStream, error) {
 	return parseTargetStream(inputs, nil)
 }
 
+// errStreamIPv6 makes Build fall back to an explicit, MaxTargets-bounded
+// target list, which the IPv6 SYN front end requires.
+var errStreamIPv6 = errors.New("TCP SYN target stream holds IPv4 ranges only")
+
 func parseTargetStream(inputs []string, names TargetNames) (*TargetStream, error) {
 	var ranges []ipv4Range
 	add := func(first, last netip.Addr) error {
 		first, last = first.Unmap(), last.Unmap()
-		if !first.Is4() || !last.Is4() || first.Compare(last) > 0 {
-			return fmt.Errorf("TCP SYN mode currently supports IPv4 targets only")
+		if first.Is6() || last.Is6() {
+			return errStreamIPv6
+		}
+		if first.Compare(last) > 0 {
+			return fmt.Errorf("invalid target range %s-%s", first, last)
 		}
 		a, b := ipv4Number(first), ipv4Number(last)
 		if a == 0 || (a <= 0xefffffff && b >= 0xe0000000) {
@@ -54,7 +62,7 @@ func parseTargetStream(inputs []string, names TargetNames) (*TargetStream, error
 			if prefix, err := netip.ParsePrefix(token); err == nil {
 				prefix = prefix.Masked()
 				if !prefix.Addr().Is4() {
-					return nil, fmt.Errorf("TCP SYN mode currently supports IPv4 targets only")
+					return nil, errStreamIPv6
 				}
 				first := ipv4Number(prefix.Addr())
 				last := first | uint32((uint64(1)<<uint(32-prefix.Bits()))-1)

@@ -1,10 +1,11 @@
 # Raw packet scanning
 
 TCP connect scanning works everywhere without privileges and is the default.
-With raw Ethernet access, nyxr can also send its own packets: raw IPv4 TCP SYN,
-ARP and NDP neighbor discovery, and ICMP echo.
+With raw Ethernet access, nyxr can also send its own packets: raw IPv4 and
+IPv6 TCP SYN, ARP and NDP neighbor discovery, and ICMP echo.
 
 - [Raw TCP SYN](#raw-tcp-syn)
+- [IPv6 raw SYN](#ipv6-raw-syn)
 - [ARP and NDP discovery](#arp-and-ndp-discovery)
 - [ICMP echo](#icmp-echo)
 - [Platform requirements](#platform-requirements)
@@ -23,7 +24,7 @@ sudo nyxr scan --tcp-mode syn --interface eth0 \
 | --- | --- |
 | SYN/ACK | `open` |
 | Matching RST/ACK | `closed` |
-| Matching ICMP destination unreachable | `filtered` |
+| Matching ICMP or ICMPv6 destination unreachable | `filtered` |
 | No reply before the deadline | `filtered` (timeout) |
 
 Replies must match the target, both ports and a per-probe sequence token
@@ -38,7 +39,7 @@ produces a `no-response` observation and no SYN is sent.
 | Flag | When to use it |
 | --- | --- |
 | `--interface` | Always; must be an Ethernet interface |
-| `--source-ip` | The interface has several IPv4 addresses. It must belong to the interface |
+| `--source-ip` | The interface has several IPv4 addresses, or you want one fixed IPv6 source. It must belong to the interface |
 | `--source-mac` | Windows Npcap adapters whose MAC cannot be read from the OS |
 | `--next-hop-mac` | Override automatic resolution. A wrong MAC makes every probe time out |
 | `--interface-rate` | Cap raw sends on the interface |
@@ -46,8 +47,7 @@ produces a `no-response` observation and no SYN is sent.
 To find the gateway MAC by hand on macOS, run `netstat -rn -f inet` for the
 route and `arp -n GATEWAY_IP` for its cached MAC.
 
-**Limits.** Raw SYN supports IPv4 TCP targets only. `ot-safe` always uses
-connect mode. `--dry-run` shows the chosen mode and link details; route and
+**Limits.** Raw SYN scans TCP only. `ot-safe` always uses connect mode. `--dry-run` shows the chosen mode and link details; route and
 neighbor discovery only happen when the scan runs.
 
 Add `--fingerprint` to offer TCP options and retain SYN/ACK and RST/ACK
@@ -59,6 +59,53 @@ from a bounded deadline queue, and transmit calls are batched when the rate
 allows. A single packet reader feeds bounded queues and reusable decoder
 workers, and receive buffers are pooled so receive work does not allocate per
 packet.
+
+## IPv6 raw SYN
+
+IPv6 targets use the same engine, limits, token checks and output as IPv4:
+
+```sh
+sudo nyxr scan --tcp-mode syn --interface eth0 --protocols tcp \
+  --ports 22,443 2001:db8:1::10 fe80::1%eth0
+```
+
+One scan can mix IPv4 and IPv6 targets; nyxr scans the IPv4 targets first.
+Large CIDR streams stay IPv4-only, so IPv6 targets count against the normal
+target limit. A dual-stack hostname scans both addresses.
+
+**Sources.** Without `--source-ip`, nyxr picks an address on the interface
+for each target, following the scope and longest-prefix rules of
+[RFC 6724](https://www.rfc-editor.org/rfc/rfc6724.html). Link-local targets
+use a link-local source. Other targets use a global or unique-local source,
+preferring one whose prefix contains the target. Targets that need different
+sources run one after the other on the same handles. A `--source-ip` serves
+every target, so it cannot be combined with targets of the other family.
+
+**Next hops.** nyxr reads the IPv6 routing table (`/proc/net/ipv6_route`,
+`netstat -rn -f inet6`, or `Get-NetRoute` on Windows) and resolves each
+distinct next hop with Neighbor Discovery. Solicitations to link-local
+routers come from the interface's link-local address, and each advertisement
+must match its target, the sender MAC and the ICMPv6 checksum. Silent hops are
+solicited once more. A hop that never answers produces `no-response` with
+`next-hop NDP unanswered; SYN not sent`. On macOS nyxr also learns the
+Ethernet source the interface really transmits with, as it does for IPv4.
+
+**Zones.** Link-local targets (`fe80::/10`) are always on-link. Write them
+with a zone (`fe80::1%eth0`), or pass `--interface`. A zone selects the
+interface when `--interface` is omitted, and it must name the scan interface.
+One scan covers one link. Results report link-local targets with the
+interface as their zone. Global addresses with a zone are rejected.
+
+**Replies.** The decoder walks at most eight hop-by-hop, routing,
+destination-options or authentication headers to reach TCP or ICMPv6.
+Fragmented replies, ESP and longer or truncated chains are dropped. ICMPv6
+destination unreachable (type 1) is classified `filtered` only when its quote
+carries the probe's address, ports and sequence token.
+
+**Not supported for IPv6.** AF_XDP (`--xdp-pin-dir`) is IPv4 only, and such
+scans are rejected. Without an OS interface (Npcap device IDs), set an IPv6
+`--source-ip` and `--source-mac`; automatic next hops then need an OS route
+too, otherwise also set `--next-hop-mac`.
 
 ## ARP and NDP discovery
 
@@ -102,7 +149,8 @@ nyxr scan --packetd /run/nyxr/packetd.sock --tcp-mode syn --interface eth0 192.0
 
 ## Linux AF_XDP
 
-AF_XDP is an optional backend for IPv4 raw TCP SYN scans. Nyxr opens one
+AF_XDP is an optional backend for IPv4 raw TCP SYN scans; IPv6 SYN uses the
+default backend. Nyxr opens one
 preallocated UMEM and RX socket per NIC queue, batches RX and TX descriptors,
 and sends from queue zero. The XDP program redirects matching SYN/ACK,
 RST/ACK, and ICMP unreachable replies to those sockets; unrelated traffic
@@ -147,7 +195,8 @@ The design rationale is in [Architecture](../architecture/overview.md).
 
 The raw path has deterministic PCAP fixtures, fake-responder fault tests, fuzz
 targets and cross-builds for all six release targets. A macOS BPF
-open-and-timeout smoke test has passed. Live receive and transmit on BPF and
+open-and-timeout smoke test has passed. The Linux namespace gate covers IPv4
+and IPv6 raw SYN (ULA through automatic NDP and a zoned link-local target). Live receive and transmit on BPF and
 Npcap, privileged Linux scanning and real NIC drop measurements are still
 pending; see [Runtime gates](../development/runtime-gates.md) and
 [Performance](../development/performance.md).

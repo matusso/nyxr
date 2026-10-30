@@ -56,7 +56,7 @@ The priority overview and recommended top five refer to the same feature rows.
 | 4 Evidence/transcripts | Bounded exchanges, decision-to-evidence ranges, packet index, history, inspection/edit/send, claim → exchange → packet traces and recorded probe clone/replay runs (#82) | NEXT GEN-owned uniform records/references #76 and linked probe workflow #82 (delivered); shared experiment capture #68/presentation #73 |
 | 5 Deep UDP | Native tokens, ICMP correlation, late replies, retries, DTLS and service exchanges | NEXT GEN-owned multi-datagram/timing #84, multicast/broadcast #91, remaining protocols #92; shared decoder/lab #66/#68 |
 | 6 QUIC/HTTP3 | Native QUIC, HTTP/3, TLS and bounded transport evidence | NEXT GEN-owned verified 0-RTT/WebTransport semantics and stable fingerprints #93 |
-| 7 Stack/application fingerprints | IPv4 raw SYN evidence, cautious family rules, TLS certificates and verified SSH keys | NEXT GEN-owned calibration #78, production IPv6 #81, TLS/SSH fingerprints #85 and endpoint signatures #86; controlled long/cross-flow experiments stay HORIZON #69/#70/#71 |
+| 7 Stack/application fingerprints | IPv4 and IPv6 raw SYN evidence (production IPv6 #81 delivered on the shared SYN engine), cautious family rules, TLS certificates and verified SSH keys | NEXT GEN-owned calibration #78, TLS/SSH fingerprints #85 and endpoint signatures #86; controlled long/cross-flow experiments stay HORIZON #69/#70/#71 |
 | 8 AF_XDP | Opt-in Linux copy-mode backend, portable backends and batched scan workers | NEXT GEN-owned live correctness/tuning #77; shared lab #66; zero-copy/NUMA/RSS optimization deferred until measured support |
 | 9 OT/ICS | Read-only Modbus/CIP/BACnet and `ot-safe` admission | NEXT GEN-owned S7/OPC UA #87; gated DNP3, IEC-104, PROFINET, KNX, Moxa, Fox, FINS, MELSEC and Schneider slices #97; shared policy #67; control writes/stress excluded |
 | 10 Unknown protocols | Unknown response bytes and inconclusive hypotheses retained | NEXT GEN-owned behavioral features, clustering/proprietary families #88; HORIZON profiles stay #72 |
@@ -229,7 +229,9 @@ with an unavailable reason. Experiments never implicitly fall back to connect mo
 Deliberate ordinary-scan fallback identifies its actual mode/evidence limits. PacketIO
 does not advertise this object today: #95/#73 implement metadata around the opener,
 not a second transport. Copy-mode does not imply zero-copy; HORIZON IPv6 fixtures do
-not imply production IPv6 SYN or live validation.
+not imply live validation. Production IPv6 SYN (#81) reuses the packet template,
+decoder, PacketIO and NDP primitives; HORIZON's experiment-scoped IPv6/ICMP
+correlation stays #68 and is not a second production executor.
 
 ## Compatibility fixtures and change review
 

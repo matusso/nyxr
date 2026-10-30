@@ -30,6 +30,31 @@ func loadIPv4Routes(device string) (func(netip.Addr) (netip.Addr, error), error)
 	if err != nil {
 		return nil, err
 	}
+	return darwinNextHop(routes, device, "IPv4"), nil
+}
+
+// loadIPv6Routes is loadIPv4Routes for the inet6 table. Link-local targets are
+// on-link on device and skip the table, whose fe80:: routes are per scope.
+func loadIPv6Routes(device string) (func(netip.Addr) (netip.Addr, error), error) {
+	output, err := exec.Command("/usr/sbin/netstat", "-rn", "-f", "inet6").Output()
+	if err != nil {
+		return nil, fmt.Errorf("read IPv6 routes: %w", err)
+	}
+	routes, err := parseDarwinRoutes6(strings.NewReader(string(output)))
+	if err != nil {
+		return nil, err
+	}
+	next := darwinNextHop(routes, device, "IPv6")
+	return func(target netip.Addr) (netip.Addr, error) {
+		target = target.WithZone("")
+		if target.IsLinkLocalUnicast() {
+			return target, nil
+		}
+		return next(target)
+	}, nil
+}
+
+func darwinNextHop(routes []darwinRoute, device, family string) func(netip.Addr) (netip.Addr, error) {
 	return func(target netip.Addr) (netip.Addr, error) {
 		best := -1
 		for i, route := range routes {
@@ -39,7 +64,7 @@ func loadIPv4Routes(device string) (func(netip.Addr) (netip.Addr, error), error)
 			}
 		}
 		if best < 0 {
-			return netip.Addr{}, fmt.Errorf("no IPv4 route to %s", target)
+			return netip.Addr{}, fmt.Errorf("no %s route to %s", family, target)
 		}
 		route := routes[best]
 		if route.device != device {
@@ -49,13 +74,24 @@ func loadIPv4Routes(device string) (func(netip.Addr) (netip.Addr, error), error)
 			return route.hop, nil
 		}
 		return target, nil
-	}, nil
+	}
 }
 
 // egressInterface names the interface route(8) get would report for target:
 // the longest unscoped prefix, falling back to scoped routes only when no
 // unscoped route matches.
 func egressInterface(target netip.Addr) (string, error) {
+	if target.Is6() {
+		output, err := exec.Command("/usr/sbin/netstat", "-rn", "-f", "inet6").Output()
+		if err != nil {
+			return "", fmt.Errorf("read IPv6 routes: %w", err)
+		}
+		routes, err := parseDarwinRoutes6(strings.NewReader(string(output)))
+		if err != nil {
+			return "", err
+		}
+		return darwinEgress(routes, target.WithZone(""))
+	}
 	output, err := exec.Command("/usr/sbin/netstat", "-rn", "-f", "inet").Output()
 	if err != nil {
 		return "", fmt.Errorf("read IPv4 routes: %w", err)
@@ -79,7 +115,7 @@ func darwinEgress(routes []darwinRoute, target netip.Addr) (string, error) {
 		}
 	}
 	if best < 0 {
-		return "", fmt.Errorf("no IPv4 route to %s", target)
+		return "", fmt.Errorf("no route to %s", target)
 	}
 	return routes[best].device, nil
 }
@@ -140,4 +176,54 @@ func darwinDestination(value string) (netip.Prefix, bool) {
 		return prefix.Masked(), true
 	}
 	return netip.PrefixFrom(addr, bits).Masked(), true
+}
+
+// parseDarwinRoutes6 reads netstat's inet6 table. Destinations and gateways
+// may carry a %zone; link-local destinations are skipped because the caller
+// treats every fe80::/10 target as on-link on the scanned interface. An
+// interface with only link-local addresses therefore yields no routes.
+func parseDarwinRoutes6(r io.Reader) ([]darwinRoute, error) {
+	var routes []darwinRoute
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 4 || !strings.HasPrefix(fields[2], "U") || strings.Contains(fields[2], "R") || strings.Contains(fields[2], "B") {
+			continue
+		}
+		prefix, ok := darwinDestination6(fields[0])
+		if !ok || prefix.Addr().IsLinkLocalUnicast() || prefix.Addr().IsMulticast() || prefix.Addr().IsLoopback() {
+			continue
+		}
+		hop, _ := netip.ParseAddr(fields[1])
+		if !hop.Is6() || hop.Is4In6() || !strings.Contains(fields[2], "G") {
+			hop = netip.Addr{} // link#, MAC and own-address gateways are on-link
+		}
+		routes = append(routes, darwinRoute{prefix: prefix, hop: hop.WithZone(""), device: fields[3], scoped: strings.Contains(fields[2], "I")})
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return routes, nil
+}
+
+func darwinDestination6(value string) (netip.Prefix, bool) {
+	if value == "default" {
+		return netip.PrefixFrom(netip.IPv6Unspecified(), 0), true
+	}
+	address, bits, hasBits := strings.Cut(value, "/")
+	if zone := strings.IndexByte(address, '%'); zone >= 0 {
+		address = address[:zone]
+	}
+	addr, err := netip.ParseAddr(address)
+	if err != nil || !addr.Is6() || addr.Is4In6() {
+		return netip.Prefix{}, false
+	}
+	if !hasBits {
+		return netip.PrefixFrom(addr, 128), true
+	}
+	prefix, err := netip.ParsePrefix(addr.String() + "/" + bits)
+	if err != nil {
+		return netip.Prefix{}, false
+	}
+	return prefix.Masked(), true
 }
