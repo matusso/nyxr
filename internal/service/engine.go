@@ -172,6 +172,9 @@ type Engine struct {
 	workers sync.WaitGroup
 	pacer   *pacer
 	closed  sync.Once
+	// retainedPlaintext makes TLS steps no-ops for an offline replay whose
+	// peer serves retained bytes that were already carried inside TLS.
+	retainedPlaintext bool
 }
 
 // Start launches the workers. emit receives one service observation per

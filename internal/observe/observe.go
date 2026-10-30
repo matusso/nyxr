@@ -26,6 +26,7 @@ const (
 	KindDevice              = "device"               // multi-source device classification
 	KindPacketEvidence      = "packet-evidence"      // captured frames belonging to one flow
 	KindExperimentReference = "experiment-reference" // offline HORIZON source adapter
+	KindProbeReplay         = "probe-replay"         // live resend of an edited probe; never a service claim
 	KindScan                = "scan"                 // scan summary, emitted last
 )
 

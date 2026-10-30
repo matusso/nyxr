@@ -258,7 +258,9 @@ function obsRow(o, fresh) {
               .map(value => h("td", {}, value)))))) : null) : null,
       (o.evidence && o.evidence.length) ? h("details", {}, h("summary", {}, `${o.evidence.length} exchanges`),
         o.evidence.map(e => h("pre", {}, `${e.probe} [${e.layer}] ${e.matched || "unmatched"}${e.error ? " error: " + e.error : ""}\n` +
-          (e.request ? "> " + printable(e.request) + "\n" : "") + (e.response ? "< " + printable(e.response) : "")))) : null));
+          (e.request ? "> " + printable(e.request) + "\n" : "") + (e.response ? "< " + printable(e.response) : "")))) : null,
+      o.observation_id && o.evidence?.length ?
+        h("div", {}, h("a", { href: "#/evidence/" + encodeURIComponent(o.observation_id) }, "Trace evidence · packets · clone probe →")) : null));
 }
 function printable(b64) {
   let s;
@@ -778,6 +780,11 @@ function packetsPage() {
   };
   hexInput.addEventListener("input", updateEditor);
   updateEditor();
+  if (pendingFrame) {
+    const frame = pendingFrame;
+    pendingFrame = null;
+    setHex(frame.hex, frame.label);
+  }
   const submit = async (value, device = interfaceInput.value.trim()) => {
     sendStatus.replaceChildren("");
     try {
@@ -858,6 +865,104 @@ function packetsPage() {
       h("section", { class: "packet-pane" }, h("h3", {}, "headers and parsed values"), fields),
       h("section", { class: "packet-pane" }, h("h3", {}, "frame bytes · editable hex"), hexInput, selectedValue)),
     h("div", { class: "bar" }, sendEdited, sendStatus)];
+}
+
+// pendingFrame carries one evidence frame into the packet editor.
+let pendingFrame = null;
+const cloneLayers = new Set(["tcp", "udp", "tls"]);
+
+// evidencePage follows one stored claim to its retained exchanges, the
+// planner decisions that cite them and the exact indexed capture packets.
+// Missing or incomplete packet evidence is stated, never hidden.
+async function evidencePage(id) {
+  const t = await api("/evidence/trace?observation=" + encodeURIComponent(id));
+  const o = t.observation, c = t.capture;
+  const openFrame = async pid => {
+    try {
+      const res = await api(`/scans/${encodeURIComponent(o.scan_id)}/frames?ids=${pid}`);
+      if (!res.frames.length) throw new Error(`packet #${pid} is not in the capture`);
+      pendingFrame = { hex: res.frames[0].hex, label: `evidence packet #${pid} (${res.frames[0].direction})` };
+      location.hash = "#/packets";
+    } catch (e) { alert(e.message); }
+  };
+  const runsBox = h("div", {});
+  const renderRuns = runs => runsBox.replaceChildren(runs.length ? table(["run", "mode", "status", "protocol", "exchange", "request as retained", "new scan"],
+    runs.map(r => h("tr", {}, h("td", {}, r.run_id), h("td", {}, r.mode), h("td", {}, state(r.status)), h("td", {}, r.protocol),
+      h("td", {}, r.source.pointer), h("td", {}, r.request_matches_evidence ? "yes" : "no (edited)"),
+      h("td", {}, r.scan_id ? h("a", { href: "#/scans/" + encodeURIComponent(r.scan_id) }, r.scan_id) : "none (offline)")))) :
+    h("p", { class: "muted" }, "No replays of this claim yet."));
+  renderRuns(t.runs);
+  const workbench = h("div", {});
+  const clone = async index => {
+    let draft;
+    try { draft = await api("/evidence/clone", { body: { observation_id: o.observation_id, exchange: index } }); }
+    catch (e) { workbench.replaceChildren(h("p", { class: "error" }, e.message)); return; }
+    const editor = h("textarea", { class: "packet-hex", spellcheck: "false", "aria-label": "Protocol DSL definition" });
+    editor.value = draft.definition;
+    const target = h("input", { type: "text", placeholder: o.target, autocomplete: "off" });
+    const result = h("div", {});
+    const run = async (mode, dryRun) => {
+      result.replaceChildren(h("span", { class: "muted" }, "working…"));
+      const body = { observation_id: o.observation_id, exchange: index, definition: editor.value, mode, dry_run: dryRun };
+      if (mode === "live") body.target = target.value.trim();
+      try {
+        const r = await api("/probes/replay", { body });
+        if (dryRun) {
+          result.replaceChildren(kv([["mode", r.mode], ["protocol", `${r.protocol} (${r.schema})`], ["target", `${r.target} ${r.transport}/${r.port}`],
+            ["traffic", r.connections ? `${r.connections} connection` : "none: retained response served from memory"],
+            ["timeout", `${r.timeout_ns / 1e6} ms`], ["max send", `${r.max_send_bytes} bytes`], ["max receive", `${r.max_receive_bytes} bytes`]]));
+          return;
+        }
+        const ev = r.result.evidence?.[0];
+        result.replaceChildren(kv([["run", r.run_id], ["status", state(r.status)], ["error", r.error],
+          ["request", r.request_matches_evidence ? "same bytes as retained" : "differs from the retained request"],
+          ["reason", r.result.reason], ["new scan", r.scan_id]]),
+          ev ? h("pre", {}, (ev.request ? "> " + printable(ev.request) + "\n" : "") + (ev.response ? "< " + printable(ev.response) : "")) : null);
+        renderRuns((await api("/evidence/trace?observation=" + encodeURIComponent(id))).runs);
+      } catch (e) { result.replaceChildren(h("p", { class: "error" }, e.message)); }
+    };
+    const live = h("button", { type: "button", class: "secondary", onclick: () => {
+      if (confirm(`Send the edited probe to ${o.target} ${o.transport}/${o.port}? This contacts the target.`)) run("live", false);
+    } }, "live resend");
+    workbench.replaceChildren(h("h2", {}, `Probe workbench · exchange ${index + 1}`),
+      h("p", { class: "muted" }, "Offline replay feeds the retained response to the edited parser and sends nothing. A live resend opens one connection to the original target only; it needs an API token and serve --allow-packet-send, and is stored as a new scan. The original evidence never changes."),
+      editor,
+      h("div", { class: "bar" },
+        h("button", { type: "button", class: "secondary", onclick: () => run("offline", true) }, "dry run"),
+        h("button", { type: "button", onclick: () => run("offline", false) }, "offline replay"),
+        h("label", {}, "original target ", target), live),
+      result);
+    workbench.scrollIntoView({ behavior: "smooth" });
+  };
+  const exchanges = t.exchanges.map(x => h("tr", {},
+    h("td", {}, x.index + 1), h("td", {}, x.probe), h("td", {}, x.layer),
+    h("td", {}, state(x.matched ? "matched" : "unmatched"), x.error ? h("div", { class: "error" }, x.error) : null),
+    h("td", {}, x.completeness, x.truncated ? " · truncated" : ""), h("td", {}, `${x.request_bytes} / ${x.response_bytes}`),
+    h("td", {}, (x.decisions || []).map(d => "#" + (d + 1)).join(" ")),
+    h("td", {}, h("div", { class: "packet-actions" }, (x.packets || []).map(pid =>
+      h("button", { type: "button", class: "secondary", title: "Open in the packet editor", onclick: () => openFrame(pid) }, "#" + pid)))),
+    h("td", {}, cloneLayers.has(x.layer) ? h("button", { type: "button", onclick: () => clone(x.index) }, "clone probe") : "")));
+  const decisions = (o.probe_updates || []).map((u, i) => h("tr", {}, h("td", {}, "#" + (i + 1)), h("td", {}, u.probe),
+    h("td", {}, u.outcome + (u.signal ? ` (${u.signal})` : "")),
+    h("td", {}, u.after?.[0] ? `${u.after[0].family} ${(100 * u.after[0].probability).toFixed(1)}%` : ""),
+    h("td", {}, `${u.evidence_start + 1}–${u.evidence_end}`)));
+  return [h("div", { class: "bar" }, h("h1", {}, "Evidence trace"), h("a", { href: "#/scans/" + encodeURIComponent(o.scan_id) }, "scan " + o.scan_id)),
+    kv([["claim", `${o.kind} ${o.service || ""}`.trim()], ["target", `${o.target} ${port(o)}`], ["claim status", state(o.claim_status)],
+      ["evidence score", `${o.confidence}/100 ${o.confidence_method || "heuristic"}`], ["reason", o.reason],
+      ["source", o.source ? o.source.artifactID : "not sealed"]]),
+    decisions.length ? [h("h2", {}, "Decisions"), table(["step", "probe", "response", "leading hypothesis", "exchanges"], decisions)] : null,
+    h("h2", {}, "Exchanges"),
+    t.exchanges.length ? table(["#", "probe", "layer", "outcome", "completeness", "bytes req / resp", "decisions", "packets (by time)", ""], exchanges)
+      : h("p", { class: "muted" }, "No exchanges were retained."),
+    h("h2", {}, "Packets ", state(c.status)),
+    (c.reasons || []).map(r => h("p", { class: "error" }, r)),
+    c.capture ? h("p", { class: "muted" }, `${c.capture} · ${c.capture_artifact_id || "no artifact ID"}`) : null,
+    (c.packets || []).length ? table(["id", "time", "direction", "bytes", "summary", ""], c.packets.map(p => h("tr", {},
+      h("td", {}, "#" + p.id), h("td", {}, fmtTime(p.timestamp)), h("td", {}, p.direction), h("td", {}, p.length),
+      h("td", { class: "wrap" }, p.summary),
+      h("td", {}, h("button", { type: "button", class: "secondary", onclick: () => openFrame(p.id) }, "open in editor"))))) : null,
+    h("p", { class: "muted" }, "Packet IDs are exact pcapng epb_packetid values. Their association with an exchange uses capture time and is an inference."),
+    h("h2", {}, "Replays"), runsBox, workbench].flat();
 }
 
 // HORIZON: opt-in experiment runs. Run IDs and every report field come from
@@ -975,7 +1080,7 @@ async function route() {
   pageAbort = new AbortController();
   const hash = location.hash.replace(/^#/, "") || "/";
   document.querySelectorAll("nav a").forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + hash));
-  const section = hash.startsWith("/scans/") ? "Scans" : hash.startsWith("/new") ? "New scan" :
+  const section = hash.startsWith("/scans/") ? "Scans" : hash.startsWith("/new") ? "New scan" : hash.startsWith("/evidence/") ? "Evidence" :
 	({ "/": "Overview", "/scans": "Scans", "/assets": "Assets", "/identities": "Identities", "/services": "Services",
       "/packets": "Packets", "/profiles": "Profiles", "/horizon": "HORIZON" })[hash] || (hash.startsWith("/horizon/") ? "HORIZON" : "Workspace");
   document.getElementById("current-page").textContent = section;
@@ -993,6 +1098,7 @@ async function route() {
   else if (hash === "/services") page = servicesPage();
   else if (hash === "/profiles") page = profilesPage();
   else if (hash === "/packets") page = packetsPage();
+  else if (hash.startsWith("/evidence/")) page = evidencePage(decodeURIComponent(hash.slice(10)));
   else if (hash === "/horizon") page = horizonPage();
   else if (hash.startsWith("/horizon/")) page = horizonRunPage(decodeURIComponent(hash.slice(9)));
   else page = Promise.resolve([h("p", { class: "error" }, "no such page")]);

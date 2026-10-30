@@ -35,7 +35,8 @@ _nyxr() {
                 'decode:summarize hosts and open ports in a pcap or pcapng'
                 'sniff:capture and decode live frames'
                 'history:list or query stored scans, assets and evidence'
-                'probe:import and summarize an nmap-service-probes file'
+                'probe:import, validate, clone and replay probe definitions'
+                'evidence:navigate a claim to its exchanges and capture packets'
                 'horizon:bounded HORIZON experiments and offline evidence replay'
                 'serve:serve the REST API and web UI'
                 'completion:print a shell completion script'
@@ -190,7 +191,7 @@ _nyxr() {
                     ;;
                 probe)
                     _arguments \
-                        '1:subcommand:(import validate)' \
+                        '1:subcommand:(import validate fixtures clone replay)' \
                         '--json[machine-readable summary]' \
                         '*:probe file:_files' && ret=0
                     ;;

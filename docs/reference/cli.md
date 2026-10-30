@@ -9,6 +9,8 @@ nyxr sniff --interface eth0 [flags]    capture and decode live frames
 nyxr history [--db file] [flags]       list or query stored scans, assets and evidence
 nyxr probe import file [--json]        import and summarize an nmap-service-probes file
 nyxr probe validate file [--json]      validate a Nyxr Protocol DSL file
+nyxr probe clone|replay [flags] id     clone a retained exchange into a definition and replay it
+nyxr evidence show [flags] id          navigate a claim to its exchanges and capture packets
 nyxr horizon resolve|replay|explain|references|verify-capture|environment|calibrate|cross-port|graph|adapt|profile    bounded HORIZON experiments and offline evidence
 nyxr calibration evaluate --dataset FILE   evaluate labeled ordinary claims offline
 nyxr serve [--db file] [flags]         serve the REST API and web UI (unprivileged)
@@ -248,6 +250,29 @@ Validate one or more local `nyxr/protocol/v1` or `v2` YAML files together, resol
 ## nyxr probe fixtures
 
 Run an offline YAML fixture corpus against the listed protocol files: `nyxr probe fixtures [--json] cases.yaml definition.yaml [more definitions...]`. The runner checks service, fields, confidence bounds, and evidence errors for positive, negative, truncated, and noisy cases.
+
+## nyxr probe clone
+
+`nyxr probe clone [--db file] [--exchange N] [-o new.yaml] observation-id` drafts an editable `nyxr/protocol/v2` definition from retained exchange `N` (0-based, default 0) of a stored observation. Without `-o` it prints the draft; `-o` never overwrites an existing file.
+
+## nyxr probe replay
+
+`nyxr probe replay [--db file] [--exchange N] --definition file [--dry-run] [--live --target IP] [--json] observation-id` runs an edited, self-contained definition against that exchange.
+
+| Flag | Meaning |
+| --- | --- |
+| `--definition file` | Edited Protocol DSL file (required) |
+| `--exchange N` | Retained exchange index, 0-based |
+| `--dry-run` | Validate and print the exact target, transport, connection count, timeout and byte bounds; nothing runs |
+| `--live` | Resend to the original target instead of replaying offline; requires `--target` |
+| `--target IP` | The original target address, as confirmation for `--live` |
+| `--json` | Print the plan or the `nyxr/probe-run/v1` record |
+
+By default the replay is offline: the retained response feeds the parser and nothing is sent. Every run is stored as a new record; a live run is also stored as its own `probe-replay` scan. Live resends are refused for `ot-safe` scans. Guide: [Evidence navigation and probe replay](../guide/evidence-and-replay.md).
+
+## nyxr evidence show
+
+`nyxr evidence show [--db file] [--frames] [--json] observation-id` prints the claim, its planner decisions, its retained exchanges with their source references, the indexed pcapng packets of its flow, and recorded replays. The packet status is `available`, `partial` or `unavailable`, with reasons such as a truncated index, capture drops or a missing capture. `--frames` prints each indexed frame as hex after checking that the capture is still the recorded artifact. `--json` prints the `nyxr/evidence-trace/v1` record.
 
 ## nyxr serve
 

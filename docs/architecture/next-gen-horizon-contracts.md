@@ -53,7 +53,7 @@ The priority overview and recommended top five refer to the same feature rows.
 | 1 Adaptive probing | Bounded classifier, information-gain service planner, native/DSL executor and decisions | NEXT GEN-owned calibration #78 and efficiency #90; experimental selection is HORIZON #72 |
 | 2 Application DSL | `nyxr/protocol/v1`, TCP/UDP, bounded branch/repeat, TLS/STARTTLS and extraction | NEXT GEN-owned v2 transports, reuse, arithmetic/reload #79; experiment DSL stays HORIZON #67 |
 | 3 Asset identity | Persistent local/global/scoped portable IDs, strong-key joins, review/membership history and imported LLDP/interface/VLAN clues | NEXT GEN-owned temporal topology #80, cloud collection #83 and reconciliation #99; experimental dependencies never merge assets |
-| 4 Evidence/transcripts | Bounded exchanges, decision-to-evidence ranges, packet index, history and inspection/edit/send | NEXT GEN-owned uniform records/references #76 and linked probe workflow #82; shared experiment capture #68/presentation #73 |
+| 4 Evidence/transcripts | Bounded exchanges, decision-to-evidence ranges, packet index, history, inspection/edit/send, claim → exchange → packet traces and recorded probe clone/replay runs (#82) | NEXT GEN-owned uniform records/references #76 and linked probe workflow #82 (delivered); shared experiment capture #68/presentation #73 |
 | 5 Deep UDP | Native tokens, ICMP correlation, late replies, retries, DTLS and service exchanges | NEXT GEN-owned multi-datagram/timing #84, multicast/broadcast #91, remaining protocols #92; shared decoder/lab #66/#68 |
 | 6 QUIC/HTTP3 | Native QUIC, HTTP/3, TLS and bounded transport evidence | NEXT GEN-owned verified 0-RTT/WebTransport semantics and stable fingerprints #93 |
 | 7 Stack/application fingerprints | IPv4 raw SYN evidence, cautious family rules, TLS certificates and verified SSH keys | NEXT GEN-owned calibration #78, production IPv6 #81, TLS/SSH fingerprints #85 and endpoint signatures #86; controlled long/cross-flow experiments stay HORIZON #69/#70/#71 |
@@ -70,7 +70,7 @@ The priority overview and recommended top five refer to the same feature rows.
 | 18 Architecture | Existing pipeline, service workers, observe, capture and SQLite | Shared dependency #75/#76; optional HORIZON target adapter, no replacement bus/store |
 | 19 Phases 1–5 | Adaptive core, DSL v1, identity/evidence, core UDP/QUIC and AF_XDP copy-mode exist | NEXT GEN-owned remaining slices above; do not rebuild foundations; shared live lab #66 before performance claims |
 | 20 Phases 6–10 | Partial IPv6, fingerprints, OT and historical inventory | NEXT GEN-owned #80/#81/#85/#86/#87/#88/#89/#91/#94/#95/#97/#98/#99; deferred slices follow actual prerequisites |
-| 21 CLI direction | Existing scan/history/identity/capture/packet research commands | NEXT GEN-owned evidence #82, diff #89, distributed #95, listen #98, learned targets #100; proposed flags/commands remain illustrative |
+| 21 CLI direction | Existing scan/history/identity/capture/packet research commands, `evidence show` and `probe clone`/`replay` (#82) | NEXT GEN-owned diff #89, distributed #95, listen #98, learned targets #100; proposed flags/commands remain illustrative |
 | 22 Example output | Current observations/counters | NEXT GEN-owned #90; aggregate confidence/savings deferred until comparable calibrated populations and explicit baselines exist |
 | 23 Success criteria | Evidence-backed service and inventory foundations | NEXT GEN-owned acceptance across rows above; vision examples do not establish completion |
 

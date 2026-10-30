@@ -32,7 +32,7 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
     }
 
     if (-not $cmd) {
-        & $emit @('scan', 'profiles', 'decode', 'sniff', 'history', 'probe', 'horizon', 'serve', 'completion', 'version', 'help') 'Command'
+        & $emit @('scan', 'profiles', 'decode', 'sniff', 'history', 'probe', 'evidence', 'horizon', 'serve', 'completion', 'version', 'help') 'Command'
         return
     }
 
@@ -73,7 +73,7 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
         }
         'probe' {
             if ($prev -match '^import$') { return }
-            & $emit @('import', 'validate') 'ParameterValue'
+            & $emit @('import', 'validate', 'fixtures', 'clone', 'replay') 'ParameterValue'
         }
         'profiles' { & $emit @('--json') 'ParameterName' }
         'decode' { if ($wordToComplete -like '-*') { & $emit @('--last', '--tui', '--all', '--packets', '--json') 'ParameterName' } }

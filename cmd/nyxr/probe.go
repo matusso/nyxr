@@ -16,6 +16,17 @@ func probeUsage(out io.Writer) {
 	fmt.Fprint(out, `Usage: nyxr probe import [--json] file
 	       nyxr probe validate [--json] file [more files...]
 	       nyxr probe fixtures [--json] cases.yaml definition.yaml [more definitions...]
+	       nyxr probe clone [--db file] [--exchange n] [-o new.yaml] observation-id
+	       nyxr probe replay [--db file] [--exchange n] --definition file [--dry-run]
+	                         [--live --target ip] [--json] observation-id
+
+clone drafts an editable Protocol DSL definition from one retained exchange.
+replay runs an edited definition against that exchange: by default offline,
+feeding the retained response to the parser without sending anything; with
+--live, one connection to the original target and port, recorded as a new
+scan. --dry-run prints the exact target, transport and traffic bounds only.
+Every replay is stored as a new nyxr/probe-run/v1 record; the original
+evidence is never modified.
 
 Import an nmap-service-probes file into nyxr's match model and print a summary.
 The file is read at runtime and never bundled into nyxr; its data is licensed
@@ -57,6 +68,10 @@ func runProbe(args []string, out io.Writer, style *ui.Styler) error {
 		return runProbeValidate(args[1:], out)
 	case "fixtures":
 		return runProbeFixtures(args[1:], out)
+	case "clone":
+		return runProbeClone(args[1:], out)
+	case "replay":
+		return runProbeReplay(args[1:], out)
 	case "help", "-h", "--help":
 		probeUsage(out)
 		return nil
