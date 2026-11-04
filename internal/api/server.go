@@ -28,6 +28,7 @@ import (
 
 	"github.com/matusso/nyxr/internal/capture"
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/fleet"
 	"github.com/matusso/nyxr/internal/horizon"
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/storage"
@@ -57,6 +58,8 @@ type ServerConfig struct {
 	EvidenceDir string
 	// PacketSendEnabled explicitly permits raw frame transmission from the UI.
 	PacketSendEnabled bool
+	// Fleet is the distributed scan controller; nil disables the fleet API.
+	Fleet *fleet.Controller
 }
 
 type server struct {
@@ -82,6 +85,13 @@ func Handler(cfg ServerConfig) http.Handler {
 	api.HandleFunc("POST /api/v1/horizon/runs/{id}/cancel", s.horizonCancelRun)
 	api.HandleFunc("GET /api/v1/horizon/runs/{id}/report", s.horizonRunReport)
 	api.HandleFunc("GET /api/v1/horizon/runs/{id}/evidence-graph", s.horizonRunGraph)
+	api.HandleFunc("GET /api/v1/fleet", s.fleetSummary)
+	api.HandleFunc("GET /api/v1/fleet/agents", s.fleetAgents)
+	api.HandleFunc("POST /api/v1/fleet/agents/{id}/revoke", s.fleetRevokeAgent)
+	api.HandleFunc("GET /api/v1/fleet/scans", s.fleetListScans)
+	api.HandleFunc("POST /api/v1/fleet/scans", s.fleetCreateScan)
+	api.HandleFunc("GET /api/v1/fleet/scans/{id}", s.fleetGetScan)
+	api.HandleFunc("POST /api/v1/fleet/scans/{id}/cancel", s.fleetCancelScan)
 	api.HandleFunc("GET /api/v1/version", s.version)
 	api.HandleFunc("GET /api/v1/stats", s.stats)
 	api.HandleFunc("GET /api/v1/profiles", s.profiles)

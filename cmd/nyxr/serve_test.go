@@ -169,9 +169,30 @@ func TestServeRefusesUnsafeConfigurations(t *testing.T) {
 		"positional":       {"serve", "extra"},
 		"remote, no token": {"serve", "--db", db, "--listen", "0.0.0.0:0"},
 		"short token file": {"serve", "--db", db, "--token-file", writeTemp(t, "short")},
+		"fleet, no token":  {"serve", "--db", db, "--fleet-listen", "127.0.0.1:0", "--fleet-insecure"},
+		"fleet plaintext on a remote address": {"serve", "--db", db, "--token-file", writeTemp(t, "0123456789abcdef"),
+			"--fleet-listen", "0.0.0.0:0", "--fleet-insecure"},
+		"fleet without TLS":            {"serve", "--db", db, "--token-file", writeTemp(t, "0123456789abcdef"), "--fleet-listen", "127.0.0.1:0"},
+		"fleet options without listen": {"serve", "--db", db, "--fleet-insecure"},
+		"short enroll token": {"serve", "--db", db, "--token-file", writeTemp(t, "0123456789abcdef"), "--fleet-listen", "127.0.0.1:0",
+			"--fleet-insecure", "--fleet-enroll-token-file", writeTemp(t, "short")},
 	} {
 		if err := run(args, io.Discard); err == nil {
 			t.Errorf("%s: serve started", name)
+		}
+	}
+}
+
+func TestAgentRefusesUnsafeConfigurations(t *testing.T) {
+	for name, args := range map[string][]string{
+		"no scope":                {"agent", "--controller", "127.0.0.1:1", "--insecure"},
+		"no controller":           {"agent", "--allow-targets", "10.0.0.0/8"},
+		"plaintext remote":        {"agent", "--controller", "192.0.2.1:8485", "--allow-targets", "10.0.0.0/8", "--insecure"},
+		"plaintext with TLS flag": {"agent", "--controller", "127.0.0.1:1", "--allow-targets", "10.0.0.0/8", "--insecure", "--ca", "x"},
+		"missing identity":        {"agent", "--controller", "127.0.0.1:1", "--allow-targets", "10.0.0.0/8", "--insecure", "--identity", filepath.Join(t.TempDir(), "none.json")},
+	} {
+		if err := run(args, io.Discard); err == nil {
+			t.Errorf("%s: agent started", name)
 		}
 	}
 }

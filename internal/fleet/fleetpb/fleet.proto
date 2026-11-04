@@ -1,0 +1,170 @@
+// Nyxr fleet control protocol, version nyxr-fleet/v1.
+//
+// Agents dial the controller and keep one Connect stream open. The
+// controller pushes work leases and cancellations down that stream; agents
+// stream results back. Scan records travel as their versioned nyxr/v1 JSON
+// (observe.Scan, observe.Observation, observe.PacketEvidence), so there is
+// one record schema for CLI, REST, storage and fleet transport.
+//
+// Regenerate with `make proto` after editing this file.
+syntax = "proto3";
+
+package nyxr.fleet.v1;
+
+option go_package = "github.com/matusso/nyxr/internal/fleet/fleetpb";
+
+service Fleet {
+  // Enroll exchanges the operator's enrollment token (metadata
+  // "x-nyxr-enroll") for a per-agent credential. The controller stores only
+  // a hash of the returned secret.
+  rpc Enroll(EnrollRequest) returns (EnrollResponse);
+  // Connect is the long-lived control channel, authenticated with the
+  // per-agent credential (metadata "authorization: Bearer <id>.<secret>").
+  // The first agent message must be Hello; the first controller message is
+  // Welcome.
+  rpc Connect(stream AgentMessage) returns (stream ControllerMessage);
+}
+
+message EnrollRequest {
+  string protocol = 1;
+  string name = 2;
+  Capabilities capabilities = 3;
+}
+
+message EnrollResponse {
+  string agent_id = 1;
+  string secret = 2;
+}
+
+// Capabilities are advertised on every Hello because interfaces, packetd
+// availability and privilege can change between agent restarts.
+message Capabilities {
+  bool raw_socket = 1; // raw Ethernet I/O (local privilege or packetd) for SYN/ARP/NDP
+  bool af_xdp = 2;     // Linux AF_XDP pinned maps configured
+  bool ipv6 = 3;       // at least one global IPv6 address
+  bool ot = 4;         // the agent operator permits the ot-safe profile
+  bool capture = 5;    // pcapng capture into an agent evidence directory
+  bool icmp = 6;       // raw IP socket for ICMP echo
+  string privilege = 7; // root, raw-capabilities, packetd or unprivileged
+  repeated Interface interfaces = 8;
+  // allow_targets is the agent operator's authorized vantage. The
+  // controller only leases work inside it and the agent re-checks.
+  repeated string allow_targets = 9;
+  uint32 max_rate = 10;         // packets/s budget for this agent; 0 = request default
+  uint32 max_service_rate = 11; // service probes/s budget; 0 = request default
+  uint32 max_leases = 12;       // concurrent leases
+  string os = 13;
+  string arch = 14;
+  string version = 15;
+}
+
+message Interface {
+  string name = 1;
+  string mac = 2;
+  repeated string prefixes = 3; // directly attached subnets
+  uint32 mtu = 4;
+}
+
+message AgentMessage {
+  oneof msg {
+    Hello hello = 1;
+    Heartbeat heartbeat = 2;
+    LeaseResponse lease_response = 3;
+    ResultBatch result = 4;
+  }
+}
+
+message Hello {
+  string protocol = 1;
+  Capabilities capabilities = 2;
+  int64 agent_time_unix_nano = 3;
+  // leases still running on the agent after a reconnect.
+  repeated LeaseState leases = 4;
+}
+
+message LeaseState {
+  string lease_id = 1;
+}
+
+message Heartbeat {
+  int64 agent_time_unix_nano = 1;
+  repeated LeaseState leases = 2;
+}
+
+message LeaseResponse {
+  string lease_id = 1;
+  bool accepted = 2;
+  string reason = 3;
+}
+
+// ResultBatch carries consecutive records of one lease. seq starts at 1 and
+// increases by one per batch. Agents send the next batch only after the
+// previous one is acknowledged and resend an unacknowledged batch after a
+// reconnect; the controller applies each seq exactly once.
+message ResultBatch {
+  string lease_id = 1;
+  uint64 seq = 2;
+  repeated Record records = 3;
+}
+
+message Record {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    BEGIN = 1;           // observe.Scan
+    OBSERVATION = 2;     // observe.Observation
+    PACKET_EVIDENCE = 3; // observe.PacketEvidence
+    FINISH = 4;          // observe.Scan
+  }
+  Kind kind = 1;
+  bytes json = 2;
+}
+
+message ControllerMessage {
+  oneof msg {
+    Welcome welcome = 1;
+    Lease lease = 2;
+    Cancel cancel = 3;
+    Ack ack = 4;
+    Pong pong = 5;
+  }
+}
+
+// Pong answers every Heartbeat after the agent's leases are renewed. An agent
+// that hears nothing for most of a lease TTL abandons its leases, because
+// the controller may already have re-leased them.
+message Pong {
+  int64 controller_time_unix_nano = 1;
+}
+
+message Welcome {
+  string protocol = 1;
+  string agent_id = 2;
+  uint32 heartbeat_seconds = 3;
+  uint32 lease_ttl_seconds = 4;
+  int64 controller_time_unix_nano = 5;
+}
+
+// Lease assigns one work unit. request_json is a config.Request restricted to
+// the unit's targets and budgets. ttl_seconds is relative so agent and
+// controller clocks never have to agree; heartbeats renew it.
+message Lease {
+  string lease_id = 1;
+  string job_id = 2;
+  uint32 unit = 3;
+  uint32 attempt = 4;
+  bytes request_json = 5;
+  uint32 ttl_seconds = 6;
+}
+
+message Cancel {
+  string lease_id = 1;
+  string reason = 2;
+}
+
+// Ack confirms that every batch up to seq is durably stored. done means the
+// lease is finished on the controller and the agent can forget it.
+message Ack {
+  string lease_id = 1;
+  uint64 seq = 2;
+  bool done = 3;
+}

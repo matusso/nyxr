@@ -285,6 +285,7 @@ var migrations = []string{
 			WHERE asset_id = OLD.asset_id AND kind = OLD.kind AND transport = OLD.transport AND port = OLD.port
 			ORDER BY observed_at DESC, id DESC LIMIT 1;
 	END;`,
+	fleetMigration,
 }
 
 // Store is safe for concurrent use.
@@ -388,13 +389,26 @@ func (s *Store) migrate(ctx context.Context, upgrading func(from, to int)) error
 
 // BeginScan records a running scan.
 func (s *Store) BeginScan(ctx context.Context, scan observe.Scan) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO scans(id, schema, profile, started_at, status, targets) VALUES (?, ?, ?, ?, ?, ?)`,
+	return beginScan(ctx, s.db, scan)
+}
+
+// execer is satisfied by *sql.DB and *sql.Tx.
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+func beginScan(ctx context.Context, db execer, scan observe.Scan) error {
+	_, err := db.ExecContext(ctx, `INSERT INTO scans(id, schema, profile, started_at, status, targets) VALUES (?, ?, ?, ?, ?, ?)`,
 		scan.ID, observe.SchemaVersion, scan.Profile, ts(scan.Started), scan.Status, scan.Targets)
 	return err
 }
 
 // FinishScan stores the final summary.
 func (s *Store) FinishScan(ctx context.Context, scan observe.Scan) error {
+	return finishScan(ctx, s.db, scan)
+}
+
+func finishScan(ctx context.Context, db execer, scan observe.Scan) error {
 	var capture string
 	if scan.Capture != nil {
 		b, err := json.Marshal(scan.Capture)
@@ -403,7 +417,7 @@ func (s *Store) FinishScan(ctx context.Context, scan observe.Scan) error {
 		}
 		capture = string(b)
 	}
-	res, err := s.db.ExecContext(ctx, `UPDATE scans SET finished_at = ?, status = ?, error = ?, observations = ?, services = ?, capture = ? WHERE id = ?`,
+	res, err := db.ExecContext(ctx, `UPDATE scans SET finished_at = ?, status = ?, error = ?, observations = ?, services = ?, capture = ? WHERE id = ?`,
 		ts(scan.Finished), scan.Status, scan.Error, scan.Observations, scan.Services, capture, scan.ID)
 	if err != nil {
 		return err
@@ -425,6 +439,13 @@ func (s *Store) AddObservations(ctx context.Context, batch []observe.Observation
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := addObservationsTx(ctx, tx, batch); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func addObservationsTx(ctx context.Context, tx *sql.Tx, batch []observe.Observation) error {
 	obsStmt, err := tx.PrepareContext(ctx, `INSERT INTO observations(scan_id, asset_id, kind, observed_at, transport, port, state, confidence, reason, probe, service, product, version, fingerprint, record)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
@@ -489,7 +510,7 @@ func (s *Store) AddObservations(ctx context.Context, batch []observe.Observation
 			}
 		}
 	}
-	return tx.Commit()
+	return nil
 }
 
 func upsertAsset(ctx context.Context, tx *sql.Tx, addr netip.Addr, seen time.Time) (int64, error) {
@@ -532,6 +553,13 @@ func (s *Store) AddPacketEvidence(ctx context.Context, batch []observe.PacketEvi
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := addPacketEvidenceTx(ctx, tx, batch); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func addPacketEvidenceTx(ctx context.Context, tx *sql.Tx, batch []observe.PacketEvidence) error {
 	for _, pe := range batch {
 		seen := time.Now()
 		if len(pe.Packets) > 0 {
@@ -553,7 +581,7 @@ func (s *Store) AddPacketEvidence(ctx context.Context, batch []observe.PacketEvi
 			}
 		}
 	}
-	return tx.Commit()
+	return nil
 }
 
 const scanColumns = `id, schema, profile, started_at, finished_at, status, error, targets, observations, services, capture`

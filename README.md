@@ -206,6 +206,21 @@ NYXR_API_TOKEN=$(openssl rand -hex 16) \
 
 <img src="docs/images/scan.png" alt="Scan detail with the scan's traffic map, progress and summary" width="900">
 
+### Scan from many vantage points
+
+`nyxr serve --fleet-listen` turns the server into a gRPC fleet controller.
+`nyxr agent` instances dial in over TLS, advertise their capabilities and
+authorized scope, and run leased slices of one scan. Leases, retries and
+exactly-once result streaming mean a lost agent never loses or double-counts
+evidence.
+
+```sh
+nyxr agent --controller controller.example:8485 --ca ca.crt \
+  --allow-targets 10.20.0.0/16 --enroll-token-file enroll.token
+```
+
+See [Fleet](docs/guide/fleet.md).
+
 ## Documentation
 
 | | |

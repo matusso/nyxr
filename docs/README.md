@@ -27,6 +27,7 @@ New to nyxr? Start with **[Getting started](getting-started.md)**.
 | [Asset identity graph](guide/asset-identity.md) | Correlation, confidence, reviews, membership history, passive topology and limits |
 | [Web UI and REST API](guide/web-ui-and-api.md) | `nyxr serve`, UI tour, API endpoints, live events, security model |
 | [Deployment](guide/deployment.md) | `nyxr-packetd` privilege separation, exposing the server, containers |
+| [Fleet: distributed scans](guide/fleet.md) | `nyxr agent`, the gRPC controller, partitioning, budgets, leases, recovery and security |
 
 ## Reference
 

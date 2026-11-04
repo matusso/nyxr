@@ -33,7 +33,7 @@ _nyxr() {
     done
 
     if [[ -z "$cmd" ]]; then
-        COMPREPLY=($(compgen -W "scan profiles decode sniff history probe evidence horizon serve completion version help" -- "$cur"))
+        COMPREPLY=($(compgen -W "scan profiles decode sniff history probe evidence horizon serve agent completion version help" -- "$cur"))
         return 0
     fi
 
@@ -144,7 +144,15 @@ _nyxr() {
                 --listen|-listen|--max-scans|-max-scans)
                     return 0 ;;
             esac
-            COMPREPLY=($(compgen -W "--listen --db --packetd --evidence-dir --token-file --max-scans --horizon-simulate --horizon-policy --horizon-allow-targets --horizon-allow-ports --horizon-permit --allow-privileged --help" -- "$cur"))
+            COMPREPLY=($(compgen -W "--listen --db --packetd --evidence-dir --token-file --max-scans --horizon-simulate --horizon-policy --horizon-allow-targets --horizon-allow-ports --horizon-permit --allow-privileged --fleet-listen --fleet-tls-cert --fleet-tls-key --fleet-client-ca --fleet-enroll-token-file --fleet-lease-ttl --fleet-insecure --help" -- "$cur"))
+            ;;
+        agent)
+            case "$prev" in
+                --identity|-identity|--enroll-token-file|-enroll-token-file|--ca|-ca|--tls-cert|-tls-cert|--tls-key|-tls-key|--packetd|-packetd|--evidence-dir|-evidence-dir|--xdp-pin-dir|-xdp-pin-dir)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0 ;;
+            esac
+            COMPREPLY=($(compgen -W "--controller --allow-targets --name --identity --enroll-token-file --ca --server-name --tls-cert --tls-key --insecure --packetd --interface --xdp-pin-dir --evidence-dir --max-leases --max-rate --max-service-rate --allow-ot --allow-privileged --help" -- "$cur"))
             ;;
         completion)
             if [[ $COMP_CWORD -eq $((i + 1)) ]]; then

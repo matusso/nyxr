@@ -163,7 +163,8 @@ func TestTopologyMigrationBackfillsOnlyRetainedObservations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`DROP TRIGGER observations_latest_insert; DROP TRIGGER observations_latest_delete; DROP TABLE latest_observations;
+	if _, err := db.Exec(`DROP TABLE fleet_attempts; DROP TABLE fleet_units; DROP TABLE fleet_jobs; DROP TABLE fleet_agents;
+		DROP TRIGGER observations_latest_insert; DROP TRIGGER observations_latest_delete; DROP TABLE latest_observations;
 		DROP TABLE probe_runs; DROP TABLE topology_reviews; DROP TABLE topology_claims; DROP TABLE passive_link_sources;
 		ALTER TABLE passive_links DROP COLUMN source_artifact_id; ALTER TABLE passive_links DROP COLUMN ttl_seconds;
 		ALTER TABLE passive_links DROP COLUMN frame_index; ALTER TABLE passive_links DROP COLUMN frame_hash;

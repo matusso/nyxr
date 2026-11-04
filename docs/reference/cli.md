@@ -14,6 +14,7 @@ nyxr evidence show [flags] id          navigate a claim to its exchanges and cap
 nyxr horizon resolve|replay|explain|references|verify-capture|environment|calibrate|cross-port|graph|adapt|profile    bounded HORIZON experiments and offline evidence
 nyxr calibration evaluate --dataset FILE   evaluate labeled ordinary claims offline
 nyxr serve [--db file] [flags]         serve the REST API and web UI (unprivileged)
+nyxr agent --controller addr --allow-targets CIDRs   run a fleet agent for a controller
 nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
 nyxr version                           print the version
 nyxr help                              show this help
@@ -289,8 +290,41 @@ Serve the REST API, live scan events and the web UI, unprivileged.
 | `--max-scans N` | 1 | Concurrent scans |
 | `--allow-packet-send` | off | Enable single-frame send and resend from the web UI (requires `--packetd`) |
 | `--allow-privileged` | off | Run even with root or raw-socket capabilities |
+| `--fleet-listen ADDR` | | Serve the gRPC fleet controller for remote agents (requires an API token) |
+| `--fleet-tls-cert FILE`, `--fleet-tls-key FILE` | | Controller TLS certificate and key (PEM) |
+| `--fleet-client-ca FILE` | | Require agent client certificates signed by this CA |
+| `--fleet-enroll-token-file FILE` | | Token new agents enroll with; omit to disable enrollment |
+| `--fleet-lease-ttl DUR` | 30s | Lease lifetime without a heartbeat (3s..1h) |
+| `--fleet-insecure` | off | Plaintext gRPC; loopback `--fleet-listen` only |
 
-Guide: [Web UI and REST API](../guide/web-ui-and-api.md).
+Guide: [Web UI and REST API](../guide/web-ui-and-api.md), [Fleet](../guide/fleet.md).
+
+## nyxr agent
+
+Run a fleet agent. It dials the controller, advertises its capabilities and
+authorized scope, and runs leased scan units through the normal pipeline.
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `--controller ADDR` | | Controller gRPC address (required) |
+| `--allow-targets CIDRS` | | Scope this agent may scan (required); every lease is re-checked against it |
+| `--name NAME` | hostname | Name shown on the controller |
+| `--identity FILE` | `~/.nyxr/agent.json` | Enrolled credential (mode 0600) |
+| `--enroll-token-file FILE` | | Enrollment token, used once when `--identity` does not exist |
+| `--ca FILE` | system roots | CA bundle for the controller certificate |
+| `--server-name NAME` | | Expected controller certificate name |
+| `--tls-cert FILE`, `--tls-key FILE` | | Client certificate for mutual TLS |
+| `--insecure` | off | Plaintext gRPC; loopback controller only |
+| `--packetd SOCKET` | | nyxr-packetd socket for raw SYN, ARP/NDP and capture |
+| `--interface NAME` | route to first target | Raw interface |
+| `--xdp-pin-dir DIR` | | Linux AF_XDP pinned maps for SYN |
+| `--evidence-dir DIR` | | Directory for pcapng captures leased to this agent |
+| `--max-leases N` | 1 | Concurrent leases (1..64) |
+| `--max-rate N`, `--max-service-rate N` | 0 | Total agent budgets, divided across leases (0 = controller share) |
+| `--allow-ot` | off | Permit the `ot-safe` profile |
+| `--allow-privileged` | off | Run with root or raw-socket capabilities (local raw I/O and ICMP) |
+
+Guide: [Fleet](../guide/fleet.md).
 
 ## nyxr completion
 
