@@ -11,7 +11,10 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/scan.png" alt="nyxr web UI showing a scan with identified SSH, HTTP and HTTPS services" width="900">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/overview-dark.png">
+    <img src="docs/images/overview.png" alt="nyxr web UI: a network map with scanning agents, targets grouped by subnet and scan packets in flight" width="900">
+  </picture>
 </p>
 
 nyxr is a cross-platform network scanner written in Go. It finds open ports
@@ -27,8 +30,17 @@ that prove it.
 - **Unprivileged by default.** Connect scans, service identification, storage
   and the web UI need no root. Raw packet I/O lives in a separate, narrow
   `nyxr-packetd` process.
-- **Everything is kept.** Every scan goes into a local SQLite inventory you
-  can query and rescan, with optional pcapng evidence.
+- **Everything is kept, and stays fast.** Every scan goes into a local SQLite
+  inventory you can query and rescan, with optional pcapng evidence. The
+  latest state of every port is maintained as results arrive, so inventory
+  views answer in milliseconds even with millions of stored results.
+- **See what the scanner does.** The web UI draws agents and targets on a
+  network map and animates the probes and replies behind every result, live
+  while a scan runs or as a replay afterwards. Click any packet for a
+  field-by-field explanation with its hex dump.
+- **Find anything.** One search box completes hosts, ports, services,
+  products and scans: `80` lists `tcp/80` and `udp/80`, then every address
+  containing 80.
 - **Correlated assets.** Validated MAC, SNMP, SMB and SSH identities, plus scoped
   inventory IDs, link addresses with an audit trail. The graph also shows
   candidate clues and imported passive topology.
@@ -112,7 +124,11 @@ nyxr scan --known-open 192.0.2.0/24
 nyxr history --assets --open --scope 192.0.2.0/24
 ```
 
-<img src="docs/images/assets.png" alt="Asset inventory in the web UI" width="900">
+<img src="docs/images/assets.png" alt="Asset inventory: one row per host, ports in a dropdown, filtered to tcp/80" width="900">
+
+Search the inventory from anywhere in the web UI. Every match is highlighted:
+
+<img src="docs/images/search.png" alt="Global search for 80 listing tcp/80, udp/80 and every address containing 80" width="900">
 
 ### Audit TLS and web endpoints
 
@@ -144,6 +160,25 @@ nyxr scan --profile ot-safe --allow-targets 192.0.2.0/24 192.0.2.10
 nyxr scan --profile udp-common --ports 47808 --fingerprint 192.0.2.10   # BACnet
 ```
 
+### Watch a scan under the hood
+
+`nyxr serve` shows each scan as traffic between the scanning agent and its
+targets: SYN and SYN-ACK or RST, UDP probes and ICMP errors, ARP and NDP,
+service probes and replies. Pick a packet to see every header field, a plain
+explanation of what it means for the scan, and its bytes.
+
+These packets are reconstructed from stored results. Addresses, ports, flags,
+the verdict and retained payload bytes come from the scan; values nyxr does
+not record, such as the scanner's source port and sequence numbers, are
+marked as examples. Frames from a live capture or a pcapng evidence file use
+the same explainer with no example values.
+
+nyxr scans from one local agent today. The map already draws any agent named
+in the results, so the screenshots use demo data with a second agent to show
+how multi-agent scans will look.
+
+<img src="docs/images/packet.png" alt="Packet explainer: layer bar, HTTP response fields with explanations and the highlighted bytes of the Server header" width="900">
+
 ### Explain a packet capture
 
 Turn a pcap into hosts and open ports, or step through every packet with a
@@ -169,7 +204,7 @@ NYXR_API_TOKEN=$(openssl rand -hex 16) \
   nyxr serve --listen 0.0.0.0:8484 --packetd /run/nyxr/packetd.sock
 ```
 
-<img src="docs/images/new-scan.png" alt="New scan form in the web UI" width="900">
+<img src="docs/images/scan.png" alt="Scan detail with the scan's traffic map, progress and summary" width="900">
 
 ## Documentation
 

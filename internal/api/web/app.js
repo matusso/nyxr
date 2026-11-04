@@ -1,214 +1,50 @@
 // nyxr web UI. Every value from the API may be attacker-influenced (banners,
 // titles, certificates), so the DOM is built with textContent only.
-"use strict";
+
+import { h, svg, api, stream, page, AuthError, setToken, pref, mark, fmtTime, fmtAgo, fmtRTT, state, table, kv, port, printable, panel, download } from "./core.js";
+import { createTheater } from "./theater.js";
+import { createSearch, invalidateSearch, preloadSearch } from "./search.js";
+import { packetView } from "./packetview.js";
+import { dissect, parseHex } from "./dissect.js";
+import { cmpIP } from "./map.js";
 
 const main = document.getElementById("main");
-let pageAbort = null; // aborts streams and requests of the previous page
 
-function h(tag, attrs, ...children) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs || {})) {
-    if (v === undefined || v === null || v === false) continue;
-    if (k === "class") el.className = v;
-    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
-    else if (k === "value") el.value = v;
-    else if (k === "checked") el.checked = !!v;
-    else el.setAttribute(k, v === true ? "" : String(v));
-  }
-  for (const c of children.flat()) {
-    if (c === undefined || c === null || c === false) continue;
-    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
-  }
-  return el;
+// ---- agents ----
+// nyxr runs one local agent today. Observations that name another agent
+// (an `agent` field) add it to the map and this list as a remote agent, so
+// multi-agent scans need no UI changes.
+let agentCache = null;
+async function agents() {
+  if (agentCache) return agentCache;
+  const local = { id: "local", name: "nyxr", status: "online", remote: false, version: "" };
+  try {
+    const v = await api("/version", { signal: null });
+    local.version = v.version;
+  } catch (e) { if (e instanceof AuthError) throw e; }
+  agentCache = [local];
+  renderAgentBadge(agentCache);
+  return agentCache;
 }
-
-function token() {
-  try { return sessionStorage.getItem("nyxr-token") || ""; } catch { return ""; }
-}
-function setToken(t) {
-  try { sessionStorage.setItem("nyxr-token", t); } catch { /* private mode */ }
-}
-
-class AuthError extends Error {}
-
-async function api(path, opts = {}) {
-  const headers = Object.assign({}, opts.headers || {});
-  const t = token();
-  if (t) headers.Authorization = "Bearer " + t;
-  if (opts.body !== undefined) headers["Content-Type"] = "application/json";
-  const res = await fetch("/api/v1" + path, {
-    method: opts.method || (opts.body !== undefined ? "POST" : "GET"),
-    headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    signal: opts.signal || (pageAbort && pageAbort.signal),
-  });
-  if (res.status === 401) throw new AuthError("token required");
-  if (opts.raw) return res;
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || res.statusText);
-  return data;
+function renderAgentBadge(list) {
+  const online = list.filter(a => a.status === "online").length;
+  document.getElementById("agent-count").textContent = `${online} AGENT${online === 1 ? "" : "S"} ONLINE`;
+  const local = list.find(a => a.id === "local");
+  const v = local?.version || "";
+  document.getElementById("version").textContent = v ? (/^v/i.test(v) ? v : "v" + v) : "—";
 }
 
-// stream reads Server-Sent Events with fetch so the bearer token can be sent
-// (EventSource cannot set headers). It reconnects with Last-Event-ID.
-async function stream(path, onEvent, signal) {
-  let last = "";
-  for (let attempt = 0; attempt < 20 && !signal.aborted; attempt++) {
-    const headers = {};
-    if (last) headers["Last-Event-ID"] = last;
-    let res;
-    try {
-      res = await api(path, { raw: true, headers, signal });
-    } catch (e) {
-      if (signal.aborted || e instanceof AuthError) return;
-      await new Promise(r => setTimeout(r, 1000));
-      continue;
-    }
-    if (!res.ok) return;
-    const reader = res.body.getReader();
-    const dec = new TextDecoder();
-    let buf = "";
-    let finished = false;
-    try {
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        let i;
-        while ((i = buf.indexOf("\n\n")) >= 0) {
-          const block = buf.slice(0, i);
-          buf = buf.slice(i + 2);
-          let type = "message", data = "", id = "";
-          for (const line of block.split("\n")) {
-            if (line.startsWith("event: ")) type = line.slice(7);
-            else if (line.startsWith("data: ")) data += line.slice(6);
-            else if (line.startsWith("id: ")) id = line.slice(4);
-          }
-          if (id) last = id;
-          if (!data) continue;
-          const payload = JSON.parse(data);
-          onEvent(type, payload);
-          if (type === "scan" && payload.status !== "running") finished = true;
-        }
-      }
-    } catch (e) {
-      if (signal.aborted) return;
-    }
-    if (finished) return;
-  }
+function agentsPanel(list, scans) {
+  const running = scans.filter(s => s.status === "running");
+  return panel("AGENTS", h("ul", { class: "agent-list" }, list.map(a => h("li", { class: "agent-item" + (a.status !== "online" ? " offline" : "") },
+    h("span", { class: "agent-dot", "aria-hidden": "true" }),
+    h("div", {}, h("strong", {}, a.name), h("small", {}, [a.remote ? "remote" : "local", a.address, a.version && (/^v/i.test(a.version) ? a.version : "v" + a.version)].filter(Boolean).join(" · "))),
+    h("span", { class: "agent-state" }, a.id === "local" && running.length ? `${running.length} scan${running.length > 1 ? "s" : ""} running` : a.status)))),
+  { sub: `${list.length} connected` });
 }
 
-function fmtTime(s) {
-  if (!s || s.startsWith("0001")) return "-";
-  const d = new Date(s);
-  return d.toISOString().replace("T", " ").replace(/\.\d+Z$/, "Z");
-}
-function fmtRTT(ns) { return ns ? (ns / 1e6).toFixed(2) + " ms" : ""; }
-function state(s) { return h("span", { class: "s-" + String(s || "").replace(/\s/g, "") }, s); }
-function table(headers, rows) {
-  return h("div", { class: "scroll" }, h("table", {},
-    h("thead", {}, h("tr", {}, headers.map(x => h("th", {}, x)))),
-    h("tbody", {}, rows)));
-}
-function kv(pairs) {
-  return h("dl", { class: "kv" }, pairs.filter(p => p[1] !== undefined && p[1] !== "" && p[1] !== null)
-    .flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v)]));
-}
-function port(o) { return o.port ? `${o.port}/${o.transport}` : o.transport; }
+// ---- shared renderers ----
 
-// Packet fields retain byte offsets so selecting a parsed value selects its
-// source bytes in the editable hex pane, as in a packet analyzer.
-function parseFrame(hex) {
-  const clean = hex.replace(/\s/g, "");
-  if (/[^0-9a-f]/i.test(clean)) throw new Error("Frame contains non-hex characters.");
-  if (clean.length % 2) throw new Error("Frame has an incomplete hex byte.");
-  const bytes = Uint8Array.from(clean.match(/../g) || [], pair => parseInt(pair, 16));
-  if (!bytes.length) return { bytes, groups: [] };
-  const groups = [];
-  const group = name => { const fields = []; groups.push({ name, fields }); return fields; };
-  const put = (fields, name, at, size, value) => {
-    if (at + size <= bytes.length) fields.push({ name, at, size, value: String(value) });
-  };
-  const u16 = at => (bytes[at] << 8) | bytes[at + 1];
-  const u32 = at => ((bytes[at] * 0x1000000) + (bytes[at + 1] << 16) + (bytes[at + 2] << 8) + bytes[at + 3]) >>> 0;
-  const mac = at => Array.from(bytes.slice(at, at + 6), b => b.toString(16).padStart(2, "0")).join(":");
-  const ip4 = at => Array.from(bytes.slice(at, at + 4)).join(".");
-  const ip6 = at => Array.from({ length: 8 }, (_, i) => u16(at + i * 2).toString(16)).join(":");
-  const eth = group("Ethernet II");
-  if (bytes.length < 14) { put(eth, "Incomplete frame", 0, bytes.length, `${bytes.length} bytes`); return { bytes, groups }; }
-  put(eth, "Destination", 0, 6, mac(0));
-  put(eth, "Source", 6, 6, mac(6));
-  let kind = u16(12), at = 14;
-  put(eth, "Type", 12, 2, `0x${kind.toString(16).padStart(4, "0")}`);
-  for (let i = 0; i < 2 && (kind === 0x8100 || kind === 0x88a8) && bytes.length >= at + 4; i++) {
-    const vlan = group("802.1Q VLAN");
-    put(vlan, "Tag control", at, 2, `VLAN ${u16(at) & 0xfff}`);
-    kind = u16(at + 2);
-    put(vlan, "Inner type", at + 2, 2, `0x${kind.toString(16).padStart(4, "0")}`);
-    at += 4;
-  }
-  let protocol = -1;
-  if (kind === 0x0800 && bytes.length >= at + 20 && bytes[at] >> 4 === 4) {
-    const start = at, size = (bytes[at] & 15) * 4;
-    if (size >= 20 && bytes.length >= at + size) {
-      const ip = group("Internet Protocol v4");
-      put(ip, "Version / header length", at, 1, `IPv4 · ${size} bytes`);
-      put(ip, "Total length", at + 2, 2, u16(at + 2));
-      put(ip, "Identification", at + 4, 2, `0x${u16(at + 4).toString(16)}`);
-      put(ip, "Flags / fragment offset", at + 6, 2, `0x${u16(at + 6).toString(16)}`);
-      put(ip, "Time to live", at + 8, 1, bytes[at + 8]);
-      protocol = bytes[at + 9];
-      put(ip, "Protocol", at + 9, 1, protocol);
-      put(ip, "Header checksum", at + 10, 2, `0x${u16(at + 10).toString(16)}`);
-      put(ip, "Source address", at + 12, 4, ip4(at + 12));
-      put(ip, "Destination address", at + 16, 4, ip4(at + 16));
-      if (size > 20) put(ip, "Options", at + 20, size - 20, `${size - 20} bytes`);
-      at += size;
-      if (u16(start + 6) & 0x1fff) protocol = -1; // later fragments have no transport header
-    }
-  } else if (kind === 0x86dd && bytes.length >= at + 40 && bytes[at] >> 4 === 6) {
-    const ip = group("Internet Protocol v6");
-    put(ip, "Version / traffic class / flow", at, 4, `0x${u32(at).toString(16)}`);
-    put(ip, "Payload length", at + 4, 2, u16(at + 4));
-    protocol = bytes[at + 6];
-    put(ip, "Next header", at + 6, 1, protocol);
-    put(ip, "Hop limit", at + 7, 1, bytes[at + 7]);
-    put(ip, "Source address", at + 8, 16, ip6(at + 8));
-    put(ip, "Destination address", at + 24, 16, ip6(at + 24));
-    at += 40;
-  }
-  if (protocol === 6 && bytes.length >= at + 20) {
-    const tcp = group("Transmission Control Protocol");
-    const size = (bytes[at + 12] >> 4) * 4;
-    put(tcp, "Source port", at, 2, u16(at));
-    put(tcp, "Destination port", at + 2, 2, u16(at + 2));
-    put(tcp, "Sequence number", at + 4, 4, u32(at + 4));
-    put(tcp, "Acknowledgment number", at + 8, 4, u32(at + 8));
-    put(tcp, "Header length / flags", at + 12, 2, `${size} bytes · 0x${u16(at + 12).toString(16)}`);
-    put(tcp, "Window", at + 14, 2, u16(at + 14));
-    put(tcp, "Checksum", at + 16, 2, `0x${u16(at + 16).toString(16)}`);
-    put(tcp, "Urgent pointer", at + 18, 2, u16(at + 18));
-    if (size >= 20 && at + size <= bytes.length) {
-      if (size > 20) put(tcp, "Options", at + 20, size - 20, `${size - 20} bytes`);
-      at += size;
-    } else at = bytes.length;
-  } else if (protocol === 17 && bytes.length >= at + 8) {
-    const udp = group("User Datagram Protocol");
-    put(udp, "Source port", at, 2, u16(at));
-    put(udp, "Destination port", at + 2, 2, u16(at + 2));
-    put(udp, "Length", at + 4, 2, u16(at + 4));
-    put(udp, "Checksum", at + 6, 2, `0x${u16(at + 6).toString(16)}`);
-    at += 8;
-  } else if ((protocol === 1 || protocol === 58) && bytes.length >= at + 4) {
-    const icmp = group(protocol === 1 ? "ICMP" : "ICMPv6");
-    put(icmp, "Type", at, 1, bytes[at]);
-    put(icmp, "Code", at + 1, 1, bytes[at + 1]);
-    put(icmp, "Checksum", at + 2, 2, `0x${u16(at + 2).toString(16)}`);
-    at += 4;
-  }
-  if (at < bytes.length) put(group("Payload / remaining bytes"), "Data", at, bytes.length - at, `${bytes.length - at} bytes`);
-  return { bytes, groups };
-}
 function detail(o) {
   const parts = [];
   const product = [o.product, o.version].filter(Boolean).join(" ");
@@ -231,10 +67,13 @@ function detail(o) {
   return parts.filter(Boolean).join(" | ");
 }
 
-function obsRow(o, fresh) {
-  const label = o.kind === "service" ? "svc " + (o.service || "unknown") : o.kind === "script" ? "nse " + (o.nse?.id || "script") : o.kind === "device" ? "device" : o.state;
+function obsLabel(o) {
+  return o.kind === "service" ? "svc " + (o.service || "unknown") : o.kind === "script" ? "nse " + (o.nse?.id || "script") : o.kind === "device" ? "device" : o.state;
+}
+
+function obsRow(o, fresh, showTarget = true) {
   return h("tr", { class: fresh ? "new" : "" },
-    h("td", {}, o.target), h("td", {}, port(o)), h("td", {}, state(label)),
+    showTarget ? h("td", {}, o.target) : null, h("td", { class: "mono" }, port(o)), h("td", {}, state(obsLabel(o))),
     h("td", { title: `${o.confidence_method || "heuristic"}: ${o.confidence_model || "legacy rule"}` }, `${o.confidence}/100 ${o.confidence_method || "heuristic"}`), h("td", {}, fmtRTT(o.rtt_ns)),
     h("td", { class: "wrap" }, detail(o),
       o.tcp_stack ? h("details", {}, h("summary", {}, "TCP/IP stack evidence"),
@@ -256,83 +95,161 @@ function obsRow(o, fresh) {
           table(["probe", "expected gain (bits)", "gain per cost"], o.probe_decisions.map(d =>
             h("tr", {}, [d.probe, Number(d.information_gain).toFixed(4), Number(d.score).toFixed(4)]
               .map(value => h("td", {}, value)))))) : null) : null,
-      (o.evidence && o.evidence.length) ? h("details", {}, h("summary", {}, `${o.evidence.length} exchanges`),
+      (o.evidence && o.evidence.length) ? h("details", {}, h("summary", {}, `${o.evidence.length} exchange${o.evidence.length === 1 ? "" : "s"}`),
         o.evidence.map(e => h("pre", {}, `${e.probe} [${e.layer}] ${e.matched || "unmatched"}${e.error ? " error: " + e.error : ""}\n` +
           (e.request ? "> " + printable(e.request) + "\n" : "") + (e.response ? "< " + printable(e.response) : "")))) : null,
       o.observation_id && o.evidence?.length ?
         h("div", {}, h("a", { href: "#/evidence/" + encodeURIComponent(o.observation_id) }, "Trace evidence · packets · clone probe →")) : null));
 }
-function printable(b64) {
-  let s;
-  try { s = atob(b64); } catch { return b64; }
-  return s.replace(/[^\x20-\x7e\n]/g, c => "\\x" + c.charCodeAt(0).toString(16).padStart(2, "0")).slice(0, 2048);
-}
 const obsHeaders = ["target", "port", "state", "evidence score", "rtt", "detail"];
 
 function scanRow(s) {
   return h("tr", {},
-    h("td", {}, h("a", { href: "#/scans/" + encodeURIComponent(s.scan_id) }, s.scan_id)),
+    h("td", {}, h("a", { class: "mono", href: "#/scans/" + encodeURIComponent(s.scan_id) }, s.scan_id)),
     h("td", {}, s.profile), h("td", {}, state(s.status)), h("td", {}, fmtTime(s.started)),
-    h("td", {}, s.targets), h("td", {}, s.observations), h("td", {}, s.services),
+    h("td", { class: "num" }, s.targets), h("td", { class: "num" }, s.observations), h("td", { class: "num" }, s.services),
     h("td", { class: "wrap error" }, s.error || ""));
 }
 const scanHeaders = ["scan", "profile", "status", "started", "targets", "observations", "services", ""];
 
+// hostGroup renders one collapsible target: a summary row that opens to its
+// ports. Used by the assets page and the scan page.
+function hostGroup({ address, sub, chips = [], preview = "", when = "", actions = null, body, open = false, query = "" }) {
+  const content = h("div", { class: "host-body" });
+  let built = false;
+  const toggle = h("button", { type: "button", class: "host-toggle", "aria-expanded": String(open) },
+    h("span", { class: "chev", "aria-hidden": "true" }),
+    h("span", { class: "host-addr" }, mark(address, query), sub ? h("small", {}, sub) : null),
+    h("span", { class: "host-chips" }, chips),
+    h("span", { class: "host-preview" }, mark(preview, query)),
+    h("span", { class: "host-when" }, when));
+  const el = h("div", { class: "host" + (open ? " open" : ""), "data-address": address }, h("div", { class: "host-row" }, toggle, actions), content);
+  const set = v => {
+    if (v && !built) { content.append(body()); built = true; }
+    el.classList.toggle("open", v);
+    toggle.setAttribute("aria-expanded", String(v));
+  };
+  toggle.addEventListener("click", () => set(!el.classList.contains("open")));
+  if (open) set(true);
+  return { el, set, content, rebuild() { if (built) content.replaceChildren(body()); } };
+}
+
+function chip(text, cls = "") { return h("span", { class: "chip " + cls }, text); }
+
+function pageHead(title, intro, tools) {
+  return h("div", { class: "page-head" }, h("div", {}, h("h1", {}, title), intro ? h("p", {}, intro) : null), tools ? h("div", { class: "page-tools" }, tools) : null);
+}
+
 // ---- pages ----
 
 async function dashboard() {
-  const signal = pageAbort.signal;
-  const metrics = [
-    ["scans", "Total scans", "Across all stored history"],
-    ["running", "Active scans", "Currently in progress"],
-    ["hosts", "Discovered hosts", "Stored in this workspace"],
-    ["open_ports", "Open ports", "Latest known state"],
-    ["services", "Services", "Identified on open ports"],
-  ];
-  const values = Object.fromEntries(metrics.map(([key]) => [key, h("div", { class: "n" }, "—")]));
-  const recent = h("div", {});
-  const updated = h("span", { class: "muted" }, "Updating…");
-  const refresh = async () => {
-    const [stats, scans] = await Promise.all([api("/stats", { signal }), api("/scans?limit=8", { signal })]);
-    if (signal.aborted) return;
-    for (const [key] of metrics) {
-      values[key].textContent = Number(stats[key] || 0).toLocaleString();
-      values[key].classList.toggle("live-number", key === "running" && stats.running > 0);
+  const signal = page.abort.signal;
+  const [list, stats, scans, assets] = await Promise.all([agents(), api("/stats"), api("/scans?limit=8"), api("/assets?open=true").catch(() => [])]);
+  const byIP = new Map(assets.map(a => [String(a.address), a]));
+  const inspector = h("div", { class: "inspector" });
+  let selectedHost = null;
+  const theater = createTheater({ agents: list, title: "NETWORK MAP", height: 430, onSelect: sel => showSelection(sel),
+    onAgents: l => { renderAgentBadge(l); if (!selectedHost) inspector.replaceChildren(...defaultInspector()); } });
+  signal.addEventListener("abort", () => theater.destroy(), { once: true });
+
+  const readout = (label, value, hint, live) => h("div", { class: "readout" + (live ? " live-number" : "") },
+    h("span", { class: "r-label" }, label), h("strong", {}, Number(value || 0).toLocaleString()), h("small", {}, hint));
+  const stripEl = h("div", { class: "readouts" });
+  const renderStats = s => stripEl.replaceChildren(
+    readout("SCANS", s.scans, "stored history"), readout("ACTIVE", s.running, s.running ? "running now" : "idle", s.running > 0),
+    readout("HOSTS", s.hosts, "discovered"), readout("OPEN PORTS", s.open_ports, "latest state"), readout("SERVICES", s.services, "identified"));
+  renderStats(stats);
+
+  const recentPanel = () => panel("RECENT SCANS", scans.length ? h("ul", { class: "scan-list" }, scans.map(s => h("li", {},
+    h("a", { href: "#/scans/" + encodeURIComponent(s.scan_id) }, h("span", { class: "mono" }, s.scan_id), h("small", {}, `${s.profile} · ${s.observations} obs · ${fmtAgo(s.started)}`)),
+    state(s.status)))) : h("p", { class: "muted pad" }, "No scans yet. ", h("a", { href: "#/new" }, "Start one.")),
+  { tools: h("a", { class: "tool", href: "#/scans" }, "ALL →") });
+
+  const running = scans.find(s => s.status === "running");
+  let shownScan = running || scans.find(s => s.observations > 0) || null;
+  const defaultInspector = () => [
+    agentsPanel(list, scans),
+    shownScan ? panel("ON THE MAP", kv([["scan", h("a", { class: "mono", href: "#/scans/" + encodeURIComponent(shownScan.scan_id) }, shownScan.scan_id)],
+      ["status", state(shownScan.status)], ["profile", shownScan.profile], ["started", fmtTime(shownScan.started)], ["targets", shownScan.targets],
+      ["observations", shownScan.observations], ["services", shownScan.services]]), { sub: "click a host for details" }) : null,
+    recentPanel()].filter(Boolean);
+
+  function showSelection(sel) {
+    selectedHost = sel.type === "host" ? sel.ip : null;
+    if (sel.type !== "host") { inspector.replaceChildren(...defaultInspector()); return; }
+    const a = byIP.get(sel.ip);
+    const ports = (a?.ports || []).slice().sort((x, y) => (y.state === "open") - (x.state === "open") || x.port - y.port);
+    inspector.replaceChildren(panel("HOST", [
+      h("div", { class: "host-hero" }, h("strong", { class: "mono" }, sel.ip), a ? h("small", {}, a.identity_id) : null),
+      a ? kv([["first seen", fmtTime(a.first_seen)], ["last seen", fmtTime(a.last_seen)],
+        ["open ports", ports.filter(p => p.state === "open").length]]) : h("p", { class: "muted pad" }, "Not yet stored as an asset."),
+      ports.length ? h("ul", { class: "port-list" }, ports.map(p => h("li", {},
+        h("span", { class: "mono" }, `${p.transport}/${p.port}`), state(p.state), h("span", {}, [p.service, p.product, p.version].filter(Boolean).join(" "))))) : null,
+      h("div", { class: "pad actions-row" },
+        h("a", { class: "button-link secondary", href: "#/assets?host=" + encodeURIComponent(sel.ip) }, "Open in assets"),
+        h("a", { class: "button-link secondary", href: "#/new/known-open/" + encodeURIComponent(sel.ip) }, "Service scan"))],
+    { tools: h("button", { type: "button", class: "tool", "aria-label": "Close host details", onclick: () => { theater.map.select(null); showSelection({ type: "none" }); } }, "✕") }));
+  }
+
+  // A running scan streams live; otherwise replay the latest scan with
+  // observations.
+  inspector.replaceChildren(...defaultInspector());
+  const openOf = ip => (byIP.get(ip)?.ports || []).filter(p => p.state === "open").length;
+  if (shownScan) {
+    const obs = await api(`/scans/${encodeURIComponent(shownScan.scan_id)}/observations?limit=3000`);
+    const agentOf = new Map(obs.map(o => [String(o.target), o.agent || "local"]));
+    theater.map.setHosts([...agentOf.keys()].map(ip => ({ ip, open: openOf(ip), agent: agentOf.get(ip) })));
+    if (running) {
+      theater.setLive(true);
+      theater.ingest(obs, { backfill: true });
+      const seen = new Set(obs.map(o => o.observation_id || o.timestamp + o.target + o.port));
+      stream(`/scans/${encodeURIComponent(running.scan_id)}/events`, (type, data) => {
+        if (type === "observation") {
+          const k = data.observation_id || data.timestamp + data.target + data.port;
+          if (seen.has(k)) return;
+          seen.add(k);
+          theater.ingest([data]);
+          if (data.state === "open" && data.kind === "port") theater.map.addHost(String(data.target), { openPort: `${data.transport}/${data.port}` });
+        } else if (type === "scan") {
+          shownScan = data;
+          if (data.status !== "running") {
+            theater.setLive(false);
+            invalidateSearch();
+            api("/stats", { signal }).then(renderStats).catch(() => {});
+            api("/scans?limit=8", { signal }).then(list => { scans.splice(0, scans.length, ...list); if (!selectedHost) inspector.replaceChildren(...defaultInspector()); }).catch(() => {});
+          }
+        }
+      }, signal);
+    } else {
+      theater.setLive(false);
+      theater.ingest(obs);
     }
-    recent.replaceChildren(scans.length ? table(scanHeaders, scans.map(scanRow)) :
-      h("p", { class: "muted" }, "No scans yet. ", h("a", { href: "#/new" }, "Start one.")));
-    updated.textContent = "Updated " + new Date().toLocaleTimeString();
-  };
-  await refresh();
-  const interval = setInterval(() => refresh().catch(() => { updated.textContent = "Live update unavailable"; }), 5000);
-  signal.addEventListener("abort", () => clearInterval(interval), { once: true });
-  return [
-    h("section", { class: "hero" },
-      h("div", { class: "hero-content" }, h("span", { class: "eyebrow" }, "// COMMAND CENTER"),
-        h("h1", {}, "See Beyond the Surface."),
-        h("p", {}, "Discover hosts, map exposed ports, and identify services from one local network workspace."),
-        h("div", { class: "hero-actions" }, h("a", { class: "button-link", href: "#/new" }, "＋ Launch scan"),
-          h("a", { class: "button-link secondary", href: "#/assets" }, "Explore assets →"))),
-      h("div", { class: "hero-meta" }, h("span", { class: "system-dot" }), "SYSTEM ONLINE")),
-    h("div", { class: "tiles" }, metrics.map(([key, label, hint]) =>
-      h("div", { class: "tile" }, values[key], h("div", { class: "l" }, label), h("div", { class: "hint" }, hint)))),
-    h("div", { class: "bar section-bar" }, h("h2", {}, "Recent scans"), updated),
-    recent,
-  ];
+  } else {
+    theater.setLive(false);
+    theater.map.setHosts(assets.slice(0, 64).map(a => ({ ip: String(a.address), open: openOf(String(a.address)) })));
+  }
+
+  const refresh = setInterval(async () => {
+    try { renderStats(await api("/stats", { signal })); } catch { /* keep last values */ }
+  }, 5000);
+  signal.addEventListener("abort", () => clearInterval(refresh), { once: true });
+
+  return h("div", { class: "overview" }, stripEl,
+    h("div", { class: "overview-grid" }, h("div", { class: "stack" }, theater.mapPanel, theater.flowPanel), inspector));
 }
 
 async function scansPage() {
-  const signal = pageAbort.signal;
+  const signal = page.abort.signal;
   const list = h("div", {});
   const refresh = async () => {
     const scans = await api("/scans?limit=200", { signal });
-    if (!signal.aborted) list.replaceChildren(table(scanHeaders, scans.map(scanRow)));
+    if (!signal.aborted) list.replaceChildren(scans.length ? table(scanHeaders, scans.map(scanRow)) : h("p", { class: "muted pad" }, "No scans yet."));
   };
   await refresh();
   const interval = setInterval(() => refresh().catch(() => {}), 5000);
   signal.addEventListener("abort", () => clearInterval(interval), { once: true });
-  return [h("div", { class: "bar" }, h("h1", {}, "Scans"), h("a", { href: "#/new" }, "+ new scan")),
-    h("p", { class: "page-intro" }, "Scan history and live activity update automatically."), list];
+  return [pageHead("Scans", "Scan history and live activity update automatically.", h("a", { class: "button-link", href: "#/new" }, "＋ New scan")),
+    panel("HISTORY", list, { flush: true })];
 }
 
 async function newScan(knownScope = null) {
@@ -394,17 +311,18 @@ async function newScan(knownScope = null) {
     if (f.fingerprint.checked) r.fingerprint = true;
     return r;
   };
-  const show = (title, obj) => out.replaceChildren(h("h2", {}, title), h("pre", {}, JSON.stringify(obj, null, 2)));
+  const show = (title, obj) => out.replaceChildren(panel(title.toUpperCase(), h("pre", { class: "bare" }, JSON.stringify(obj, null, 2)), { flush: true }));
   const fail = e => out.replaceChildren(h("p", { class: "error" }, e.message));
   const planBtn = h("button", { type: "button", class: "secondary", onclick: async () => {
     try { show("plan", await api("/plan", { body: request() })); } catch (e) { fail(e); }
-  } }, "plan (dry run)");
+  } }, "Plan (dry run)");
   const reqBtn = h("button", { type: "button", class: "secondary", onclick: () =>
-    show("request (same document as nyxr scan --config, in JSON)", request()) }, "show request");
+    show("request · same document as nyxr scan --config", request()) }, "Show request");
   const form = h("form", { class: "grid", onsubmit: async ev => {
     ev.preventDefault();
     try {
       const sc = await api("/scans", { body: request() });
+      invalidateSearch();
       location.hash = "#/scans/" + encodeURIComponent(sc.scan_id);
     } catch (e) { fail(e); }
   } },
@@ -429,22 +347,22 @@ async function newScan(knownScope = null) {
     input("service_workers", { type: "number", min: 1, placeholder: "workers" }), input("service_rate", { type: "number", min: 0, placeholder: "conn/s" })),
   h("label", {}, "fingerprint devices"), h("div", {}, f.fingerprint),
   h("label", {}, "capture"), input("pcapng", { placeholder: "evidence.pcapng (needs packetd and --evidence-dir)" }),
-  h("div", { class: "actions" }, h("button", { type: "submit" }, "start scan"), planBtn, reqBtn));
+  h("div", { class: "actions" }, h("button", { type: "submit" }, "▶ Start scan"), planBtn, reqBtn));
   syncKnownOpen();
-  return [h("h1", {}, knownScope !== null ? "Service scan" : "New scan"), form, out];
+  return [pageHead(knownScope !== null ? "Service scan" : "New scan", knownScope !== null ? "Probe services on ports whose latest stored state is open." : "Define targets, ports and pacing. Plan first to see what will be sent."),
+    panel("PARAMETERS", form), out];
 }
 
 async function scanPage(id) {
+  const signal = page.abort.signal;
+  const list = await agents();
   const summary = h("div", {});
   const status = h("span", {});
-  const tbody = h("tbody", {});
-  const evidence = h("div", {});
-  const actions = h("span", {});
+  const actions = h("span", { class: "page-tools" });
   const progressTitle = h("span", { class: "scan-progress-title" });
   const progressNote = h("span", { class: "scan-progress-note" });
   const progressTrack = h("div", { class: "scan-progress-track", role: "progressbar", "aria-label": "Scan progress",
-    "aria-valuemin": "0", "aria-valuemax": "100" },
-    h("div", { class: "scan-progress-fill" }));
+    "aria-valuemin": "0", "aria-valuemax": "100" }, h("div", { class: "scan-progress-fill" }));
   const elapsedValue = h("strong", {}, "0s");
   const targetValue = h("strong", {}, "0");
   const observationValue = h("strong", {}, "0");
@@ -454,43 +372,91 @@ async function scanPage(id) {
     h("div", { class: "scan-progress-metrics" },
       h("span", {}, "ELAPSED ", elapsedValue), h("span", {}, "TARGETS SEEN ", targetValue),
       h("span", {}, "OBSERVATIONS ", observationValue), h("span", {}, "SERVICES ", serviceValue)));
-  const signal = pageAbort.signal;
   let current = await api("/scans/" + encodeURIComponent(id));
+  const theater = createTheater({ agents: list, title: "SCAN TRAFFIC", height: 360, onAgents: renderAgentBadge,
+    onSelect: sel => { if (sel.type === "host") openTarget(sel.ip); } });
+  signal.addEventListener("abort", () => theater.destroy(), { once: true });
+
+  // Observations grouped per target, ports behind a dropdown.
+  const targetsBox = h("div", { class: "hosts" });
+  const groups = new Map();
+  const filter = h("input", { type: "search", placeholder: "Filter targets, ports, services…", "aria-label": "Filter targets" });
   const seen = new Set();
-  const seenTargets = new Set();
   let servicesSeen = 0, pending = false;
   const key = o => [o.kind, o.target, o.transport, o.port, o.probe, o.timestamp].join("|");
+  const groupFor = ip => {
+    let g = groups.get(ip);
+    if (g) return g;
+    g = { ip, obs: [], counts: {}, agent: "local" };
+    g.ui = hostGroup({ address: ip, body: () => table(obsHeaders.slice(1), g.obs.map(o => obsRow(o, false, false)), "inner"),
+      actions: h("a", { class: "tool", href: "#/assets?host=" + encodeURIComponent(ip) }, "ASSET →") });
+    groups.set(ip, g);
+    const order = [...groups.keys()].sort(cmpIP);
+    const next = groups.get(order[order.indexOf(ip) + 1]);
+    if (next && next.ui.el.isConnected) targetsBox.insertBefore(g.ui.el, next.ui.el);
+    else targetsBox.append(g.ui.el);
+    return g;
+  };
+  const refreshGroup = (g, fresh) => {
+    const c = g.counts;
+    const chips = [];
+    if (c.open) chips.push(chip(`${c.open} open`, "open"));
+    if (c.closed) chips.push(chip(`${c.closed} closed`, "closed"));
+    if (c.filtered) chips.push(chip(`${c.filtered} filtered`, "filtered"));
+    if (c.service) chips.push(chip(`${c.service} svc`, "svc"));
+    g.ui.el.querySelector(".host-chips").replaceChildren(...chips);
+    const services = [...new Set(g.obs.filter(o => o.kind === "service").map(o => `${o.port}/${o.service || "?"}${o.product ? " " + o.product : ""}`))];
+    g.ui.el.querySelector(".host-preview").textContent = services.slice(0, 4).join(" · ");
+    g.ui.rebuild();
+    if (fresh) { g.ui.el.classList.remove("flash"); void g.ui.el.offsetWidth; g.ui.el.classList.add("flash"); }
+  };
   const addObs = (o, fresh) => {
     const k = key(o);
-    if (seen.has(k)) return;
+    if (seen.has(k)) return false;
     seen.add(k);
-    seenTargets.add(o.target);
     if (o.kind === "service" && o.fingerprint === "matched") servicesSeen++;
-    tbody.append(obsRow(o, fresh));
+    const g = groupFor(String(o.target));
+    g.obs.push(o);
+    if (o.agent) g.agent = String(o.agent);
+    const bucket = o.kind === "service" ? "service" : o.state === "open" ? "open" : o.state === "closed" ? "closed" : /filtered/.test(o.state) ? "filtered" : "other";
+    g.counts[bucket] = (g.counts[bucket] || 0) + 1;
+    refreshGroup(g, fresh);
     if (fresh && !pending) {
-      // Counters follow streamed rows until the final summary arrives.
       pending = true;
       requestAnimationFrame(() => {
         pending = false;
-        if (current.status === "running") {
-          renderSummary(Object.assign({}, current, {
-            observations: Math.max(current.observations, seen.size), services: Math.max(current.services, servicesSeen) }));
-        }
+        if (current.status === "running") renderSummary(Object.assign({}, current, {
+          observations: Math.max(current.observations, seen.size), services: Math.max(current.services, servicesSeen) }));
       });
     }
+    return true;
   };
+  filter.addEventListener("input", () => {
+    const q = filter.value.trim().toLowerCase();
+    for (const g of groups.values()) {
+      g.ui.el.hidden = !(!q || g.ip.includes(q) || g.obs.some(o => [port(o), o.service, o.product, o.state].some(v => String(v || "").toLowerCase().includes(q))));
+      const addr = g.ui.el.querySelector(".host-addr");
+      addr.replaceChildren(mark(g.ip, q));
+    }
+  });
+  function openTarget(ip) {
+    const g = groups.get(ip);
+    if (!g) return;
+    g.ui.set(true);
+    g.ui.el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   const renderSummary = s => {
     current = s;
     progress.classList.toggle("done", s.status === "completed");
     progress.classList.toggle("failed", s.status === "failed");
-    progressTitle.textContent = s.status === "running" ? "Scan in progress" :
-      s.status === "completed" ? "Scan complete" : "Scan " + s.status;
+    progressTitle.textContent = s.status === "running" ? "Scan in progress" : s.status === "completed" ? "Scan complete" : "Scan " + s.status;
     progressNote.textContent = s.status === "running" ? "Live results · total completion is unavailable" :
       s.status === "completed" ? "All scan stages finished" : "Partial results remain available";
     progressTrack.setAttribute("aria-valuetext", progressTitle.textContent);
     if (s.status === "completed") progressTrack.setAttribute("aria-valuenow", "100");
     else progressTrack.removeAttribute("aria-valuenow");
-    targetValue.textContent = `${seenTargets.size} / ${s.targets}`;
+    targetValue.textContent = `${groups.size} / ${s.targets}`;
     observationValue.textContent = Math.max(s.observations, seen.size).toLocaleString();
     serviceValue.textContent = Math.max(s.services, servicesSeen).toLocaleString();
     updateElapsed();
@@ -498,12 +464,12 @@ async function scanPage(id) {
       ["finished", fmtTime(s.finished)], ["targets", s.targets], ["observations", s.observations], ["services", s.services],
       ["error", s.error], ["capture", s.capture ? `${s.capture.written} packets, ${s.capture.bytes} bytes in ${s.capture.path}` +
         (s.capture.dropped_queue || s.capture.dropped_limit || s.capture.backend_drops ? " (drops recorded)" : "") : undefined]]));
-    status.replaceChildren(s.status === "running" ? h("span", { class: "live" }, "live") : "");
+    status.replaceChildren(s.status === "running" ? h("span", { class: "badge live" }, "● LIVE") : state(s.status));
     actions.replaceChildren(
       s.status === "running" ? h("button", { class: "secondary", onclick: async () => {
         try { await api(`/scans/${encodeURIComponent(id)}/cancel`, { body: {} }); } catch (e) { alert(e.message); }
-      } }, "cancel") : "",
-      s.capture && s.status !== "running" ? h("button", { class: "secondary", onclick: () => download(id, s.capture.path) }, "download pcapng") : "");
+      } }, "Cancel scan") : "",
+      s.capture && s.status !== "running" ? h("button", { class: "secondary", onclick: () => downloadCapture(id, s.capture.path) }, "Download pcapng") : "");
   };
   const updateElapsed = () => {
     const started = Date.parse(current.started);
@@ -513,27 +479,37 @@ async function scanPage(id) {
     elapsedValue.textContent = seconds >= 3600 ? `${Math.floor(seconds / 3600)}h ${Math.floor(seconds % 3600 / 60)}m` :
       seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
   };
-  const loadStored = async () => {
+  const evidence = h("div", {});
+  const loadStored = async initial => {
     const [obs, ev] = await Promise.all([
       api(`/scans/${encodeURIComponent(id)}/observations?limit=10000`),
       api(`/scans/${encodeURIComponent(id)}/evidence`)]);
-    for (const o of obs) addObs(o, false);
+    const fresh = obs.filter(o => addObs(o, false));
+    if (initial) {
+      theater.map.setHosts([...groups.values()].map(g => ({ ip: g.ip, open: g.counts.open || 0, agent: g.agent })));
+      theater.ingest(fresh.slice(0, 4000), { backfill: current.status === "running" });
+    }
     evidence.replaceChildren(ev.length ? table(["target", "port", "packets", "capture"], ev.map(p =>
-      h("tr", {}, h("td", {}, p.target), h("td", {}, port(p)),
+      h("tr", {}, h("td", {}, p.target), h("td", { class: "mono" }, port(p)),
         h("td", { class: "wrap" }, p.packets.map(x => `#${x.id} ${x.direction} ${x.summary}`).join("\n")), h("td", {}, p.capture))))
-      : h("p", { class: "muted" }, "no packet evidence"));
+      : h("p", { class: "muted pad" }, "No packet evidence. Start a scan with a pcapng capture to retain frames."));
   };
   renderSummary(current);
-  await loadStored();
+  await loadStored(true);
   renderSummary(current);
+  theater.setLive(current.status === "running");
   const clock = setInterval(updateElapsed, 1000);
   signal.addEventListener("abort", () => clearInterval(clock), { once: true });
   if (current.status === "running") {
     stream(`/scans/${encodeURIComponent(id)}/events`, (type, data) => {
-      if (type === "observation") addObs(data, true);
-      else if (type === "scan") {
+      if (type === "observation") {
+        if (addObs(data, true)) {
+          theater.ingest([data]);
+          if (data.kind === "port" && data.state === "open") theater.map.addHost(String(data.target), { openPort: `${data.transport}/${data.port}` });
+        }
+      } else if (type === "scan") {
         renderSummary(data);
-        if (data.status !== "running") loadStored().catch(() => {});
+        if (data.status !== "running") { theater.setLive(false); invalidateSearch(); loadStored(false).catch(() => {}); }
       }
     }, signal);
     const poll = setInterval(async () => {
@@ -542,93 +518,113 @@ async function scanPage(id) {
         if (signal.aborted) return;
         const wasRunning = current.status === "running";
         renderSummary(latest);
-        if (wasRunning && latest.status !== "running") loadStored().catch(() => {});
+        if (wasRunning && latest.status !== "running") { theater.setLive(false); loadStored(false).catch(() => {}); }
         if (latest.status !== "running") clearInterval(poll);
       } catch { /* the event stream and existing results remain usable */ }
     }, 5000);
     signal.addEventListener("abort", () => clearInterval(poll), { once: true });
   }
-  return [h("div", { class: "bar" }, h("h1", {}, "Scan " + id), status, actions), summary,
+  return [pageHead(h("span", {}, "Scan ", h("span", { class: "mono" }, id), " ", status), null, actions),
     progress,
-    h("h2", {}, "observations"), h("div", { class: "scroll" }, h("table", {},
-      h("thead", {}, h("tr", {}, obsHeaders.map(x => h("th", {}, x)))), tbody)),
-    h("h2", {}, "packet evidence"), evidence];
+    h("div", { class: "overview-grid" }, h("div", { class: "stack" }, theater.mapPanel, theater.flowPanel), h("div", { class: "inspector" }, panel("SUMMARY", summary))),
+    panel("TARGETS", [h("div", { class: "panel-filter" }, filter), targetsBox], { sub: "open a target to see its ports", flush: true }),
+    panel("PACKET EVIDENCE", evidence, { flush: true })];
 }
 
-async function download(id, name) {
+async function downloadCapture(id, name) {
   try {
     const res = await api(`/scans/${encodeURIComponent(id)}/pcapng`, { raw: true });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
-    const url = URL.createObjectURL(await res.blob());
-    const a = h("a", { href: url, download: name || "capture.pcapng" });
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    download(name || "capture.pcapng", await res.blob());
   } catch (e) { alert(e.message); }
 }
 
-async function assetsPage() {
-  const assets = await api("/assets?open=true");
-  const search = h("input", { type: "search", placeholder: "Address, CIDR, range, port or service", autocomplete: "off", list: "asset-suggestions", "aria-label": "Search assets" });
-  const suggestions = h("datalist", { id: "asset-suggestions" });
+async function assetsPage(params) {
+  // Only hosts with open ports: the full inventory includes every closed
+  // port ever scanned and can reach hundreds of MB.
+  const all = await api("/assets?open=true");
+  const search = h("input", { type: "search", placeholder: "Address, CIDR, range, port (tcp/80) or service", autocomplete: "off", "aria-label": "Filter assets" });
   const count = h("span", { class: "muted" });
-  const results = h("div", {});
-  const values = [...new Set(assets.flatMap(a => [a.address, ...(a.ports || []).flatMap(p =>
-    [`${p.port}/${p.transport}`, p.service, p.product])]).filter(Boolean))];
-  let serial = 0, timer;
-  const render = shown => {
-    count.textContent = `${shown.length} of ${assets.length} hosts`;
-    const rows = [];
-    for (const a of shown) {
-      (a.ports || []).forEach((p, i) => rows.push(h("tr", {},
-        h("td", {}, i === 0 ? h("strong", {}, a.address) : ""),
-        h("td", {}, `${p.port}/${p.transport}`), h("td", {}, state(p.state)),
-        h("td", {}, p.service || ""), h("td", { class: "wrap" }, [p.product, p.version].filter(Boolean).join(" ")),
-        h("td", {}, h("a", { href: "#/scans/" + encodeURIComponent(p.scan_id) }, fmtTime(p.observed_at))),
-        h("td", {}, i === 0 ? h("a", { href: "#/new/known-open/" + encodeURIComponent(a.address) }, "scan open ports") : ""))));
-    }
-    results.replaceChildren(rows.length ? table(["address", "port", "state", "service", "product", "last seen", ""], rows)
-      : h("p", { class: "muted" }, "No open ports match this search."));
+  const results = h("div", { class: "hosts" });
+  let rendered = [], serial = 0, timer;
+  const expandAll = h("button", { type: "button", class: "tool", onclick: () => rendered.forEach(r => r.set(true)) }, "EXPAND ALL");
+  const collapseAll = h("button", { type: "button", class: "tool", onclick: () => rendered.forEach(r => r.set(false)) }, "COLLAPSE");
+  const focusHost = params.get("host"), focusPort = params.get("port");
+  search.value = params.get("q") || focusHost || focusPort || "";
+
+  // An exact port query (tcp/80) matches that port only, not tcp/8080.
+  const exactPort = q => /^(tcp|udp|sctp)\/\d+$/.test(q);
+  const portMatches = (p, q) => !!q && (exactPort(q) ? `${p.transport}/${p.port}` === q
+    : [`${p.transport}/${p.port}`, p.service, p.product, p.version].some(v => String(v || "").toLowerCase().includes(q)));
+  const markPort = (key, q) => exactPort(q) ? (key === q ? h("mark", {}, key) : key) : mark(key, q);
+
+  const render = (shown, q) => {
+    const list = shown;
+    count.textContent = `${list.length} of ${all.length} hosts`;
+    rendered = [];
+    const nodes = list.slice().sort((a, b) => cmpIP(String(a.address), String(b.address))).slice(0, 1000).map(a => {
+      const ip = String(a.address);
+      const ports = (a.ports || []).filter(p => p.state === "open")
+        .sort((x, y) => x.transport.localeCompare(y.transport) || x.port - y.port);
+      const open = (a.ports || []).filter(p => p.state === "open");
+      const tcp = open.filter(p => p.transport === "tcp").length, udp = open.filter(p => p.transport === "udp").length;
+      const matchedPorts = ports.filter(p => portMatches(p, q));
+      const expand = ip === focusHost || (matchedPorts.length > 0 && !ip.includes(q) && list.length <= 30);
+      const services = [...new Set(open.map(p => p.service).filter(Boolean))];
+      const g = hostGroup({
+        address: ip, sub: a.identity_id, query: exactPort(q) ? "" : q, open: expand,
+        chips: [open.length ? chip(`${open.length} open`, "open") : chip("no open ports", "closed"), tcp ? chip(`tcp ${tcp}`) : null, udp ? chip(`udp ${udp}`) : null],
+        preview: services.slice(0, 5).join(" · "), when: fmtAgo(a.last_seen),
+        actions: h("a", { class: "tool", href: "#/new/known-open/" + encodeURIComponent(ip), title: "Service scan on this host's open ports" }, "SCAN →"),
+        body: () => ports.length ? table(["port", "state", "service", "product", "last seen"], ports.map(p => h("tr", { class: portMatches(p, q) ? "match" : "" },
+          h("td", { class: "mono" }, markPort(`${p.transport}/${p.port}`, q)), h("td", {}, state(p.state)),
+          h("td", {}, exactPort(q) ? p.service || "" : mark(p.service || "", q)), h("td", { class: "wrap" }, exactPort(q) ? [p.product, p.version].filter(Boolean).join(" ") : mark([p.product, p.version].filter(Boolean).join(" "), q)),
+          h("td", {}, h("a", { href: "#/scans/" + encodeURIComponent(p.scan_id), title: p.scan_id }, fmtTime(p.observed_at))))), "inner")
+          : h("p", { class: "muted pad" }, "No ports recorded."),
+      });
+      rendered.push(g);
+      return g.el;
+    });
+    results.replaceChildren(...(nodes.length ? nodes : [h("p", { class: "muted pad" }, "No hosts match this filter.")]));
+    if (list.length > 1000) results.append(h("p", { class: "muted pad" }, `Showing the first 1000 of ${list.length} hosts. Narrow the filter.`));
+    if (focusHost) requestAnimationFrame(() => results.querySelector(`[data-address="${CSS.escape(focusHost)}"]`)?.scrollIntoView({ block: "center" }));
   };
   const update = () => {
-    const query = search.value.trim().toLowerCase();
+    const q = search.value.trim().toLowerCase();
     const mySerial = ++serial;
     clearTimeout(timer);
-    suggestions.replaceChildren(...values.filter(v => v.toLowerCase().includes(query)).sort((a, b) =>
-      Number(!a.toLowerCase().startsWith(query)) - Number(!b.toLowerCase().startsWith(query))).slice(0, 12)
-      .map(v => h("option", { value: v })));
-    if (!query) { render(assets); return; }
-    if (/^[0-9a-f:.]+\/\d{1,3}$/i.test(query) || /^[0-9a-f:.]+-[0-9a-f:.]+$/i.test(query)) {
+    if (!q) { render(all, ""); return; }
+    if (/^[0-9a-f:.]+\/\d{1,3}$/i.test(q) || /^[0-9a-f:.]+-[0-9a-f:.]+$/i.test(q)) {
       timer = setTimeout(async () => {
         try {
-          const scoped = await api("/assets?open=true&scope=" + encodeURIComponent(query));
-          if (serial === mySerial) render(scoped);
-        } catch (e) { if (serial === mySerial) results.replaceChildren(h("p", { class: "error" }, e.message)); }
+          const scoped = await api("/assets?open=true&scope=" + encodeURIComponent(q));
+          if (serial === mySerial) render(scoped, "");
+        } catch (e) { if (serial === mySerial) results.replaceChildren(h("p", { class: "error pad" }, e.message)); }
       }, 180);
       return;
     }
-    render(assets.filter(a => [a.address, ...(a.ports || []).flatMap(p =>
-      [`${p.port}/${p.transport}`, p.port, p.service, p.product, p.version])].some(v => String(v || "").toLowerCase().includes(query))));
+    const pm = q.match(/^(tcp|udp|sctp)\/(\d+)$/);
+    render(all.filter(a => pm ? (a.ports || []).some(p => p.transport === pm[1] && String(p.port) === pm[2])
+      : String(a.address).toLowerCase().includes(q) || (a.ports || []).some(p => portMatches(p, q))), q);
   };
   search.addEventListener("input", update);
-  render(assets);
-  return [h("div", { class: "bar" }, h("h1", {}, "Assets"),
-    h("a", { href: "#/new/known-open" }, "+ service scan on open ports")),
-    h("div", { class: "asset-search" }, search, suggestions, count), results];
+  update();
+  return [pageHead("Assets", "Every host with an open port. Open a host to see its ports.", h("a", { class: "button-link secondary", href: "#/new/known-open" }, "＋ Service scan on open ports")),
+    panel("HOSTS", [h("div", { class: "panel-filter" }, search, count, expandAll, collapseAll), results],
+      { flush: true })];
 }
 
 async function identitiesPage() {
   const [graph, relations, reviews, events, topology] = await Promise.all([
-    api("/assets/identities"), api("/assets/identity-relations"),
+    api("/assets/identities?ports=none"), api("/assets/identity-relations"),
     api("/assets/identity-reviews"), api("/assets/identity-events"), api("/assets/topology/timeline?limit=100")]);
   const rows = graph.map(asset => h("tr", {},
-    h("td", {}, h("strong", {}, asset.id), h("small", {}, asset.global_id)),
+    h("td", {}, h("strong", { class: "mono" }, asset.id), h("small", { class: "block muted" }, asset.global_id)),
     h("td", {}, asset.addresses.map(a => a.address).join(", ")),
     h("td", {}, [asset.profile.class, asset.profile.model, asset.profile.os].filter(Boolean).join(" · ") || "-"),
-	  h("td", {}, [...new Set(asset.clues.filter(c => c.kind === "capture_interface" || c.kind === "vlan_id")
+    h("td", {}, [...new Set(asset.clues.filter(c => c.kind === "capture_interface" || c.kind === "vlan_id")
       .map(c => `${c.kind}: ${c.value}`))].join(" · ") || "-"),
-	  h("td", {}, asset.signals.some(s => s.active) ? [...new Set(asset.signals.filter(s => s.active).map(s => `${s.kind}: ${s.value}`))].join(" · ") : "No strong signal yet"),
+    h("td", {}, asset.signals.some(s => s.active) ? [...new Set(asset.signals.filter(s => s.active).map(s => `${s.kind}: ${s.value}`))].join(" · ") : "No strong signal yet"),
     h("td", {}, asset.link_confidence ? `${asset.link_confidence}/100 ${asset.link_confidence_method || "heuristic"}` : "No link"),
     h("td", {}, (asset.hypotheses || []).map(x => `${x.other_id}: ${x.blocked ? "blocked" : x.confidence + "/100 heuristic"}`).join(" · ") || "-"),
     h("td", {}, fmtTime(asset.last_seen))));
@@ -642,8 +638,7 @@ async function identitiesPage() {
     ev.preventDefault();
     message.textContent = "Saving…";
     try {
-      await api("/assets/identity-reviews", { body: { address_a: a.value, address_b: b.value,
-        decision: decision.value, note: note.value } });
+      await api("/assets/identity-reviews", { body: { address_a: a.value, address_b: b.value, decision: decision.value, note: note.value } });
       await route();
     } catch (error) { message.textContent = error.message; }
   } }, h("label", {}, "First address"), a, h("label", {}, "Second address"), b,
@@ -676,110 +671,110 @@ async function identitiesPage() {
   h("label", {}, "Valid from"), topologyFrom, h("label", {}, "Valid until"), topologyUntil,
   h("label", {}, "Evidence and reason"), topologyNote,
   h("div", { class: "actions" }, h("button", { type: "submit", disabled: !interfaceIDs.length }, "Record topology review"), topologyMessage));
-  return [h("h1", {}, `Asset identities (${graph.length})`),
-    h("p", { class: "muted" }, "Addresses join only when a device-scoped signal matches. Open the scan history to inspect the source observations."),
-    h("p", { class: "muted" }, "Link and candidate scores are rule heuristics, not calibrated probabilities. Shared certificate and name clues count once; conflicting strong evidence blocks a candidate."),
-    rows.length ? table(["asset ID", "addresses", "device profile", "observed network", "identity evidence", "link confidence", "competing candidates", "last seen"], rows)
-      : h("p", { class: "muted" }, "No assets recorded yet."),
-    h("h2", {}, "Review membership"), form,
-    h("p", { class: "muted" }, "A manual join keeps the addresses together; a separation blocks automatic rejoining. Clear removes the decision."),
-    h("h2", {}, "Shared clues"), relations.length ? table(["identity", "related identity", "clue", "value"],
+  const none = text => h("p", { class: "muted pad" }, text);
+  return [pageHead(`Asset identities (${graph.length})`, "Addresses join only when a device-scoped signal matches. Link and candidate scores are rule heuristics, not calibrated probabilities; shared certificate and name clues count once and conflicting strong evidence blocks a candidate."),
+    panel("IDENTITIES", rows.length ? table(["asset ID", "addresses", "device profile", "observed network", "identity evidence", "link confidence", "competing candidates", "last seen"], rows)
+      : none("No assets recorded yet."), { flush: true }),
+    panel("REVIEW MEMBERSHIP", [form, h("p", { class: "muted" }, "A manual join keeps the addresses together; a separation blocks automatic rejoining. Clear removes the decision.")]),
+    panel("SHARED CLUES", relations.length ? table(["identity", "related identity", "clue", "value"],
       relations.map(r => h("tr", {}, h("td", {}, r.left_id), h("td", {}, r.right_id), h("td", {}, r.kind), h("td", {}, r.value))))
-      : h("p", { class: "muted" }, "No shared identity clues."),
-    h("h2", {}, "Temporal topology"),
-    h("p", { class: "muted" }, "Address and VLAN sightings are proven at the packet time only. LLDP links expire at their advertised TTL. Earlier unobserved ownership is unknown; conflicting claims stay separate."),
-    topology.claims.length ? table(["observed", "interface", "address", "VLAN", "identity then", "evidence", "status"],
-      topology.claims.map(claim => h("tr", {}, h("td", {}, fmtTime(claim.valid_from)),
-        h("td", {}, claim.interface_id), h("td", {}, claim.address), h("td", {}, claim.vlan_id || "-"),
-        h("td", {}, claim.identity_id || "unknown"), h("td", {}, claim.source.artifactID),
-        h("td", {}, claim.overridden ? "reviewed separation" : claim.conflict ? "conflict" : claim.validity))))
-      : h("p", { class: "muted" }, "No address/interface sightings retained."),
-    h("h2", {}, "Review interface membership"), topologyForm,
-    h("p", { class: "muted" }, "A reviewed join or separation has a finite valid interval. It does not merge device identities or erase packet evidence."),
-    topology.reviews.length ? table(["valid from", "valid until", "address", "interface", "VLAN", "decision", "reason", "status"],
-      topology.reviews.map(r => h("tr", {}, h("td", {}, fmtTime(r.valid_from)), h("td", {}, fmtTime(r.valid_until)),
-        h("td", {}, r.address), h("td", {}, r.interface_id), h("td", {}, r.vlan_id || "-"),
-        h("td", {}, r.decision), h("td", {}, r.note), h("td", {}, r.conflict ? "conflict" : "reviewed"))))
-      : h("p", { class: "muted" }, "No interface membership reviews yet."),
-    h("h2", {}, "LLDP neighbors"), topology.adjacencies.length ? table(["observed", "valid until", "capture interface", "VLAN", "chassis", "port", "management address", "identity then", "evidence"],
+      : none("No shared identity clues."), { flush: true }),
+    panel("TEMPORAL TOPOLOGY", [none("Address and VLAN sightings are proven at the packet time only. LLDP links expire at their advertised TTL. Earlier unobserved ownership is unknown; conflicting claims stay separate."),
+      topology.claims.length ? table(["observed", "interface", "address", "VLAN", "identity then", "evidence", "status"],
+        topology.claims.map(claim => h("tr", {}, h("td", {}, fmtTime(claim.valid_from)),
+          h("td", {}, claim.interface_id), h("td", {}, claim.address), h("td", {}, claim.vlan_id || "-"),
+          h("td", {}, claim.identity_id || "unknown"), h("td", {}, claim.source.artifactID),
+          h("td", {}, claim.overridden ? "reviewed separation" : claim.conflict ? "conflict" : claim.validity))))
+        : none("No address/interface sightings retained."),
+      topology.truncated ? none("Showing the newest 100 sightings. Use the API or CLI to inspect more.") : null], { flush: true }),
+    panel("REVIEW INTERFACE MEMBERSHIP", [topologyForm, h("p", { class: "muted" }, "A reviewed join or separation has a finite valid interval. It does not merge device identities or erase packet evidence."),
+      topology.reviews.length ? table(["valid from", "valid until", "address", "interface", "VLAN", "decision", "reason", "status"],
+        topology.reviews.map(r => h("tr", {}, h("td", {}, fmtTime(r.valid_from)), h("td", {}, fmtTime(r.valid_until)),
+          h("td", {}, r.address), h("td", {}, r.interface_id), h("td", {}, r.vlan_id || "-"),
+          h("td", {}, r.decision), h("td", {}, r.note), h("td", {}, r.conflict ? "conflict" : "reviewed"))))
+        : h("p", { class: "muted" }, "No interface membership reviews yet.")]),
+    panel("LLDP NEIGHBORS", topology.adjacencies.length ? table(["observed", "valid until", "capture interface", "VLAN", "chassis", "port", "management address", "identity then", "evidence"],
       topology.adjacencies.map(link => h("tr", {}, h("td", {}, fmtTime(link.observed_at)),
         h("td", {}, fmtTime(link.valid_until)), h("td", {}, link.local_interface || "unknown"),
         h("td", {}, link.vlan_id || "-"), h("td", {}, link.chassis_id), h("td", {}, link.port_id),
         h("td", {}, link.management_address || "-"), h("td", {}, link.identity_id || "unknown"),
         h("td", {}, link.conflict ? "conflict · " + link.evidence_status : link.evidence_status))))
-      : h("p", { class: "muted" }, "No LLDP neighbors retained."),
-    topology.truncated ? h("p", { class: "muted" }, "Showing the newest 100 sightings. Use the API or CLI to inspect more.") : null,
-    h("h2", {}, "Membership changes"), events.length ? table(["address", "from", "to", "cause", "time"],
+      : none("No LLDP neighbors retained."), { flush: true }),
+    panel("MEMBERSHIP CHANGES", events.length ? table(["address", "from", "to", "cause", "time"],
       events.slice(-50).reverse().map(e => h("tr", {}, h("td", {}, e.address), h("td", {}, e.from_identity || "-"),
         h("td", {}, e.to_identity || "-"), h("td", {}, e.cause), h("td", {}, fmtTime(e.recorded_at)))))
-      : h("p", { class: "muted" }, "No membership changes yet."),
-    h("h2", {}, "Review log"), reviews.length ? table(["addresses", "decision", "reason", "time"],
+      : none("No membership changes yet."), { flush: true }),
+    panel("REVIEW LOG", reviews.length ? table(["addresses", "decision", "reason", "time"],
       reviews.slice(-50).reverse().map(r => h("tr", {}, h("td", {}, `${r.address_a} ↔ ${r.address_b}`),
         h("td", {}, r.decision), h("td", {}, r.note), h("td", {}, fmtTime(r.decided_at)))))
-      : h("p", { class: "muted" }, "No manual reviews yet.")];
+      : none("No manual reviews yet."), { flush: true })];
 }
 
 async function servicesPage() {
   const obs = await api("/observations?kind=service&limit=2000");
-  return [h("h1", {}, `Services (${obs.length} observations)`),
-    h("p", { class: "muted" }, "Evidence scores and planner percentages are engineering estimates. Open Detection path to see which exchanges changed a protocol hypothesis; product and version claims have no separate calibrated probability."),
-    table(obsHeaders, obs.map(o => obsRow(o, false)))];
+  return [pageHead("Services", "Evidence scores and planner percentages are engineering estimates. Open Detection path to see which exchanges changed a protocol hypothesis; product and version claims have no separate calibrated probability."),
+    panel("SERVICE OBSERVATIONS", table(obsHeaders, obs.map(o => obsRow(o, false))), { sub: `${obs.length} observations`, flush: true })];
 }
 
 async function profilesPage() {
   const profiles = await api("/profiles");
-  return [h("h1", {}, "Profiles"), table(["profile", "status", "protocols", "ports", "rate", "description"],
-    profiles.map(p => h("tr", {}, h("td", {}, p.Name), h("td", {}, state(p.Availability === "available" ? "open" : "planned")),
-      h("td", {}, p.Protocols || "-"), h("td", {}, p.Ports || "-"), h("td", {}, p.Rate || "unlimited"),
-      h("td", { class: "wrap" }, p.Availability === "planned" ? "planned: needs " + p.Requires : p.Description))))];
+  return [pageHead("Profiles", "Scan presets. Planned profiles list what they still need."),
+    panel("PROFILES", table(["profile", "status", "protocols", "ports", "rate", "description"],
+      profiles.map(p => h("tr", {}, h("td", { class: "mono" }, p.Name), h("td", {}, state(p.Availability === "available" ? "available" : "planned")),
+        h("td", {}, p.Protocols || "-"), h("td", {}, p.Ports || "-"), h("td", {}, p.Rate || "unlimited"),
+        h("td", { class: "wrap" }, p.Availability === "planned" ? "planned: needs " + p.Requires : p.Description)))), { flush: true })];
 }
 
-function packetsPage() {
-  const interfaceInput = h("input", { type: "text", placeholder: "eth0, en0…", autocomplete: "off" });
-  const status = h("span", { class: "muted" }, "idle");
-  const count = h("span", { class: "muted" }, "0 packets");
-  const rows = h("tbody", {});
-  const hexInput = h("textarea", { class: "packet-hex", spellcheck: "false", placeholder: "Ethernet frame as hex bytes" });
-  const editorInfo = h("span", { class: "muted" }, "Select a packet to clone it into the editor.");
-  const fields = h("div", { class: "packet-fields" });
-  const selectedValue = h("div", { class: "packet-selected muted" }, "Select a field to highlight its bytes.");
-  const sendStatus = h("span", {});
-  let watch = null, total = 0, selected = null;
+// pendingFrame carries one evidence frame into the packet workbench.
+let pendingFrame = null;
 
+function packetsPage() {
+  const interfaceInput = h("input", { type: "text", placeholder: "eth0, en0…", autocomplete: "off", "aria-label": "Interface" });
+  const status = h("span", { class: "muted" }, "idle");
+  const count = h("span", { class: "flow-count" }, "0 packets");
+  const rows = h("tbody", {}, h("tr", { class: "empty" }, h("td", { colspan: 7 }, "Start watching an interface to capture frames.")));
+  const captured = [];
+  const viewer = h("div", { class: "map-detail" }, h("p", { class: "muted pad" }, "Select a captured packet to explain it, or paste a frame into the editor."));
+  const hexInput = h("textarea", { class: "packet-hex", spellcheck: "false", placeholder: "Ethernet frame as hex bytes", "aria-label": "Frame bytes as hex" });
+  const editorInfo = h("span", { class: "muted" }, "Clone a packet or paste hex.");
+  const sendStatus = h("span", {});
+  let watch = null, total = 0, selected = null, current = -1;
+
+  const show = (bytes, meta, idx = -1) => {
+    current = idx;
+    for (const r of rows.querySelectorAll("tr.sel")) r.classList.remove("sel");
+    if (idx >= 0) captured[idx]?.row.classList.add("sel");
+    viewer.replaceChildren(packetView({ no: meta.no, time: meta.time, bytes, origin: meta.origin, eg: [] }, {
+      prev: idx > 0 ? () => openCaptured(idx - 1) : null,
+      next: idx >= 0 && idx < captured.length - 1 ? () => openCaptured(idx + 1) : null,
+    }));
+  };
+  const openCaptured = idx => {
+    const p = captured[idx];
+    if (!p) return;
+    try { show(parseHex(p.hex), { no: p.no, time: fmtTime(p.timestamp), origin: `Captured on ${p.device}. Every value was on the wire.` }, idx); }
+    catch (e) { viewer.replaceChildren(h("p", { class: "error pad" }, e.message)); }
+  };
   const setHex = (value, label) => {
     hexInput.value = (value.match(/.{1,2}/g) || []).join(" ");
     selected = label;
     updateEditor();
-    hexInput.focus();
   };
+  let editTimer;
   const updateEditor = () => {
-    try {
-      const parsed = parseFrame(hexInput.value);
-      editorInfo.textContent = `${selected || "New frame"} · ${parsed.bytes.length} bytes`;
-      const selectField = field => {
-        const pairs = [...hexInput.value.matchAll(/[0-9a-f]{2}/gi)];
-        const first = pairs[field.at], last = pairs[field.at + field.size - 1];
-        if (first && last) {
-          hexInput.focus();
-          hexInput.setSelectionRange(first.index, last.index + 2);
-        }
-        selectedValue.textContent = `${field.name}: ${field.value} · bytes ${field.at}–${field.at + field.size - 1}`;
-      };
-      fields.replaceChildren(...parsed.groups.map(g => h("details", { open: true },
-        h("summary", {}, g.name),
-        h("div", { class: "packet-field-list" }, g.fields.map(f => h("button", {
-          type: "button", class: "packet-field", onclick: () => selectField(f),
-          title: `Select bytes ${f.at}–${f.at + f.size - 1}`
-        }, h("span", { class: "packet-field-name" }, f.name), h("span", { class: "packet-field-value" }, f.value)))))));
-      if (!parsed.groups.length) fields.replaceChildren(h("p", { class: "muted" }, "Paste or clone a frame to inspect its fields."));
-    } catch (e) {
-      editorInfo.textContent = e.message;
-      fields.replaceChildren(h("p", { class: "error" }, e.message));
-    }
-    selectedValue.textContent = "Select a field to highlight its bytes.";
+    clearTimeout(editTimer);
+    editTimer = setTimeout(() => {
+      try {
+        const bytes = parseHex(hexInput.value);
+        editorInfo.textContent = `${selected || "New frame"} · ${bytes.length} bytes`;
+        if (bytes.length) show(bytes, { no: "✎", origin: `${selected || "Edited frame"}. The explainer follows your edits.` });
+      } catch (e) { editorInfo.textContent = e.message; }
+    }, 120);
   };
-  hexInput.addEventListener("input", updateEditor);
-  updateEditor();
+  hexInput.addEventListener("input", () => {
+    if (selected && !selected.endsWith("(edited)")) selected += " (edited)";
+    updateEditor();
+  });
   if (pendingFrame) {
     const frame = pendingFrame;
     pendingFrame = null;
@@ -795,14 +790,26 @@ function packetsPage() {
   const addPacket = (p, device) => {
     total++;
     count.textContent = `${total} packets · latest 500 shown`;
+    rows.querySelector("tr.empty")?.remove();
+    const idx = captured.length;
+    let d = null;
+    try { d = dissect(parseHex(p.hex)); } catch { /* the server summary remains */ }
+    const entry = Object.assign({}, p, { no: total, device });
+    captured.push(entry);
     const label = `#${total} ${p.summary}`;
-    const clone = h("button", { type: "button", class: "secondary", onclick: () => setHex(p.hex, label) }, "clone");
-    const resend = h("button", { type: "button", class: "secondary", onclick: () => submit(p.hex, device) }, "resend");
-    const row = h("tr", { class: "new" }, h("td", {}, total), h("td", {}, fmtTime(p.timestamp)),
-      h("td", { class: "wrap" }, p.summary), h("td", {}, p.length),
+    const clone = h("button", { type: "button", class: "tool", onclick: e => { e.stopPropagation(); setHex(p.hex, label); hexInput.scrollIntoView({ block: "center" }); } }, "CLONE");
+    const resend = h("button", { type: "button", class: "tool", onclick: e => { e.stopPropagation(); submit(p.hex, device); } }, "RESEND");
+    const row = h("tr", { class: "new", tabindex: 0, onclick: () => openCaptured(idx), onkeydown: e => { if (e.key === "Enter") openCaptured(idx); } },
+      h("td", {}, h("span", { class: "no" }, total)), h("td", {}, fmtTime(p.timestamp)),
+      h("td", { class: "mono" }, d && d.src ? `${d.src} → ${d.dst}` : ""), h("td", {}, d ? d.protocol : ""),
+      h("td", { class: "wrap" }, d ? d.info : p.summary), h("td", {}, p.length),
       h("td", {}, h("div", { class: "packet-actions" }, clone, resend)));
-    rows.prepend(row);
-    while (rows.children.length > 500) rows.lastChild.remove();
+    entry.row = row;
+    rows.append(row);
+    while (rows.children.length > 500) rows.firstChild.remove();
+    const scroller = rows.closest(".flow-scroll");
+    if (scroller && scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80) scroller.scrollTop = scroller.scrollHeight;
+    if (current < 0 && !hexInput.value) openCaptured(idx);
   };
   const stopWatch = () => {
     if (watch) watch.abort();
@@ -816,7 +823,7 @@ function packetsPage() {
     if (!device) { status.replaceChildren(h("span", { class: "error" }, "Enter an interface.")); return; }
     const controller = new AbortController();
     watch = controller;
-    pageAbort.signal.addEventListener("abort", stopWatch, { once: true });
+    page.abort.signal.addEventListener("abort", stopWatch, { once: true });
     start.disabled = true;
     stop.disabled = false;
     status.replaceChildren(h("span", { class: "live" }, "connecting"));
@@ -853,36 +860,40 @@ function packetsPage() {
         stop.disabled = true;
       }
     }
-  } }, "start watching");
-  const stop = h("button", { type: "button", class: "secondary", disabled: true, onclick: stopWatch }, "stop");
-  const clear = h("button", { type: "button", class: "secondary", onclick: () => { rows.replaceChildren(); total = 0; count.textContent = "0 packets"; } }, "clear");
-  const sendEdited = h("button", { type: "button", onclick: () => submit(hexInput.value) }, "send edited frame");
-  return [h("h1", {}, "Packets"), h("p", { class: "muted" }, "Watch live Ethernet frames, clone one into the hex editor, then send or resend one frame. Watching needs packetd; sending also needs --allow-packet-send."),
-    h("div", { class: "bar packet-toolbar" }, h("label", {}, "interface ", interfaceInput), start, stop, clear, status, count),
-    h("div", { class: "scroll packet-list" }, h("table", {}, h("thead", {}, h("tr", {}, ["#", "time", "packet", "bytes", ""].map(x => h("th", {}, x)))), rows)),
-    h("h2", {}, "packet editor"), editorInfo,
-    h("div", { class: "packet-split" },
-      h("section", { class: "packet-pane" }, h("h3", {}, "headers and parsed values"), fields),
-      h("section", { class: "packet-pane" }, h("h3", {}, "frame bytes · editable hex"), hexInput, selectedValue)),
-    h("div", { class: "bar" }, sendEdited, sendStatus)];
+  } }, "▶ Watch");
+  const stop = h("button", { type: "button", class: "secondary", disabled: true, onclick: stopWatch }, "Stop");
+  const clear = h("button", { type: "button", class: "secondary", onclick: () => {
+    rows.replaceChildren(h("tr", { class: "empty" }, h("td", { colspan: 7 }, "Cleared.")));
+    captured.length = 0; total = 0; current = -1; count.textContent = "0 packets";
+  } }, "Clear");
+  const sendEdited = h("button", { type: "button", onclick: () => submit(hexInput.value) }, "Send edited frame");
+  return [pageHead("Packets", "Watch live Ethernet frames and click one to explain it. Clone a frame into the editor to change and send it. Watching needs packetd; sending also needs --allow-packet-send.",
+    h("div", { class: "packet-toolbar" }, h("label", {}, "interface ", interfaceInput), start, stop, clear, status)),
+  panel("PACKET EXPLAINER", viewer, { class: "map-panel showing-packet", flush: true }),
+  panel("CAPTURE", h("div", { class: "scroll flow-scroll" }, h("table", { class: "flow" },
+    h("thead", {}, h("tr", {}, ["No.", "Time", "Source → destination", "Protocol", "Info", "Bytes", ""].map(x => h("th", {}, x)))), rows)),
+  { class: "flow-panel", flush: true, tools: count }),
+  panel("FRAME EDITOR", [h("div", { class: "pad" }, editorInfo), hexInput, h("div", { class: "pad actions-row" }, sendEdited, sendStatus)], { flush: true })];
 }
-
-// pendingFrame carries one evidence frame into the packet editor.
-let pendingFrame = null;
-const cloneLayers = new Set(["tcp", "udp", "tls"]);
 
 // evidencePage follows one stored claim to its retained exchanges, the
 // planner decisions that cite them and the exact indexed capture packets.
 // Missing or incomplete packet evidence is stated, never hidden.
+const cloneLayers = new Set(["tcp", "udp", "tls"]);
 async function evidencePage(id) {
   const t = await api("/evidence/trace?observation=" + encodeURIComponent(id));
   const o = t.observation, c = t.capture;
-  const openFrame = async pid => {
+  const viewer = h("div", {});
+  const showFrame = async pid => {
     try {
       const res = await api(`/scans/${encodeURIComponent(o.scan_id)}/frames?ids=${pid}`);
       if (!res.frames.length) throw new Error(`packet #${pid} is not in the capture`);
-      pendingFrame = { hex: res.frames[0].hex, label: `evidence packet #${pid} (${res.frames[0].direction})` };
-      location.hash = "#/packets";
+      const fr = res.frames[0];
+      viewer.replaceChildren(panel("PACKET EXPLAINER", packetView({ no: "#" + pid, bytes: parseHex(fr.hex), eg: [],
+        origin: h("span", {}, `Evidence packet #${pid} (${fr.direction}) from ${c.capture || "the scan capture"}. `,
+          h("button", { type: "button", class: "tool", onclick: () => { pendingFrame = { hex: fr.hex, label: `evidence packet #${pid} (${fr.direction})` }; location.hash = "#/packets"; } }, "OPEN IN EDITOR →")) },
+      { close: () => viewer.replaceChildren() }), { class: "map-panel showing-packet", flush: true }));
+      viewer.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (e) { alert(e.message); }
   };
   const runsBox = h("div", {});
@@ -890,7 +901,7 @@ async function evidencePage(id) {
     runs.map(r => h("tr", {}, h("td", {}, r.run_id), h("td", {}, r.mode), h("td", {}, state(r.status)), h("td", {}, r.protocol),
       h("td", {}, r.source.pointer), h("td", {}, r.request_matches_evidence ? "yes" : "no (edited)"),
       h("td", {}, r.scan_id ? h("a", { href: "#/scans/" + encodeURIComponent(r.scan_id) }, r.scan_id) : "none (offline)")))) :
-    h("p", { class: "muted" }, "No replays of this claim yet."));
+    h("p", { class: "muted pad" }, "No replays of this claim yet."));
   renderRuns(t.runs);
   const workbench = h("div", {});
   const clone = async index => {
@@ -917,21 +928,21 @@ async function evidencePage(id) {
         result.replaceChildren(kv([["run", r.run_id], ["status", state(r.status)], ["error", r.error],
           ["request", r.request_matches_evidence ? "same bytes as retained" : "differs from the retained request"],
           ["reason", r.result.reason], ["new scan", r.scan_id]]),
-          ev ? h("pre", {}, (ev.request ? "> " + printable(ev.request) + "\n" : "") + (ev.response ? "< " + printable(ev.response) : "")) : null);
+        ev ? h("pre", {}, (ev.request ? "> " + printable(ev.request) + "\n" : "") + (ev.response ? "< " + printable(ev.response) : "")) : null);
         renderRuns((await api("/evidence/trace?observation=" + encodeURIComponent(id))).runs);
       } catch (e) { result.replaceChildren(h("p", { class: "error" }, e.message)); }
     };
     const live = h("button", { type: "button", class: "secondary", onclick: () => {
       if (confirm(`Send the edited probe to ${o.target} ${o.transport}/${o.port}? This contacts the target.`)) run("live", false);
-    } }, "live resend");
-    workbench.replaceChildren(h("h2", {}, `Probe workbench · exchange ${index + 1}`),
-      h("p", { class: "muted" }, "Offline replay feeds the retained response to the edited parser and sends nothing. A live resend opens one connection to the original target only; it needs an API token and serve --allow-packet-send, and is stored as a new scan. The original evidence never changes."),
+    } }, "Live resend");
+    workbench.replaceChildren(panel(`PROBE WORKBENCH · EXCHANGE ${index + 1}`, [
+      h("p", { class: "muted pad" }, "Offline replay feeds the retained response to the edited parser and sends nothing. A live resend opens one connection to the original target only; it needs an API token and serve --allow-packet-send, and is stored as a new scan. The original evidence never changes."),
       editor,
-      h("div", { class: "bar" },
-        h("button", { type: "button", class: "secondary", onclick: () => run("offline", true) }, "dry run"),
-        h("button", { type: "button", onclick: () => run("offline", false) }, "offline replay"),
+      h("div", { class: "pad actions-row" },
+        h("button", { type: "button", class: "secondary", onclick: () => run("offline", true) }, "Dry run"),
+        h("button", { type: "button", onclick: () => run("offline", false) }, "Offline replay"),
         h("label", {}, "original target ", target), live),
-      result);
+      result], { flush: true }));
     workbench.scrollIntoView({ behavior: "smooth" });
   };
   const exchanges = t.exchanges.map(x => h("tr", {},
@@ -940,29 +951,29 @@ async function evidencePage(id) {
     h("td", {}, x.completeness, x.truncated ? " · truncated" : ""), h("td", {}, `${x.request_bytes} / ${x.response_bytes}`),
     h("td", {}, (x.decisions || []).map(d => "#" + (d + 1)).join(" ")),
     h("td", {}, h("div", { class: "packet-actions" }, (x.packets || []).map(pid =>
-      h("button", { type: "button", class: "secondary", title: "Open in the packet editor", onclick: () => openFrame(pid) }, "#" + pid)))),
-    h("td", {}, cloneLayers.has(x.layer) ? h("button", { type: "button", onclick: () => clone(x.index) }, "clone probe") : "")));
+      h("button", { type: "button", class: "tool", title: "Explain this packet", onclick: () => showFrame(pid) }, "#" + pid)))),
+    h("td", {}, cloneLayers.has(x.layer) ? h("button", { type: "button", class: "tool", onclick: () => clone(x.index) }, "CLONE PROBE") : "")));
   const decisions = (o.probe_updates || []).map((u, i) => h("tr", {}, h("td", {}, "#" + (i + 1)), h("td", {}, u.probe),
     h("td", {}, u.outcome + (u.signal ? ` (${u.signal})` : "")),
     h("td", {}, u.after?.[0] ? `${u.after[0].family} ${(100 * u.after[0].probability).toFixed(1)}%` : ""),
     h("td", {}, `${u.evidence_start + 1}–${u.evidence_end}`)));
-  return [h("div", { class: "bar" }, h("h1", {}, "Evidence trace"), h("a", { href: "#/scans/" + encodeURIComponent(o.scan_id) }, "scan " + o.scan_id)),
-    kv([["claim", `${o.kind} ${o.service || ""}`.trim()], ["target", `${o.target} ${port(o)}`], ["claim status", state(o.claim_status)],
+  return [pageHead("Evidence trace", null, h("a", { class: "button-link secondary", href: "#/scans/" + encodeURIComponent(o.scan_id) }, "← scan " + o.scan_id)),
+    panel("CLAIM", kv([["claim", `${o.kind} ${o.service || ""}`.trim()], ["target", `${o.target} ${port(o)}`], ["claim status", state(o.claim_status)],
       ["evidence score", `${o.confidence}/100 ${o.confidence_method || "heuristic"}`], ["reason", o.reason],
-      ["source", o.source ? o.source.artifactID : "not sealed"]]),
-    decisions.length ? [h("h2", {}, "Decisions"), table(["step", "probe", "response", "leading hypothesis", "exchanges"], decisions)] : null,
-    h("h2", {}, "Exchanges"),
-    t.exchanges.length ? table(["#", "probe", "layer", "outcome", "completeness", "bytes req / resp", "decisions", "packets (by time)", ""], exchanges)
-      : h("p", { class: "muted" }, "No exchanges were retained."),
-    h("h2", {}, "Packets ", state(c.status)),
-    (c.reasons || []).map(r => h("p", { class: "error" }, r)),
-    c.capture ? h("p", { class: "muted" }, `${c.capture} · ${c.capture_artifact_id || "no artifact ID"}`) : null,
-    (c.packets || []).length ? table(["id", "time", "direction", "bytes", "summary", ""], c.packets.map(p => h("tr", {},
-      h("td", {}, "#" + p.id), h("td", {}, fmtTime(p.timestamp)), h("td", {}, p.direction), h("td", {}, p.length),
-      h("td", { class: "wrap" }, p.summary),
-      h("td", {}, h("button", { type: "button", class: "secondary", onclick: () => openFrame(p.id) }, "open in editor"))))) : null,
-    h("p", { class: "muted" }, "Packet IDs are exact pcapng epb_packetid values. Their association with an exchange uses capture time and is an inference."),
-    h("h2", {}, "Replays"), runsBox, workbench].flat();
+      ["source", o.source ? o.source.artifactID : "not sealed"]])),
+    decisions.length ? panel("DECISIONS", table(["step", "probe", "response", "leading hypothesis", "exchanges"], decisions), { flush: true }) : null,
+    panel("EXCHANGES", t.exchanges.length ? table(["#", "probe", "layer", "outcome", "completeness", "bytes req / resp", "decisions", "packets (by time)", ""], exchanges)
+      : h("p", { class: "muted pad" }, "No exchanges were retained."), { flush: true }),
+    panel(h("span", {}, "PACKETS ", state(c.status)), [
+      (c.reasons || []).map(r => h("p", { class: "error pad" }, r)),
+      c.capture ? h("p", { class: "muted pad" }, `${c.capture} · ${c.capture_artifact_id || "no artifact ID"}`) : null,
+      (c.packets || []).length ? table(["id", "time", "direction", "bytes", "summary", ""], c.packets.map(p => h("tr", {},
+        h("td", {}, "#" + p.id), h("td", {}, fmtTime(p.timestamp)), h("td", {}, p.direction), h("td", {}, p.length),
+        h("td", { class: "wrap" }, p.summary),
+        h("td", {}, h("button", { type: "button", class: "tool", onclick: () => showFrame(p.id) }, "EXPLAIN"))))) : null,
+      h("p", { class: "muted pad" }, "Packet IDs are exact pcapng epb_packetid values. Their association with an exchange uses capture time and is an inference.")], { flush: true }),
+    viewer,
+    panel("REPLAYS", runsBox, { flush: true }), workbench];
 }
 
 // HORIZON: opt-in experiment runs. Run IDs and every report field come from
@@ -970,78 +981,70 @@ async function evidencePage(id) {
 const horizonHeaders = ["run", "mode", "state", "experiment", "target", "ports", "created", "packets", "conclusion", ""];
 
 function horizonRow(r, refresh) {
-  const cancel = r.state === "running" ? h("button", { class: "secondary", type: "button", onclick: async () => {
+  const cancel = r.state === "running" ? h("button", { class: "tool", type: "button", onclick: async () => {
     try { await api(`/horizon/runs/${encodeURIComponent(r.id)}/cancel`, { body: {} }); } catch (e) { alert(e.message); }
     refresh();
-  } }, "cancel") : null;
-  return h("tr", {}, h("td", {}, h("a", { href: "#/horizon/" + encodeURIComponent(r.id) }, r.id.slice(0, 12))), h("td", {}, r.mode),
+  } }, "CANCEL") : null;
+  return h("tr", {}, h("td", {}, h("a", { class: "mono", href: "#/horizon/" + encodeURIComponent(r.id) }, r.id.slice(0, 12))), h("td", {}, r.mode),
     h("td", {}, state(r.state)), h("td", {}, r.experiment), h("td", {}, r.target), h("td", {}, (r.ports || []).join(", ")),
     h("td", {}, fmtTime(r.createdAt)), h("td", {}, r.packetsTx), h("td", {}, r.comparison ? r.comparison.conclusion : (r.error || "")), h("td", {}, cancel));
 }
 
 async function horizonPage() {
-  const signal = pageAbort.signal;
+  const signal = page.abort.signal;
   let caps;
   try { caps = await api("/horizon", { signal }); } catch (e) {
     if (e instanceof AuthError) throw e;
-    return [h("h1", {}, "HORIZON"), h("p", { class: "muted" }, e.message)];
+    return [pageHead("HORIZON", e.message)];
   }
-  const list = h("div", {}, h("p", { class: "muted" }, "Loading runs…"));
-  const metrics = h("pre", { class: "scroll" });
+  const list = h("div", {}, h("p", { class: "muted pad" }, "Loading runs…"));
+  const metrics = h("pre", { class: "bare" });
   const refresh = async () => {
     const [{ runs }, text] = await Promise.all([api("/horizon/runs", { signal }), api("/horizon/metrics", { signal, raw: true }).then(r => r.text())]);
     if (signal.aborted) return;
     list.replaceChildren(runs.length ? h("div", { class: "scroll" }, h("table", {}, h("thead", {}, h("tr", {}, horizonHeaders.map(x => h("th", {}, x)))),
-      h("tbody", {}, runs.map(r => horizonRow(r, refresh))))) : h("p", { class: "muted" }, "No retained runs. Create runs with POST /api/v1/horizon/runs."));
+      h("tbody", {}, runs.map(r => horizonRow(r, refresh))))) : h("p", { class: "muted pad" }, "No retained runs. Create runs with POST /api/v1/horizon/runs."));
     metrics.textContent = text.split("\n").filter(l => l && !l.startsWith("#")).join("\n");
     if (runs.some(r => r.state === "running")) setTimeout(() => { if (!signal.aborted) refresh().catch(() => {}); }, 2000);
   };
   await refresh();
-  const kill = h("button", { class: "secondary", type: "button", onclick: async () => {
+  const kill = h("button", { class: "danger", type: "button", onclick: async () => {
     if (!confirm("Engage the HORIZON kill switch? All runs stop and the API refuses new runs until the server restarts.")) return;
     try { await api("/horizon/stop", { body: {} }); } catch (e) { alert(e.message); }
     refresh();
-  } }, "kill switch");
-  return [h("h1", {}, "HORIZON"),
-    h("p", { class: "muted" }, `Enabled modes: ${caps.modes.join(", ")}. Statements are observed, inferred or unresolved; nothing here is a topology claim.`),
-    h("div", { class: "actions" }, kill), list, h("h2", {}, "Metrics"), metrics];
-}
-
-const svgNS = "http://www.w3.org/2000/svg";
-function svg(tag, attrs, text) {
-  const el = document.createElementNS(svgNS, tag);
-  for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, String(v));
-  if (text !== undefined) el.textContent = text;
-  return el;
+  } }, "Kill switch");
+  return [pageHead("HORIZON", `Enabled modes: ${caps.modes.join(", ")}. Statements are observed, inferred or unresolved; nothing here is a topology claim.`, kill),
+    panel("RUNS", list, { flush: true }), panel("METRICS", metrics, { flush: true })];
 }
 
 // horizonTimeline plots every trial by send time and arm, colored by response.
 function horizonTimeline(report) {
   const trials = (report.trials || []).filter(t => t.sentAt && !t.sentAt.startsWith("0001"));
-  if (!trials.length) return h("p", { class: "muted" }, "No transmitted trials.");
+  if (!trials.length) return h("p", { class: "muted pad" }, "No transmitted trials.");
   const t0 = Date.parse(trials[0].sentAt), span = Math.max(1, Date.parse(trials[trials.length - 1].sentAt) - t0);
   const arms = ["control", "treatment", "reference"], width = 760, left = 90, row = 34;
-  const colors = { "syn-ack": "#61e4eb", "rst-ack": "#ffc676", "icmp-error": "#ff7b9c", "no-response": "#9698b3" };
+  const tones = { "syn-ack": "open", "rst-ack": "closed", "icmp-error": "lost", "no-response": "muted" };
   const chart = svg("svg", { viewBox: `0 0 ${width} ${arms.length * row + 40}`, role: "img", "aria-label": "trial timeline", class: "timeline" });
-  arms.forEach((arm, i) => chart.append(svg("text", { x: 4, y: 24 + i * row, fill: "#9698b3", "font-size": 12 }, arm)));
+  arms.forEach((arm, i) => chart.append(svg("text", { x: 4, y: 24 + i * row, class: "tl-label" }, arm)));
   for (const t of trials) {
     const x = left + (Date.parse(t.sentAt) - t0) / span * (width - left - 10), y = 20 + arms.indexOf(t.arm) * row;
-    const c = svg("circle", { cx: x.toFixed(1), cy: y, r: t.probe ? 3 : 5, fill: colors[t.features.responseClass] || "#9b7dff" });
+    const c = svg("circle", { cx: x.toFixed(1), cy: y, r: t.probe ? 3 : 5, class: "tl-dot t-" + (tones[t.features.responseClass] || "probe") });
     c.append(svg("title", {}, `pair ${t.pair} ${t.arm} probe ${t.probe || 0}: ${t.features.responseClass}${(t.qualityFlags || []).length ? " [" + t.qualityFlags.join(", ") + "]" : ""}`));
     chart.append(c);
   }
-  chart.append(svg("text", { x: left, y: arms.length * row + 32, fill: "#9698b3", "font-size": 11 }, `0 … ${(span / 1000).toFixed(1)} s · ${Object.entries(colors).map(([k]) => k).join(" / ")}`));
+  chart.append(svg("text", { x: left, y: arms.length * row + 32, class: "tl-label" }, `0 … ${(span / 1000).toFixed(1)} s · ${Object.keys(tones).join(" / ")}`));
   return chart;
 }
 
 async function horizonRunPage(id) {
-  const signal = pageAbort.signal;
+  const signal = page.abort.signal;
   const path = "/horizon/runs/" + encodeURIComponent(id);
   const run = await api(path, { signal });
-  const out = [h("h1", {}, "HORIZON run " + run.id.slice(0, 12)), kv([["mode", run.mode], ["state", state(run.state)], ["experiment", run.experiment],
-    ["experiment hash", run.experimentHash], ["target", run.target], ["ports", (run.ports || []).join(", ")], ["created", fmtTime(run.createdAt)],
-    ["finished", run.finishedAt ? fmtTime(run.finishedAt) : ""], ["packets", run.packetsTx], ["trials", run.trials], ["stop", run.stopReason || ""],
-    ["curtailment", run.curtailment ? `${run.curtailment.decision} after ${run.curtailment.pairs} pairs` : ""], ["error", run.error || ""], ["report SHA-256", run.reportSha256 || ""]])];
+  const out = [pageHead(h("span", {}, "HORIZON run ", h("span", { class: "mono" }, run.id.slice(0, 12)))),
+    panel("RUN", kv([["mode", run.mode], ["state", state(run.state)], ["experiment", run.experiment],
+      ["experiment hash", run.experimentHash], ["target", run.target], ["ports", (run.ports || []).join(", ")], ["created", fmtTime(run.createdAt)],
+      ["finished", run.finishedAt ? fmtTime(run.finishedAt) : ""], ["packets", run.packetsTx], ["trials", run.trials], ["stop", run.stopReason || ""],
+      ["curtailment", run.curtailment ? `${run.curtailment.decision} after ${run.curtailment.pairs} pairs` : ""], ["error", run.error || ""], ["report SHA-256", run.reportSha256 || ""]]))];
   if (run.state === "running") {
     setTimeout(() => { if (!signal.aborted) route(); }, 2000);
     return out.concat(h("p", { class: "muted" }, "Running; this page refreshes."));
@@ -1049,72 +1052,99 @@ async function horizonRunPage(id) {
   if (!run.reportSha256) return out;
   const [env, graph] = await Promise.all([api(path + "/report", { signal }), api(path + "/evidence-graph", { signal }).catch(e => ({ error: e.message }))]);
   const c = env.report.comparison;
-  const save = h("button", { class: "secondary", type: "button", onclick: () => {
-    const url = URL.createObjectURL(new Blob([JSON.stringify(env, null, 2)], { type: "application/json" }));
-    const a = h("a", { href: url, download: `horizon-${run.id}.json` });
-    document.body.append(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-  } }, "download sealed report");
-  out.push(h("div", { class: "actions" }, save), h("h2", {}, "Timeline"), horizonTimeline(env.report),
-    h("h2", {}, "Control / treatment comparison"), kv([["status", state(c.status)], ["conclusion", c.conclusion], ["metric", c.metric || "SACK permission"],
-      ["complete pairs", c.completePairs], ["discordant pairs", c.discordantPairs], ["exact paired p-value", c.pValue]]));
+  const save = h("button", { class: "secondary", type: "button", onclick: () =>
+    download(`horizon-${run.id}.json`, new Blob([JSON.stringify(env, null, 2)], { type: "application/json" })) }, "Download sealed report");
+  out.push(h("div", { class: "actions-row" }, save), panel("TIMELINE", horizonTimeline(env.report)),
+    panel("CONTROL / TREATMENT COMPARISON", kv([["status", state(c.status)], ["conclusion", c.conclusion], ["metric", c.metric || "SACK permission"],
+      ["complete pairs", c.completePairs], ["discordant pairs", c.discordantPairs], ["exact paired p-value", c.pValue]])));
   if (graph.error) out.push(h("p", { class: "error" }, graph.error));
-  else out.push(h("h2", {}, "Evidence graph"), graph.hypotheses.length ? table(["hypothesis", "family", "subject", "status", "statement", "observation grade", "support", "against"],
-    graph.hypotheses.map(x => [x.id, x.family, x.subject, state(x.status), x.statement, x.observationGrade, x.support.length, x.against.length]))
-    : h("p", { class: "muted" }, "This run supports no hypothesis on its own."),
-    h("p", { class: "muted" }, `Not evaluated: ${graph.notEvaluated.join(", ") || "none"}. Probabilities stay null until calibrated.`));
-  out.push(h("h2", {}, "Limitations"), h("ul", {}, env.report.limitations.map(l => h("li", {}, l))));
+  else out.push(panel("EVIDENCE GRAPH", [graph.hypotheses.length ? table(["hypothesis", "family", "subject", "status", "statement", "observation grade", "support", "against"],
+    graph.hypotheses.map(x => h("tr", {}, [x.id, x.family, x.subject, state(x.status), x.statement, x.observationGrade, x.support.length, x.against.length].map(v => h("td", {}, v)))))
+    : h("p", { class: "muted pad" }, "This run supports no hypothesis on its own."),
+  h("p", { class: "muted pad" }, `Not evaluated: ${graph.notEvaluated.join(", ") || "none"}. Probabilities stay null until calibrated.`)], { flush: true }));
+  out.push(panel("LIMITATIONS", h("ul", {}, env.report.limitations.map(l => h("li", {}, l)))));
   return out;
 }
 
 function login(retry) {
   const t = h("input", { type: "password", placeholder: "API token", autocomplete: "current-password" });
-  main.replaceChildren(h("h1", {}, "Token required"),
-    h("form", { class: "grid", onsubmit: ev => { ev.preventDefault(); setToken(t.value.trim()); retry(); } },
-      h("label", {}, "token"), t, h("div", { class: "actions" }, h("button", { type: "submit" }, "continue"))));
+  main.replaceChildren(pageHead("Token required", "This server requires a bearer token. It stays in this browser tab only."),
+    panel("SIGN IN", h("form", { class: "grid", onsubmit: ev => { ev.preventDefault(); setToken(t.value.trim()); agentCache = null; retry(); } },
+      h("label", {}, "token"), t, h("div", { class: "actions" }, h("button", { type: "submit" }, "Continue")))));
   t.focus();
 }
 
+// ---- shell ----
+
+const SECTIONS = { "/": "Overview", "/scans": "Scans", "/new": "New scan", "/assets": "Assets", "/identities": "Identities",
+  "/services": "Services", "/packets": "Packets", "/profiles": "Profiles", "/horizon": "HORIZON", "/evidence": "Evidence" };
+
 async function route() {
-  if (pageAbort) pageAbort.abort();
-  pageAbort = new AbortController();
-  const hash = location.hash.replace(/^#/, "") || "/";
-  document.querySelectorAll("nav a").forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + hash));
-  const section = hash.startsWith("/scans/") ? "Scans" : hash.startsWith("/new") ? "New scan" : hash.startsWith("/evidence/") ? "Evidence" :
-	({ "/": "Overview", "/scans": "Scans", "/assets": "Assets", "/identities": "Identities", "/services": "Services",
-      "/packets": "Packets", "/profiles": "Profiles", "/horizon": "HORIZON" })[hash] || (hash.startsWith("/horizon/") ? "HORIZON" : "Workspace");
+  if (page.abort) page.abort.abort();
+  page.abort = new AbortController();
+  const full = location.hash.replace(/^#/, "") || "/";
+  const [hash, qs] = full.split("?");
+  const params = new URLSearchParams(qs || "");
+  const top = "/" + (hash.split("/")[1] || "");
+  document.querySelectorAll(".rail a").forEach(a => {
+    const on = a.getAttribute("href").slice(1) === top;
+    a.classList.toggle("active", on);
+    if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  });
+  const section = SECTIONS[top] || "Workspace";
   document.getElementById("current-page").textContent = section;
-  if (hash.startsWith("/scans/")) document.querySelector('nav a[href="#/scans"]').classList.add("active");
-  if (hash.startsWith("/new/")) document.querySelector('nav a[href="#/new"]').classList.add("active");
-  let page;
-  if (hash === "/") page = dashboard();
-  else if (hash === "/scans") page = scansPage();
-  else if (hash === "/new") page = newScan();
-  else if (hash === "/new/known-open") page = newScan("");
-  else if (hash.startsWith("/new/known-open/")) page = newScan(decodeURIComponent(hash.slice(16)));
-  else if (hash.startsWith("/scans/")) page = scanPage(decodeURIComponent(hash.slice(7)));
-  else if (hash === "/assets") page = assetsPage();
-	else if (hash === "/identities") page = identitiesPage();
-  else if (hash === "/services") page = servicesPage();
-  else if (hash === "/profiles") page = profilesPage();
-  else if (hash === "/packets") page = packetsPage();
-  else if (hash.startsWith("/evidence/")) page = evidencePage(decodeURIComponent(hash.slice(10)));
-  else if (hash === "/horizon") page = horizonPage();
-  else if (hash.startsWith("/horizon/")) page = horizonRunPage(decodeURIComponent(hash.slice(9)));
-  else page = Promise.resolve([h("p", { class: "error" }, "no such page")]);
-  const mine = pageAbort;
+  document.title = section === "Overview" ? "nyxr" : `${section} · nyxr`;
+  let pageP;
+  if (hash === "/") pageP = dashboard();
+  else if (hash === "/scans") pageP = scansPage();
+  else if (hash === "/new") pageP = newScan();
+  else if (hash === "/new/known-open") pageP = newScan("");
+  else if (hash.startsWith("/new/known-open/")) pageP = newScan(decodeURIComponent(hash.slice(16)));
+  else if (hash.startsWith("/scans/")) pageP = scanPage(decodeURIComponent(hash.slice(7)));
+  else if (hash === "/assets") pageP = assetsPage(params);
+  else if (hash === "/identities") pageP = identitiesPage();
+  else if (hash === "/services") pageP = servicesPage();
+  else if (hash === "/profiles") pageP = profilesPage();
+  else if (hash === "/packets") pageP = packetsPage();
+  else if (hash.startsWith("/evidence/")) pageP = evidencePage(decodeURIComponent(hash.slice(10)));
+  else if (hash === "/horizon") pageP = horizonPage();
+  else if (hash.startsWith("/horizon/")) pageP = horizonRunPage(decodeURIComponent(hash.slice(9)));
+  else pageP = Promise.resolve([h("p", { class: "error" }, "No such page.")]);
+  const mine = page.abort;
+  main.setAttribute("aria-busy", "true");
+  // Large stores can take a while; say so instead of showing the old page.
+  const slow = setTimeout(() => { if (mine === page.abort) main.replaceChildren(h("div", { class: "loading" }, h("span", { class: "loading-bar" }), `Loading ${section.toLowerCase()}…`)); }, 150);
   try {
-    const nodes = await page;
-    if (mine === pageAbort) main.replaceChildren(...[nodes].flat());
+    const nodes = await pageP;
+    if (mine === page.abort) { main.replaceChildren(...[nodes].flat(Infinity).filter(Boolean)); window.scrollTo(0, 0); }
   } catch (e) {
     if (e instanceof AuthError) return login(route);
     if (e.name === "AbortError") return;
-    if (mine === pageAbort) main.replaceChildren(h("p", { class: "error" }, e.message));
+    if (mine === page.abort) main.replaceChildren(h("p", { class: "error" }, e.message));
+  } finally {
+    clearTimeout(slow);
+    if (mine === page.abort) main.removeAttribute("aria-busy");
   }
-  if (document.getElementById("version").textContent === "Connecting…") {
-    api("/version").then(v => { document.getElementById("version").textContent = "v " + v.version + " · " + v.schema; }).catch(() => {});
-  }
+  if (!agentCache) agents().catch(() => {});
+  if (!searchPreloaded) { searchPreloaded = true; preloadSearch(); }
+}
+let searchPreloaded = false;
+
+function initTheme() {
+  const buttons = document.querySelectorAll("[data-set-theme]");
+  const dark = matchMedia("(prefers-color-scheme: dark)");
+  const apply = t => {
+    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+    else delete document.documentElement.dataset.theme;
+    const effective = t === "light" || t === "dark" ? t : dark.matches ? "dark" : "light";
+    buttons.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.setTheme === effective)));
+  };
+  apply(pref("theme"));
+  buttons.forEach(b => b.addEventListener("click", () => { pref("theme", b.dataset.setTheme); apply(b.dataset.setTheme); }));
+  dark.addEventListener("change", () => apply(pref("theme")));
 }
 
+document.getElementById("search-slot").replaceWith(createSearch().el);
+initTheme();
 window.addEventListener("hashchange", route);
 route();

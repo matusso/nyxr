@@ -210,24 +210,13 @@ func (s *server) stats(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	assets, err := s.cfg.Store.Assets(r.Context())
+	hosts, open, services, err := s.cfg.Store.Inventory(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	open, services := 0, 0
-	for _, a := range assets {
-		for _, p := range a.Ports {
-			if p.State == "open" {
-				open++
-				if p.Service != "" {
-					services++
-				}
-			}
-		}
-	}
 	writeJSON(w, http.StatusOK, map[string]int{
-		"scans": scans, "running": len(s.cfg.Manager.Running()), "hosts": len(assets),
+		"scans": scans, "running": len(s.cfg.Manager.Running()), "hosts": hosts,
 		"open_ports": open, "services": services,
 	})
 }
@@ -503,13 +492,15 @@ func (s *server) assets(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	assets, err := s.cfg.Store.Assets(r.Context())
+	var assets []storage.Asset
+	if q.Get("open") == "true" {
+		assets, err = s.cfg.Store.AssetsWith(r.Context(), storage.OpenPorts, true)
+	} else {
+		assets, err = s.cfg.Store.Assets(r.Context())
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
-	}
-	if q.Get("open") == "true" {
-		assets = storage.OpenOnly(assets)
 	}
 	out := make([]storage.Asset, 0, len(assets))
 	for _, a := range assets {
@@ -521,8 +512,16 @@ func (s *server) assets(w http.ResponseWriter, r *http.Request) {
 }
 
 // identities exposes the correlated asset graph with its source observations.
+// ports=open keeps only open ports per address and ports=none drops them; the
+// default (all) keeps every port, which on large stores is hundreds of MB.
 func (s *server) identities(w http.ResponseWriter, r *http.Request) {
-	graph, err := s.cfg.Store.IdentityGraph(r.Context())
+	mode := r.URL.Query().Get("ports")
+	if mode != "" && mode != "all" && mode != "open" && mode != "none" {
+		writeError(w, http.StatusBadRequest, "ports must be all, open or none")
+		return
+	}
+	filter := map[string]storage.PortFilter{"": storage.AllPorts, "all": storage.AllPorts, "open": storage.OpenPorts, "none": storage.NoPorts}[mode]
+	graph, err := s.cfg.Store.IdentityGraphWith(r.Context(), filter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

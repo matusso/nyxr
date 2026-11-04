@@ -249,6 +249,42 @@ var migrations = []string{
 		record             BLOB NOT NULL
 	);
 	CREATE INDEX probe_runs_source ON probe_runs(source_artifact_id, created_at);`,
+	// latest_observations keeps the newest port and service observation for
+	// each (asset, kind, transport, port), so inventory reads no longer rank
+	// every stored observation. Triggers keep it exact on insert and on
+	// delete (scan pruning cascades); the migration backfills it once.
+	`CREATE TABLE latest_observations (
+		asset_id       INTEGER NOT NULL,
+		kind           TEXT NOT NULL,
+		transport      TEXT NOT NULL,
+		port           INTEGER NOT NULL,
+		observation_id INTEGER NOT NULL,
+		observed_at    TEXT NOT NULL,
+		state          TEXT NOT NULL,
+		PRIMARY KEY (asset_id, kind, transport, port)
+	) WITHOUT ROWID;
+	CREATE INDEX latest_observations_state ON latest_observations(kind, state, asset_id);
+	INSERT INTO latest_observations(asset_id, kind, transport, port, observation_id, observed_at, state)
+		SELECT asset_id, kind, transport, port, id, observed_at, state FROM (
+			SELECT o.*, ROW_NUMBER() OVER (PARTITION BY o.asset_id, o.kind, o.transport, o.port ORDER BY o.observed_at DESC, o.id DESC) AS rn
+			FROM observations o WHERE o.kind IN ('port', 'service'))
+		WHERE rn = 1;
+	CREATE TRIGGER observations_latest_insert AFTER INSERT ON observations WHEN NEW.kind IN ('port', 'service') BEGIN
+		INSERT INTO latest_observations(asset_id, kind, transport, port, observation_id, observed_at, state)
+			VALUES (NEW.asset_id, NEW.kind, NEW.transport, NEW.port, NEW.id, NEW.observed_at, NEW.state)
+			ON CONFLICT(asset_id, kind, transport, port) DO UPDATE SET
+				observation_id = excluded.observation_id, observed_at = excluded.observed_at, state = excluded.state
+			WHERE excluded.observed_at > latest_observations.observed_at
+				OR (excluded.observed_at = latest_observations.observed_at AND excluded.observation_id > latest_observations.observation_id);
+	END;
+	CREATE TRIGGER observations_latest_delete AFTER DELETE ON observations WHEN OLD.kind IN ('port', 'service') BEGIN
+		DELETE FROM latest_observations WHERE asset_id = OLD.asset_id AND kind = OLD.kind
+			AND transport = OLD.transport AND port = OLD.port AND observation_id = OLD.id;
+		INSERT OR IGNORE INTO latest_observations(asset_id, kind, transport, port, observation_id, observed_at, state)
+			SELECT asset_id, kind, transport, port, id, observed_at, state FROM observations
+			WHERE asset_id = OLD.asset_id AND kind = OLD.kind AND transport = OLD.transport AND port = OLD.port
+			ORDER BY observed_at DESC, id DESC LIMIT 1;
+	END;`,
 }
 
 // Store is safe for concurrent use.
@@ -773,21 +809,52 @@ type Asset struct {
 	Ports      []PortSummary `json:"ports,omitempty"`
 }
 
+// PortFilter selects which ports an inventory read attaches to each address.
+type PortFilter int
+
+const (
+	AllPorts  PortFilter = iota // every port with its latest state
+	OpenPorts                   // only ports whose latest state is open
+	NoPorts                     // addresses only
+)
+
 // Assets returns every address with the latest discovery state of each port,
 // merged with the latest service identity for that port.
 func (s *Store) Assets(ctx context.Context) ([]Asset, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		WITH ranked AS (
-			SELECT o.*, ROW_NUMBER() OVER (PARTITION BY o.asset_id, o.transport, o.port, o.kind ORDER BY o.observed_at DESC, o.id DESC) AS rn
-			FROM observations o WHERE o.kind IN ('port', 'service')
-		)
-		SELECT m.identity_id, a.address, a.first_seen, a.last_seen, p.transport, p.port, p.state, p.scan_id, p.observed_at,
-			COALESCE(s.service, ''), COALESCE(s.product, ''), COALESCE(s.version, '')
-		FROM assets a JOIN identity_members m ON m.asset_id = a.id
-		LEFT JOIN ranked p ON p.asset_id = a.id AND p.kind = 'port' AND p.rn = 1
-		LEFT JOIN ranked s ON s.asset_id = a.id AND s.kind = 'service' AND s.rn = 1 AND s.transport = p.transport AND s.port = p.port
-			AND s.observed_at >= p.observed_at
-		ORDER BY a.address, p.transport, p.port`)
+	return s.AssetsWith(ctx, AllPorts, false)
+}
+
+// AssetsWith reads the inventory from latest_observations. With openOnly,
+// addresses without an open port are left out (as OpenOnly does).
+func (s *Store) AssetsWith(ctx context.Context, ports PortFilter, openOnly bool) ([]Asset, error) {
+	var q string
+	switch {
+	case ports == NoPorts:
+		q = `SELECT m.identity_id, a.address, a.first_seen, a.last_seen, NULL, NULL, NULL, NULL, NULL, '', '', ''
+			FROM assets a JOIN identity_members m ON m.asset_id = a.id`
+		if openOnly {
+			q += ` WHERE EXISTS (SELECT 1 FROM latest_observations l WHERE l.asset_id = a.id AND l.kind = 'port' AND l.state = 'open')`
+		}
+		q += ` ORDER BY a.address`
+	default:
+		join, where := `LEFT JOIN`, ``
+		if ports == OpenPorts || openOnly {
+			where = ` AND lp.state = 'open'`
+		}
+		if openOnly {
+			join = `JOIN` // drop addresses without an open port
+		}
+		q = `SELECT m.identity_id, a.address, a.first_seen, a.last_seen, lp.transport, lp.port, lp.state, p.scan_id, lp.observed_at,
+				COALESCE(sv.service, ''), COALESCE(sv.product, ''), COALESCE(sv.version, '')
+			FROM assets a JOIN identity_members m ON m.asset_id = a.id
+			` + join + ` latest_observations lp ON lp.asset_id = a.id AND lp.kind = 'port'` + where + `
+			LEFT JOIN observations p ON p.id = lp.observation_id
+			LEFT JOIN latest_observations ls ON ls.asset_id = a.id AND ls.kind = 'service' AND ls.transport = lp.transport
+				AND ls.port = lp.port AND ls.observed_at >= lp.observed_at
+			LEFT JOIN observations sv ON sv.id = ls.observation_id
+			ORDER BY a.address, lp.transport, lp.port`
+	}
+	rows, err := s.db.QueryContext(ctx, q)
 	if err != nil {
 		return nil, err
 	}
@@ -812,6 +879,21 @@ func (s *Store) Assets(ctx context.Context) ([]Asset, error) {
 		}
 	}
 	return out, rows.Err()
+}
+
+// Inventory counts stored hosts, ports whose latest state is open, and those
+// open ports with an identified service, without materializing assets.
+func (s *Store) Inventory(ctx context.Context) (hosts, open, services int, err error) {
+	err = s.db.QueryRowContext(ctx, `SELECT
+		(SELECT COUNT(*) FROM assets a JOIN identity_members m ON m.asset_id = a.id),
+		(SELECT COUNT(*) FROM latest_observations lp JOIN identity_members m ON m.asset_id = lp.asset_id
+			WHERE lp.kind = 'port' AND lp.state = 'open'),
+		(SELECT COUNT(*) FROM latest_observations lp JOIN identity_members m ON m.asset_id = lp.asset_id
+			JOIN latest_observations ls ON ls.asset_id = lp.asset_id AND ls.kind = 'service' AND ls.transport = lp.transport
+				AND ls.port = lp.port AND ls.observed_at >= lp.observed_at
+			JOIN observations sv ON sv.id = ls.observation_id
+			WHERE lp.kind = 'port' AND lp.state = 'open' AND sv.service != '')`).Scan(&hosts, &open, &services)
+	return
 }
 
 // Retention selects scans to delete. Zero fields keep everything.
@@ -923,12 +1005,12 @@ func OpenOnly(assets []Asset) []Asset {
 // KnownOpen lists every port whose latest stored state is open, for a
 // known-open rescan.
 func (s *Store) KnownOpen(ctx context.Context) ([]config.KnownPort, error) {
-	assets, err := s.Assets(ctx)
+	assets, err := s.AssetsWith(ctx, OpenPorts, true)
 	if err != nil {
 		return nil, err
 	}
 	var out []config.KnownPort
-	for _, a := range OpenOnly(assets) {
+	for _, a := range assets {
 		for _, p := range a.Ports {
 			out = append(out, config.KnownPort{Address: a.Address, Transport: p.Transport, Port: p.Port})
 		}
