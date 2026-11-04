@@ -156,7 +156,7 @@ func TestLatestObservationsBackfill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	backfill := migrations[len(migrations)-1]
+	backfill := migrations[10] // latest_observations
 	if _, err := s.db.ExecContext(ctx, `DROP TRIGGER observations_latest_insert; DROP TRIGGER observations_latest_delete; DROP TABLE latest_observations;`); err != nil {
 		t.Fatal(err)
 	}

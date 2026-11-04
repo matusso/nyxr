@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/netip"
@@ -16,8 +18,13 @@ import (
 	"syscall"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
+
 	"github.com/matusso/nyxr/internal/api"
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/fleet"
 	"github.com/matusso/nyxr/internal/horizon"
 	"github.com/matusso/nyxr/internal/horizon/dsl"
 	"github.com/matusso/nyxr/internal/horizon/model"
@@ -51,6 +58,13 @@ Flags:
   --horizon-max-runs int       retained HORIZON runs, 1..16 (default 8)
   --horizon-retention dur      drop finished HORIZON runs after this age (default 24h)
   --allow-privileged   run even with root or raw-socket capabilities
+  --fleet-listen addr  serve the gRPC fleet controller for remote agents (requires an API token)
+  --fleet-tls-cert file  controller certificate (PEM)
+  --fleet-tls-key file   controller key (PEM)
+  --fleet-client-ca file require agent client certificates signed by this CA
+  --fleet-enroll-token-file file  token new agents enroll with (omit to disable enrollment)
+  --fleet-lease-ttl dur  lease lifetime without a heartbeat (default 30s)
+  --fleet-insecure       plaintext gRPC; only on a loopback --fleet-listen
 
 A non-loopback --listen address requires a token. The HORIZON API always
 requires a token and an audit file; it only drives synthetic transports.
@@ -79,6 +93,13 @@ func runServe(args []string, out io.Writer) error {
 	horizonRetention := fs.Duration("horizon-retention", 24*time.Hour, "HORIZON run retention")
 	allowPacketSend := fs.Bool("allow-packet-send", false, "enable web UI packet transmission")
 	allowPrivileged := fs.Bool("allow-privileged", false, "allow root or raw-socket capabilities")
+	fleetListen := fs.String("fleet-listen", "", "fleet gRPC listen address")
+	fleetCert := fs.String("fleet-tls-cert", "", "fleet certificate")
+	fleetKey := fs.String("fleet-tls-key", "", "fleet key")
+	fleetClientCA := fs.String("fleet-client-ca", "", "fleet client CA")
+	fleetEnroll := fs.String("fleet-enroll-token-file", "", "fleet enrollment token file")
+	fleetTTL := fs.Duration("fleet-lease-ttl", 30*time.Second, "fleet lease TTL")
+	fleetInsecure := fs.Bool("fleet-insecure", false, "plaintext fleet gRPC on loopback")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			serveUsage(out)
@@ -170,6 +191,39 @@ func runServe(args []string, out io.Writer) error {
 	if *protocolRegistry != "" && token == "" {
 		return errors.New("--protocol-registry requires --token-file or NYXR_API_TOKEN for reload authentication")
 	}
+	var fleetTLS *tls.Config
+	var enrollToken string
+	if *fleetListen != "" {
+		if token == "" {
+			return errors.New("--fleet-listen requires --token-file or NYXR_API_TOKEN: fleet scans are submitted through the API")
+		}
+		if *fleetTTL < 3*time.Second || *fleetTTL > time.Hour {
+			return errors.New("--fleet-lease-ttl must be 3s..1h")
+		}
+		if *fleetInsecure {
+			if !fleet.IsLoopback(*fleetListen) {
+				return errors.New("--fleet-insecure is only allowed on a loopback --fleet-listen address")
+			}
+			if *fleetCert != "" || *fleetKey != "" || *fleetClientCA != "" {
+				return errors.New("--fleet-insecure cannot be combined with fleet TLS flags")
+			}
+		} else {
+			if fleetTLS, err = fleet.ServerTLS(*fleetCert, *fleetKey, *fleetClientCA); err != nil {
+				return fmt.Errorf("%w (or --fleet-insecure on loopback)", err)
+			}
+		}
+		if *fleetEnroll != "" {
+			b, err := os.ReadFile(*fleetEnroll)
+			if err != nil {
+				return err
+			}
+			if enrollToken = strings.TrimSpace(string(b)); len(enrollToken) < 16 {
+				return errors.New("fleet enrollment token must be at least 16 characters")
+			}
+		}
+	} else if *fleetCert != "" || *fleetKey != "" || *fleetClientCA != "" || *fleetEnroll != "" || *fleetInsecure {
+		return errors.New("fleet options require --fleet-listen")
+	}
 	host, _, err := net.SplitHostPort(*listen)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
@@ -224,8 +278,38 @@ func runServe(args []string, out io.Writer) error {
 		// the loopback API from a browser.
 		hosts = []string{"localhost", "127.0.0.1", "::1", strings.Trim(host, "[]")}
 	}
+	var fleetCtrl *fleet.Controller
+	var fleetSrv *grpc.Server
+	if *fleetListen != "" {
+		fleetCtrl, err = fleet.NewController(fleet.ControllerConfig{Store: store, EnrollToken: enrollToken, LeaseTTL: *fleetTTL,
+			Log: log.New(os.Stderr, "nyxr fleet: ", log.LstdFlags)})
+		if err != nil {
+			return err
+		}
+		defer fleetCtrl.Close()
+		opts := []grpc.ServerOption{grpc.MaxRecvMsgSize(fleet.MaxMessageBytes), grpc.MaxSendMsgSize(fleet.MaxMessageBytes),
+			grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{MinTime: 10 * time.Second, PermitWithoutStream: true}),
+			// Detect half-open agent connections instead of leasing to them.
+			grpc.KeepaliveParams(keepalive.ServerParameters{Time: 30 * time.Second, Timeout: 10 * time.Second})}
+		if fleetTLS != nil {
+			opts = append(opts, grpc.Creds(credentials.NewTLS(fleetTLS)))
+		}
+		fleetSrv = grpc.NewServer(opts...)
+		fleetCtrl.Register(fleetSrv)
+		fl, err := net.Listen("tcp", *fleetListen)
+		if err != nil {
+			return err
+		}
+		mode := "TLS"
+		if fleetTLS == nil {
+			mode = "plaintext loopback"
+		}
+		fmt.Fprintf(os.Stderr, "nyxr fleet controller (%s, %s) on %s\n", fleet.Protocol, mode, fl.Addr())
+		go func() { _ = fleetSrv.Serve(fl) }()
+		defer fleetSrv.Stop()
+	}
 	handler := api.Handler(api.ServerConfig{Horizon: horizonRuns, Manager: manager, Store: store, Token: token, AllowedHosts: hosts,
-		Version: version, EvidenceDir: *evidenceDir, PacketSendEnabled: *allowPacketSend})
+		Version: version, EvidenceDir: *evidenceDir, PacketSendEnabled: *allowPacketSend, Fleet: fleetCtrl})
 	l, err := net.Listen("tcp", *listen)
 	if err != nil {
 		return err

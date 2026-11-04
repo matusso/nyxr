@@ -24,7 +24,7 @@ PKG_VERSION := $(shell case '$(PKG_SEMVER)' in ([0-9]*.[0-9]*.[0-9]*) echo '$(PK
 
 export CGO_ENABLED := 0
 
-.PHONY: all build install uninstall test vet check race fuzz benchmark cross linux-packages package checksums clean help
+.PHONY: all build install uninstall test vet check race proto fuzz benchmark cross linux-packages package checksums clean help
 
 all: check build
 
@@ -55,6 +55,10 @@ vet:
 
 ## check: run tests and vet
 check: test vet
+
+## proto: regenerate the fleet gRPC code (needs buf, protoc-gen-go, protoc-gen-go-grpc on PATH)
+proto:
+	cd internal/fleet/fleetpb && buf generate
 
 ## fuzz: run short hostile-input campaigns for decoder, pcap, probe, service and nmap-db parsing
 fuzz:

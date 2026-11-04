@@ -893,6 +893,22 @@ continuous inventory
 
 # 13. Distributed Nyxr Architecture
 
+## Implementation status (November 2026)
+
+**Implemented (#95):** `nyxr serve --fleet-listen` is a gRPC controller
+(`nyxr-fleet/v1`), and `nyxr agent` dials it over TLS with per-agent enrolled
+credentials. The controller partitions a `config.Request` into /24- and
+/64-aligned units and matches them to advertised capabilities and the agent's
+authorized vantage. It leases units with heartbeat-renewed TTLs, divides
+global, per-agent and per-subnet budgets, retries with backoff, and cancels.
+Results stream as `nyxr/v1` records in sequenced batches, applied exactly once
+together with the lease checkpoint. Job totals count only the completed attempt
+of each unit. Agents reuse `Request.Resolve`, `pipeline.Run` and packetd. See
+[Fleet](guide/fleet.md).
+
+**Not yet:** central evidence/artifact storage and cross-controller
+reconciliation (#99), and a `nyxr scan --distributed` CLI client.
+
 Long-term enterprise architecture:
 
 ```text
@@ -1270,7 +1286,7 @@ nyxr evidence show <observation-id>          # implemented (#82)
 
 nyxr probe replay --definition f.yaml <observation-id>   # implemented (#82)
 
-nyxr scan 10.0.0.0/8 --distributed
+nyxr scan 10.0.0.0/8 --distributed          # fleet controller and agents implemented (#95); CLI client pending
 ```
 
 ---

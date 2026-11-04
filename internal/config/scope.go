@@ -102,3 +102,29 @@ func (s Scope) Contains(a netip.Addr) bool {
 	}
 	return false
 }
+
+// Covers reports whether every address from first through last lies in the
+// scope. Unlike Contains, an empty scope covers nothing: callers that need an
+// explicit authorization (a fleet agent's vantage) must not treat "no scope"
+// as "everything".
+func (s Scope) Covers(first, last netip.Addr) bool {
+	first, last = first.Unmap(), last.Unmap()
+	if !first.IsValid() || !last.IsValid() || first.Is4() != last.Is4() || first.Compare(last) > 0 {
+		return false
+	}
+	cursor := first
+	for progressed := true; progressed; {
+		progressed = false
+		for _, r := range s.ranges {
+			if r.first.Is4() != cursor.Is4() || cursor.Compare(r.first) < 0 || cursor.Compare(r.last) > 0 {
+				continue
+			}
+			if r.last.Compare(last) >= 0 {
+				return true
+			}
+			cursor = r.last.Next()
+			progressed = true
+		}
+	}
+	return false
+}
