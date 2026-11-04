@@ -15,6 +15,7 @@ nyxr horizon resolve|replay|explain|references|verify-capture|environment|calibr
 nyxr calibration evaluate --dataset FILE   evaluate labeled ordinary claims offline
 nyxr serve [--db file] [flags]         serve the REST API and web UI (unprivileged)
 nyxr agent --controller addr --allow-targets CIDRs   run a fleet agent for a controller
+nyxr central <command> [flags]         consolidate databases, artifacts and identities centrally
 nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
 nyxr version                           print the version
 nyxr help                              show this help
@@ -302,8 +303,14 @@ Serve the REST API, live scan events and the web UI, unprivileged.
 | `--fleet-enroll-token-file FILE` | | Token new agents enroll with; omit to disable enrollment |
 | `--fleet-lease-ttl DUR` | 30s | Lease lifetime without a heartbeat (3s..1h) |
 | `--fleet-insecure` | off | Plaintext gRPC; loopback `--fleet-listen` only |
+| `--central DSN` | | Push this database to a central store (`postgres://…` or a SQLite path) |
+| `--central-dsn-file FILE` | | Read the central DSN from a file (or set `NYXR_CENTRAL_DSN`) |
+| `--central-objects LOC` | | Object storage for captures: a directory or `s3://bucket/prefix?endpoint=…&region=…` |
+| `--central-objects-credentials-file FILE` | | S3 credential-process JSON (default `AWS_*` variables) |
+| `--central-sync DUR` | 1m | Push interval (at least 5s) |
+| `--central-capture-retention DUR` | keep | Retention of pushed captures |
 
-Guide: [Web UI and REST API](../guide/web-ui-and-api.md), [Fleet](../guide/fleet.md).
+Guide: [Web UI and REST API](../guide/web-ui-and-api.md), [Fleet](../guide/fleet.md), [Central storage](../guide/central.md).
 
 ## nyxr agent
 
@@ -331,6 +338,32 @@ authorized scope, and runs leased scan units through the normal pipeline.
 | `--allow-privileged` | off | Run with root or raw-socket capabilities (local raw I/O and ICMP) |
 
 Guide: [Fleet](../guide/fleet.md).
+
+## nyxr central
+
+Consolidate scanner and controller databases (lineages) into one SQLite or
+PostgreSQL store, keep large artifacts in object storage, and reconcile
+identities across lineages.
+
+| Command | Meaning |
+| --- | --- |
+| `push [--db FILE] [--kind standalone\|controller] [--label TEXT] [--capture-retention DUR]` | Ingest a database from its lineage cursor and upload its local captures |
+| `upload-dir --dir DIR [--max-files N]` | Upload files whose hash the central store references (fleet agent hosts) |
+| `put [--kind K] [--access internal\|restricted] [--retain DUR] [--scan ID] FILE` | Store an artifact by content hash |
+| `get [--allow-restricted] [--out FILE] ARTIFACT` | Write verified artifact bytes |
+| `artifacts [--state S]`, `prune` | List artifacts; delete bytes whose retention ended |
+| `lineages`, `entities`, `relations`, `conflicts` | Inspect lineages, reconciled entities, shared clues and refused joins |
+| `review --join\|--separate --node-a N --node-b N --note TEXT [--expect E@REV]` | Record a manual decision |
+| `revert --decision ID --note TEXT` | Undo a decision |
+| `decisions`, `history [--node N]` | Decisions and the membership audit |
+| `export [--out FILE]`, `restore [--in FILE]` | JSONL export, and restore into an empty store |
+| `migrate` | Create or upgrade the schema and print its version |
+
+Every command takes `--central DSN` or `--central-dsn-file FILE` (or
+`NYXR_CENTRAL_DSN`), `--objects LOC` (or `NYXR_CENTRAL_OBJECTS`),
+`--objects-credentials-file FILE` and `--json`.
+
+Guide: [Central storage](../guide/central.md).
 
 ## nyxr completion
 
@@ -363,6 +396,9 @@ Guide: [Deployment](../guide/deployment.md#privilege-separation-with-nyxr-packet
 | --- | --- |
 | `NO_COLOR` | Disable color output |
 | `NYXR_API_TOKEN` | Bearer token for `nyxr serve` |
+| `NYXR_CENTRAL_DSN` | Central store DSN for `nyxr central` and `nyxr serve` |
+| `NYXR_CENTRAL_OBJECTS` | Central object storage location |
+| `NYXR_TEST_POSTGRES_DSN` | Also run the central store tests against this PostgreSQL |
 
 ### HORIZON sequence policies
 

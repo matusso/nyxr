@@ -906,8 +906,21 @@ together with the lease checkpoint. Job totals count only the completed attempt
 of each unit. Agents reuse `Request.Resolve`, `pipeline.Run` and packetd. See
 [Fleet](guide/fleet.md).
 
-**Not yet:** central evidence/artifact storage and cross-controller
-reconciliation (#99), and a `nyxr scan --distributed` CLI client.
+**Implemented (#99):** `nyxr central` and `nyxr serve --central` consolidate
+scanner and controller databases (lineages) into one controller store behind a
+storage interface with SQLite and PostgreSQL implementations. Ingestion is
+idempotent and order-independent, keyed by sealed source hashes, with lineage,
+agent, lease and scan provenance and time quality from measured agent clock
+offsets. Captures and other large artifacts go to bounded, hash-verified,
+content-addressed object storage (a directory or S3) with access policies and
+retention. Only scoped cloud and Kubernetes identifiers join lineages; device
+values and weak clues stay relations. Conflicts, manual joins and separations,
+reverts, optimistic entity revisions and a membership audit are kept, and
+JSONL export/restore moves a store between dialects. See
+[Central storage](guide/central.md).
+
+**Not yet:** a `nyxr scan --distributed` CLI client, central entities in the
+web UI and API, and capture streaming over the fleet protocol.
 
 Long-term enterprise architecture:
 

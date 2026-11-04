@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/matusso/nyxr/internal/api"
+	"github.com/matusso/nyxr/internal/central"
 	"github.com/matusso/nyxr/internal/config"
 	"github.com/matusso/nyxr/internal/fleet"
 	"github.com/matusso/nyxr/internal/horizon"
@@ -31,6 +32,7 @@ import (
 	"github.com/matusso/nyxr/internal/packetd"
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/service"
+	"github.com/matusso/nyxr/internal/storage"
 )
 
 func serveUsage(out io.Writer) {
@@ -65,6 +67,12 @@ Flags:
   --fleet-enroll-token-file file  token new agents enroll with (omit to disable enrollment)
   --fleet-lease-ttl dur  lease lifetime without a heartbeat (default 30s)
   --fleet-insecure       plaintext gRPC; only on a loopback --fleet-listen
+  --central dsn          push this database to a central store (postgres://... or a SQLite path)
+  --central-dsn-file file  read the central DSN from a file (or set NYXR_CENTRAL_DSN)
+  --central-objects loc  object storage for captures: a directory or s3://bucket/prefix?endpoint=..
+  --central-objects-credentials-file file  S3 credential-process JSON (default AWS_* variables)
+  --central-sync dur     push interval (default 1m)
+  --central-capture-retention dur  retention of pushed captures (default: keep)
 
 A non-loopback --listen address requires a token. The HORIZON API always
 requires a token and an audit file; it only drives synthetic transports.
@@ -100,6 +108,12 @@ func runServe(args []string, out io.Writer) error {
 	fleetEnroll := fs.String("fleet-enroll-token-file", "", "fleet enrollment token file")
 	fleetTTL := fs.Duration("fleet-lease-ttl", 30*time.Second, "fleet lease TTL")
 	fleetInsecure := fs.Bool("fleet-insecure", false, "plaintext fleet gRPC on loopback")
+	centralDSN := fs.String("central", "", "central store DSN")
+	centralDSNFile := fs.String("central-dsn-file", "", "central store DSN file")
+	centralObjects := fs.String("central-objects", "", "central object storage")
+	centralObjectsCreds := fs.String("central-objects-credentials-file", "", "S3 credential-process JSON")
+	centralSync := fs.Duration("central-sync", time.Minute, "central push interval")
+	centralRetention := fs.Duration("central-capture-retention", 0, "central capture retention")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			serveUsage(out)
@@ -308,6 +322,23 @@ func runServe(args []string, out io.Writer) error {
 		go func() { _ = fleetSrv.Serve(fl) }()
 		defer fleetSrv.Stop()
 	}
+	if *centralDSN != "" || *centralDSNFile != "" || os.Getenv("NYXR_CENTRAL_DSN") != "" {
+		if *centralSync < 5*time.Second {
+			return errors.New("--central-sync must be at least 5s")
+		}
+		cdb, err := openCentral(ctx, *centralDSN, *centralDSNFile, *centralObjects, *centralObjectsCreds)
+		if err != nil {
+			return fmt.Errorf("central store: %w", err)
+		}
+		defer cdb.Close()
+		kind := central.LineageStandalone
+		if *fleetListen != "" {
+			kind = central.LineageController
+		}
+		fmt.Fprintf(os.Stderr, "nyxr central sync (%s, %s lineage) every %s\n", cdb.Dialect(), kind, *centralSync)
+		go centralSyncLoop(ctx, store, cdb, central.PushOptions{Kind: kind, UploadCaptures: *centralObjects != "" || os.Getenv("NYXR_CENTRAL_OBJECTS") != "",
+			CaptureRetention: *centralRetention}, *centralSync, log.New(os.Stderr, "nyxr central: ", log.LstdFlags))
+	}
 	handler := api.Handler(api.ServerConfig{Horizon: horizonRuns, Manager: manager, Store: store, Token: token, AllowedHosts: hosts,
 		Version: version, EvidenceDir: *evidenceDir, PacketSendEnabled: *allowPacketSend, Fleet: fleetCtrl})
 	l, err := net.Listen("tcp", *listen)
@@ -340,4 +371,27 @@ func isLoopbackHost(host string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
+}
+
+// centralSyncLoop pushes the serve database to the central store until ctx
+// ends. Pushes are idempotent and resume from the lineage cursor, so a failed
+// round is simply retried on the next tick.
+func centralSyncLoop(ctx context.Context, src *storage.Store, dst central.Store, opts central.PushOptions, every time.Duration, logger *log.Logger) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		res, err := central.Push(ctx, src, dst, opts)
+		switch {
+		case err != nil && ctx.Err() == nil:
+			logger.Printf("push failed: %v", err)
+		case err == nil && (res.Ingested.Observations > 0 || res.Ingested.Conflicts > 0 || res.Uploaded > 0):
+			logger.Printf("pushed %d observation(s), %d conflict(s), %d capture(s) uploaded, %d pending",
+				res.Ingested.Observations, res.Ingested.Conflicts, res.Uploaded, res.Pending)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
 }

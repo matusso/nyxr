@@ -221,6 +221,21 @@ nyxr agent --controller controller.example:8485 --ca ca.crt \
 
 See [Fleet](docs/guide/fleet.md).
 
+### Consolidate sites and controllers
+
+`nyxr central` pushes scanner and controller databases into one SQLite or
+PostgreSQL store, with captures and reports in object storage. Assets
+reconcile across sites only on scoped cloud and Kubernetes IDs. Shared SSH
+keys and hostnames stay leads, and every join or split is reviewable and
+reversible.
+
+```sh
+nyxr central push --central-dsn-file central.dsn --objects s3://evidence/nyxr --db ~/.nyxr/nyxr.db
+nyxr central entities --central-dsn-file central.dsn
+```
+
+See [Central storage](docs/guide/central.md).
+
 ## Documentation
 
 | | |
