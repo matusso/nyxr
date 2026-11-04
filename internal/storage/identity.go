@@ -510,11 +510,16 @@ type IdentityAsset struct {
 // observations that caused correlations. Per-address ports retain their own
 // history rather than being treated as one host's port state.
 func (s *Store) IdentityGraph(ctx context.Context) ([]IdentityAsset, error) {
+	return s.IdentityGraphWith(ctx, AllPorts)
+}
+
+// IdentityGraphWith is IdentityGraph with a choice of attached ports.
+func (s *Store) IdentityGraphWith(ctx context.Context, ports PortFilter) ([]IdentityAsset, error) {
 	var namespace string
 	if err := s.db.QueryRowContext(ctx, `SELECT value FROM identity_namespace WHERE id = 1`).Scan(&namespace); err != nil {
 		return nil, err
 	}
-	assets, err := s.Assets(ctx)
+	assets, err := s.AssetsWith(ctx, ports, false)
 	if err != nil {
 		return nil, err
 	}

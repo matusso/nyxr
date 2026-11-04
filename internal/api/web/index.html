@@ -3,30 +3,44 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NYXR — Network Intelligence</title>
+<meta name="color-scheme" content="light dark">
+<title>nyxr</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
-<script src="app.js" defer></script>
+<script type="module" src="app.js"></script>
 </head>
 <body>
-<header class="sidebar">
-  <a class="brand" href="#/" aria-label="NYXR dashboard"><span class="brand-mark">N<span>✦</span></span><span class="brand-copy">NYXR<small>NETWORK INTELLIGENCE</small></span></a>
-  <div class="nav-label">WORKSPACE</div>
-  <nav aria-label="Main navigation">
-    <a href="#/"><span class="nav-icon" aria-hidden="true">◫</span>Overview</a>
-    <a href="#/scans"><span class="nav-icon" aria-hidden="true">⌁</span>Scans</a>
-    <a href="#/new"><span class="nav-icon" aria-hidden="true">＋</span>New scan</a>
-    <a href="#/assets"><span class="nav-icon" aria-hidden="true">⬡</span>Assets</a>
-	<a href="#/identities"><span class="nav-icon" aria-hidden="true">◎</span>Identities</a>
-    <a href="#/services"><span class="nav-icon" aria-hidden="true">≋</span>Services</a>
-    <a href="#/packets"><span class="nav-icon" aria-hidden="true">▤</span>Packets</a>
-    <a href="#/profiles"><span class="nav-icon" aria-hidden="true">▦</span>Profiles</a>
-    <a href="#/horizon"><span class="nav-icon" aria-hidden="true">◇</span>HORIZON</a>
-  </nav>
-  <div class="sidebar-foot"><span class="system-dot" aria-hidden="true"></span><span>LOCAL SYSTEM<small id="version">Connecting…</small></span></div>
+<header class="topbar">
+  <a class="brand" href="#/" aria-label="nyxr overview">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 40 40" width="40" height="40"><path class="bm-corner" d="M1 9V1h8M31 1h8v8M39 31v8h-8M9 39H1v-8"/><path class="bm-top" d="M20 8l10 5.5-10 5.5-10-5.5z"/><path class="bm-left" d="M10 13.5l10 5.5v12l-10-5.5z"/><path class="bm-right" d="M30 13.5l-10 5.5v12l10-5.5z"/></svg>
+    </span>
+    <span class="brand-copy"><b>NYXR</b><i>NETWORK INTELLIGENCE</i></span>
+  </a>
+  <div class="crumb"><small>NOW VIEWING</small><strong id="current-page">Overview</strong></div>
+  <div id="search-slot"></div>
+  <div class="status-block" aria-live="polite"><small>FLEET</small><span><i class="pulse-dot" aria-hidden="true"></i><b id="agent-count">CONNECTING…</b></span></div>
+  <div class="status-block"><small>BUILD</small><span id="version">—</span></div>
+  <div class="theme-switch" role="group" aria-label="Color theme">
+    <button type="button" data-set-theme="light" aria-pressed="false" aria-label="Light theme" title="Light">☀</button>
+    <button type="button" data-set-theme="dark" aria-pressed="false" aria-label="Dark theme" title="Dark">☾</button>
+  </div>
 </header>
-<div class="workspace">
-  <div class="topbar"><span class="topbar-path">NYXR <span>/</span> <strong id="current-page">Overview</strong></span><span class="topbar-local"><span class="system-dot" aria-hidden="true"></span> SELF HOSTED · SQLITE</span></div>
-  <main id="main"><p class="muted">Loading interface…</p></main>
-</div>
+<nav class="rail" aria-label="Main navigation">
+  <div class="rail-group">WORKSPACE</div>
+  <a href="#/"><b>Overview</b><small>Network map · live traffic</small></a>
+  <a href="#/scans"><b>Scans</b><small>History · progress</small></a>
+  <a href="#/new"><b>New scan</b><small>Targets · ports · pacing</small></a>
+  <div class="rail-group">INVENTORY</div>
+  <a href="#/assets"><b>Assets</b><small>Hosts · open ports</small></a>
+  <a href="#/identities"><b>Identities</b><small>Device identity graph</small></a>
+  <a href="#/services"><b>Services</b><small>Fingerprints · evidence</small></a>
+  <div class="rail-group">WIRE</div>
+  <a href="#/packets"><b>Packets</b><small>Capture · explain · send</small></a>
+  <a href="#/profiles"><b>Profiles</b><small>Scan presets</small></a>
+  <a href="#/horizon"><b>HORIZON</b><small>Path experiments</small></a>
+  <div class="rail-foot"><i class="pulse-dot" aria-hidden="true"></i>SELF-HOSTED · SQLITE</div>
+</nav>
+<main id="main"><p class="muted">Loading interface…</p></main>
 </body>
 </html>

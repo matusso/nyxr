@@ -25,10 +25,44 @@ load. To use raw packet features from the server, see
 
 ## Web UI tour
 
-**Dashboard.** Live scan, host, open-port and service counts, with recent scans.
-The counts and scan history refresh while the page is open.
+The UI has a light and a dark theme (it follows the system setting until you
+pick one in the top bar).
 
-![Dashboard](../images/dashboard.png)
+**Search.** The search bar in the top bar completes hosts, ports, services,
+products, scans and pages, and highlights every match. Typing `80` lists
+`tcp/80` and `udp/80` first, then other ports that contain 80 (`tcp/8080`),
+then every address that contains it (`80.1.2.3`, `10.80.1.2`, `10.1.180.2`).
+Press `/` or `Ctrl`/`⌘`+`K` to focus it, `Tab` to complete the highlighted
+result and `Enter` to open it.
+
+![Search for 80](../images/search.png)
+
+**Overview.** Scan, host, open-port and service counts, the connected agents,
+recent scans and a **network map**. The map draws each agent on the left and
+groups targets into subnet frames (`/24` for IPv4, `/64` for IPv6). A frame is
+only an address grouping; it does not claim that a router exists. While a scan
+runs, the map is **live**: each streamed observation becomes the packets that
+produced it (SYN, SYN-ACK or RST-ACK, UDP probes and ICMP errors, ARP and NDP,
+service probes and replies) and they travel between the agent and the target.
+Otherwise the map **replays** the latest scan once, with play, pause, step,
+reset and speed controls. Click a host to see its ports.
+
+![Overview with the network map](../images/overview.png)
+
+**Packet flow and explainer.** Every animated packet is listed under the map.
+Click one to explain it: a layer bar sized by bytes, every header field with a
+short explanation, and a hex dump; selecting a field highlights its bytes.
+These packets are **reconstructed** from observations. Addresses, ports, flags,
+the verdict and retained payload bytes come from the scan. Values nyxr does not
+record, such as the scanner's MAC, source port and sequence numbers, are
+example values and carry an `E.G.` badge. Captured frames (the packets page and
+evidence packets) use the same explainer and have no example values.
+
+![Packet explainer](../images/packet.png)
+
+**Agents.** nyxr runs one local agent today. An observation that names another
+agent in an `agent` field adds that agent to the map, its trunks and the agent
+list.
 
 **New scan.** Every scan option, the profile catalog and a dry-run plan before
 anything is sent. *Show request* displays the JSON document the UI will post,
@@ -36,19 +70,22 @@ which is the same document `nyxr scan --config` accepts.
 
 ![New scan form](../images/new-scan.png)
 
-**Scan detail.** Live results and a running progress indicator, then every
-observation with state, confidence and detail. The indicator shows elapsed
-time, targets seen and live counters; it does not estimate a completion
-percentage because scan stages can add work after discovery. Expand *exchanges* to see the bytes behind a
-service claim. Running scans can be cancelled; partial results are kept.
+**Scan detail.** The scan's traffic map and packet flow, a running progress
+indicator, and the targets. Each target is one row with open, closed, filtered
+and service counts; open it to see its observations with state, confidence and
+detail. The indicator shows elapsed time, targets seen and live counters; it
+does not estimate a completion percentage because scan stages can add work
+after discovery. Expand *exchanges* to see the bytes behind a service claim.
+Running scans can be cancelled; partial results are kept.
 
-![Scan detail with service observations](../images/scan.png)
+![Scan detail with its traffic map](../images/scan.png)
 
-**Assets.** The open-port inventory across all scans, searchable by address,
-CIDR, range, port or service, with autocomplete. *Scan open ports* starts a
-`--known-open` service scan for one host or the whole scope.
+**Assets.** Every stored host, one row each with its open-port count and
+services; open a host to see its ports. Filter by address, CIDR, range, exact
+port (`tcp/80`) or service. *Scan →* starts a `--known-open` service scan for
+one host; the header button does so for the whole scope.
 
-![Asset inventory](../images/assets.png)
+![Asset inventory filtered to tcp/80](../images/assets.png)
 
 **Identities.** Shows current membership, source evidence, device profile,
 link confidence, competing candidates, shared clues, imported LLDP neighbors,
@@ -60,10 +97,11 @@ catalog, and **packets** watches live traffic (below).
 
 **Evidence trace.** *Trace evidence* on a stored service observation opens its
 planner decisions, retained exchanges and indexed capture packets, with an
-explicit `available`, `partial` or `unavailable` packet status. *Open in editor*
-loads an evidence frame into the packet editor. *Clone probe* drafts an editable
-Protocol DSL definition with dry run, offline replay and confirmed live resend.
-See [Evidence navigation and probe replay](evidence-and-replay.md).
+explicit `available`, `partial` or `unavailable` packet status. *Explain* opens
+an evidence frame in the packet explainer, and *Open in editor* loads it into
+the frame editor. *Clone probe* drafts an editable Protocol DSL definition with
+dry run, offline replay and confirmed live resend. See
+[Evidence navigation and probe replay](evidence-and-replay.md).
 
 ![Services](../images/services.png)
 
@@ -72,9 +110,11 @@ See [Evidence navigation and probe replay](evidence-and-replay.md).
 The **packets** page opens a live watch on an interface that packetd allows. It
 keeps the latest 500 frames in the browser and displays up to 100 frames per
 second; skipped display frames are reported on a busy interface. Capture rows
-are not saved on the server.
+are not saved on the server. Click a captured frame to open it in the packet
+explainer.
 
-- **clone** copies a captured frame into the split hex editor.
+- **clone** copies a captured frame into the frame editor. The explainer
+  follows your edits as you type.
 - **send edited frame** submits the edited bytes.
 - **resend** submits the original bytes.
 
@@ -101,7 +141,7 @@ All paths are under `/api/v1`.
 | `GET /scans/{id}/events` | Server-Sent Events: `observation`, `packet-evidence`, `scan` |
 | `GET /scans/{id}/pcapng` | The scan's capture file, for captures in `--evidence-dir` only |
 | `GET /assets` | Asset inventory. Accepts `open=true` and an IP, CIDR or range `scope` |
-| `GET /assets/identities` | Correlated asset IDs, member addresses, per-address ports and source signals |
+| `GET /assets/identities` | Correlated asset IDs, member addresses, per-address ports and source signals. `ports=open` keeps only open ports and `ports=none` omits them (default `all`; on large stores that is hundreds of MB) |
 | `GET /assets/identities/{id}` | One correlated asset, or 404 |
 | `GET /assets/identity-events?address=IP` | Durable membership audit; address filter optional |
 | `GET /assets/identity-relations` | Shared weak clues between current identities |

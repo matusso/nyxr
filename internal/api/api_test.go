@@ -495,3 +495,42 @@ func TestOpenAssetsScopeAndKnownOpenPlan(t *testing.T) {
 		t.Fatalf("known-open plan = %s", body)
 	}
 }
+
+func TestIdentityGraphPortsFilter(t *testing.T) {
+	e := newEnv(t, ManagerConfig{}, testToken)
+	now := time.Now().UTC()
+	sc := observe.Scan{ID: "ports", Profile: "tcp-basic", Started: now, Status: "running", Targets: 1}
+	if err := e.store.BeginScan(context.Background(), sc); err != nil {
+		t.Fatal(err)
+	}
+	var obs []observe.Observation
+	for port, state := range map[uint16]string{22: "open", 80: "closed", 443: "filtered"} {
+		ob := observe.Observation{Timestamp: now, Target: netip.MustParseAddr("192.0.2.9"), Transport: "tcp", Port: port, State: state, Confidence: 100, Reason: "seed", Probe: "tcp-connect"}
+		ob.Stamp(sc.ID)
+		obs = append(obs, ob)
+	}
+	if err := e.store.AddObservations(context.Background(), obs); err != nil {
+		t.Fatal(err)
+	}
+	ports := func(query string) []storage.PortSummary {
+		t.Helper()
+		res, body := e.do(t, "GET", "/api/v1/assets/identities"+query, "")
+		var graph []storage.IdentityAsset
+		if res.StatusCode != http.StatusOK || json.Unmarshal(body, &graph) != nil || len(graph) != 1 || len(graph[0].Addresses) != 1 {
+			t.Fatalf("identities%s: %d %s", query, res.StatusCode, body)
+		}
+		return graph[0].Addresses[0].Ports
+	}
+	if got := ports(""); len(got) != 3 {
+		t.Fatalf("default keeps every port, got %+v", got)
+	}
+	if got := ports("?ports=open"); len(got) != 1 || got[0].Port != 22 {
+		t.Fatalf("ports=open: %+v", got)
+	}
+	if got := ports("?ports=none"); len(got) != 0 {
+		t.Fatalf("ports=none: %+v", got)
+	}
+	if res, _ := e.do(t, "GET", "/api/v1/assets/identities?ports=some", ""); res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("invalid ports mode: %d", res.StatusCode)
+	}
+}
