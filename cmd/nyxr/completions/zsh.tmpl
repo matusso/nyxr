@@ -127,6 +127,12 @@ _nyxr() {
 						'--kube-token-file=[Kubernetes bearer token file]:token file:_files' \
 						'--kube-ca-file=[Kubernetes CA PEM file]:CA file:_files' \
 						'--kube-cluster-scope=[stable Kubernetes cluster scope]:scope:' \
+						'--cloud-provider=[collect read-only cloud VM inventory]:provider:(aws azure gcp)' \
+						'--cloud-scope=[AWS account, Azure subscription or GCP project]:scope:' \
+						'--cloud-region=[AWS region]:region:' \
+						'--cloud-credentials-file=[cloud credentials or access token file]:credentials file:_files' \
+						'--cloud-ca-file=[cloud API CA PEM file]:CA file:_files' \
+						'--cloud-allow-partial[import a partial cloud inventory]' \
 						'--capture-interface=[source interface for capture import]:interface:' \
                         '--unknown[print service observations with an unknown fingerprint]' \
                         '--address=[restrict --scan or --unknown to one address]:address:' \

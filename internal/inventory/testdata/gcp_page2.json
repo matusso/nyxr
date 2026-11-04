@@ -1,0 +1,5 @@
+{"items":{
+ "zones/europe-west1-d":{"instances":[
+  {"id":"1000000000000000002","selfLink":"https://compute.googleapis.com/compute/v1/projects/nyxr-lab-01/zones/europe-west1-d/instances/vm-b","zone":"zones/europe-west1-d",
+   "networkInterfaces":[{"networkIP":"10.2.0.3"}]}]}
+},"unreachables":["zones/asia-east1-a"]}

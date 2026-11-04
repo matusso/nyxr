@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/matusso/nyxr/internal/config"
+	"github.com/matusso/nyxr/internal/inventory"
 	"github.com/matusso/nyxr/internal/nmapdb"
 	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/packetio"
@@ -211,6 +212,12 @@ Flags:
   --kube-token-file file  bearer token with permission to list nodes
   --kube-ca-file file  optional PEM CA certificate for the API
   --kube-cluster-scope id  stable identifier for this cluster
+  --cloud-provider p   collect read-only VM inventory from aws, azure or gcp
+  --cloud-scope id     AWS account ID, Azure subscription ID or GCP project ID
+  --cloud-region r     AWS region (required for aws)
+  --cloud-credentials-file file  AWS credential-process JSON or Azure/GCP access token
+  --cloud-ca-file file optional PEM CA certificate (TLS-inspecting proxy)
+  --cloud-allow-partial  import a snapshot even if pages or locations failed
   --capture-interface  name of the interface where the capture was taken
   --open               with --assets or --identities, keep identities with open ports
   --scope list         with --assets or --identities, select matching addresses
@@ -242,6 +249,13 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 	kubeTokenFlag := fs.String("kube-token-file", "", "Kubernetes bearer token file")
 	kubeCAFlag := fs.String("kube-ca-file", "", "Kubernetes CA PEM file")
 	kubeScopeFlag := fs.String("kube-cluster-scope", "", "stable Kubernetes cluster scope")
+	var cloud cloudOptions
+	fs.StringVar(&cloud.provider, "cloud-provider", "", "cloud inventory provider")
+	fs.StringVar(&cloud.scope, "cloud-scope", "", "cloud account, subscription or project")
+	fs.StringVar(&cloud.region, "cloud-region", "", "AWS region")
+	fs.StringVar(&cloud.credentialsFile, "cloud-credentials-file", "", "cloud credentials file")
+	fs.StringVar(&cloud.caFile, "cloud-ca-file", "", "cloud API CA PEM file")
+	fs.BoolVar(&cloud.allowPartial, "cloud-allow-partial", false, "import partial cloud inventory")
 	interfaceFlag := fs.String("capture-interface", "", "source interface for passive capture")
 	openFlag := fs.Bool("open", false, "only open ports")
 	scopeFlag := fs.String("scope", "", "IPs, CIDRs or ranges")
@@ -263,8 +277,17 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 	if *atFlag != "" && !*timelineFlag {
 		return errors.New("--at requires --topology-timeline")
 	}
-	if (*importFlag != "" && (*identifiersFlag != "" || *kubeAPIFlag != "")) || (*identifiersFlag != "" && *kubeAPIFlag != "") {
+	sources := 0
+	for _, set := range []bool{*importFlag != "", *identifiersFlag != "", *kubeAPIFlag != "", cloud.provider != ""} {
+		if set {
+			sources++
+		}
+	}
+	if sources > 1 {
 		return errors.New("choose one import source")
+	}
+	if cloud.provider == "" && (cloud.scope != "" || cloud.region != "" || cloud.credentialsFile != "" || cloud.caFile != "" || cloud.allowPartial) {
+		return errors.New("cloud flags require --cloud-provider")
 	}
 	if *kubeAPIFlag == "" && (*kubeTokenFlag != "" || *kubeCAFlag != "" || *kubeScopeFlag != "") {
 		return errors.New("Kubernetes connection flags require --kube-api")
@@ -313,6 +336,31 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 			return enc.Encode(review)
 		}
 		_, err = fmt.Fprintf(out, "recorded topology review %d\n", review.ID)
+		return err
+	case cloud.provider != "":
+		client, err := inventory.NewHTTPClient(cloud.caFile)
+		if err != nil {
+			return err
+		}
+		defer client.CloseIdleConnections()
+		connector, err := newCloudConnector(cloud, client)
+		if err != nil {
+			return err
+		}
+		result, err := collectCloudInventory(ctx, store, connector, cloud.allowPartial)
+		if err != nil {
+			return err
+		}
+		if *jsonFlag {
+			return enc.Encode(result)
+		}
+		state := "complete"
+		if !result.Inventory.Complete {
+			state = "partial"
+		}
+		_, err = fmt.Fprintf(out, "collected %d %s addresses (%s, %d conflicts withheld, %d changes vs previous) as scan %s\n",
+			result.Inventory.Records, result.Inventory.Provider, state, len(result.Inventory.Conflicts),
+			len(result.Reconciliation.Changes), result.Scan.ID)
 		return err
 	case *kubeAPIFlag != "":
 		identifiers, err := collectKubernetesNodes(ctx, *kubeAPIFlag, *kubeTokenFlag, *kubeCAFlag, *kubeScopeFlag)

@@ -1,0 +1,4 @@
+<GetCallerIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <GetCallerIdentityResult><Arn>arn:aws:sts::111122223333:assumed-role/nyxr-inventory/session</Arn><UserId>AROAEXAMPLE:session</UserId><Account>111122223333</Account></GetCallerIdentityResult>
+  <ResponseMetadata><RequestId>00000000-0000-0000-0000-000000000001</RequestId></ResponseMetadata>
+</GetCallerIdentityResponse>

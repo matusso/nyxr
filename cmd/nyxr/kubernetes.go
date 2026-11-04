@@ -1,9 +1,8 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,10 +10,10 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
+	"github.com/matusso/nyxr/internal/inventory"
 	"github.com/matusso/nyxr/internal/storage"
 )
 
@@ -32,36 +31,17 @@ func collectKubernetesNodes(ctx context.Context, apiURL, tokenFile, caFile, scop
 	if tokenFile == "" {
 		return nil, errors.New("kube-token-file is required")
 	}
-	tokenBytes, err := os.ReadFile(tokenFile)
+	token, err := inventory.ReadBearerToken(tokenFile, "Kubernetes token")
 	if err != nil {
-		return nil, fmt.Errorf("read Kubernetes token file: %w", err)
+		return nil, err
 	}
-	token := strings.TrimSpace(string(tokenBytes))
-	if token == "" || strings.ContainsAny(token, "\r\n") {
-		return nil, errors.New("Kubernetes token file must contain one token")
-	}
-	roots, err := x509.SystemCertPool()
+	client, err := inventory.NewHTTPClient(caFile)
 	if err != nil {
-		return nil, fmt.Errorf("load system certificates: %w", err)
+		return nil, fmt.Errorf("Kubernetes TLS: %w", err)
 	}
-	if roots == nil {
-		roots = x509.NewCertPool()
-	}
-	if caFile != "" {
-		pem, err := os.ReadFile(caFile)
-		if err != nil {
-			return nil, fmt.Errorf("read Kubernetes CA file: %w", err)
-		}
-		if !roots.AppendCertsFromPEM(pem) {
-			return nil, errors.New("Kubernetes CA file contains no certificates")
-		}
-	}
-	client := &http.Client{
-		Timeout:       15 * time.Second,
-		Transport:     &http.Transport{TLSClientConfig: &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}},
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
-	}
+	client.Timeout = 15 * time.Second
 	defer client.CloseIdleConnections()
+	fetcher := &inventory.Fetcher{Client: client}
 	endpoint := *base
 	endpoint.Path = "/api/v1/nodes"
 	seenPages := map[string]bool{}
@@ -74,20 +54,6 @@ func collectKubernetesNodes(ctx context.Context, apiURL, tokenFile, caFile, scop
 			query.Set("continue", continuation)
 		}
 		endpoint.RawQuery = query.Encode()
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Set("Authorization", "Bearer "+token)
-		req.Header.Set("Accept", "application/json")
-		resp, err := client.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("list Kubernetes nodes: %w", err)
-		}
-		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
-			return nil, fmt.Errorf("list Kubernetes nodes: HTTP %d", resp.StatusCode)
-		}
 		var result struct {
 			Metadata struct {
 				Continue string `json:"continue"`
@@ -104,18 +70,30 @@ func collectKubernetesNodes(ctx context.Context, apiURL, tokenFile, caFile, scop
 				} `json:"status"`
 			} `json:"items"`
 		}
-		limited := &io.LimitedReader{R: resp.Body, N: 8<<20 + 1}
-		decoder := json.NewDecoder(limited)
-		decodeErr := decoder.Decode(&result)
-		if decodeErr == nil {
+		err := fetcher.Do(ctx, "list Kubernetes nodes", func() (*http.Request, error) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+			if err != nil {
+				return nil, err
+			}
+			req.Header.Set("Authorization", "Bearer "+token)
+			req.Header.Set("Accept", "application/json")
+			return req, nil
+		}, nil, func(body []byte) error {
+			if len(body) > 8<<20 {
+				return errors.New("oversized")
+			}
+			decoder := json.NewDecoder(bytes.NewReader(body))
+			if err := decoder.Decode(&result); err != nil {
+				return err
+			}
 			var trailing any
 			if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-				decodeErr = errors.New("trailing content")
+				return errors.New("trailing content")
 			}
-		}
-		resp.Body.Close()
-		if decodeErr != nil || limited.N == 0 {
-			return nil, errors.New("invalid or oversized Kubernetes node response")
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
 		for _, node := range result.Items {
 			uid := strings.ToLower(strings.TrimSpace(node.Metadata.UID))

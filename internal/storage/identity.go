@@ -26,7 +26,7 @@ type identityValue struct{ kind, value string }
 // unrelated hosts, so they must not become automatic merge keys.
 func strongIdentityValues(o observe.Observation) []identityValue {
 	var out []identityValue
-	if o.State == "observed" && (o.Probe == "inventory-import" || o.Probe == "kubernetes-api") && o.Confidence == 100 {
+	if o.State == "observed" && (o.Probe == "inventory-import" || o.Probe == "kubernetes-api" || o.Probe == cloudInventoryProbe) && o.Confidence == 100 {
 		if value, ok := externalIdentityValue(o.Fields["external.kind"], o.Fields["external.scope"], o.Fields["external.value"]); ok {
 			out = append(out, value)
 		}
