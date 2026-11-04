@@ -28,6 +28,7 @@ New to nyxr? Start with **[Getting started](getting-started.md)**.
 | [Web UI and REST API](guide/web-ui-and-api.md) | `nyxr serve`, UI tour, API endpoints, live events, security model |
 | [Deployment](guide/deployment.md) | `nyxr-packetd` privilege separation, exposing the server, containers |
 | [Fleet: distributed scans](guide/fleet.md) | `nyxr agent`, the gRPC controller, partitioning, budgets, leases, recovery and security |
+| [Central storage](guide/central.md) | `nyxr central`, PostgreSQL/SQLite controller storage, object storage, cross-lineage reconciliation, export and restore |
 
 ## Reference
 

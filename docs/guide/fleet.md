@@ -184,8 +184,10 @@ advertisement.
 - Lease state on the agent is in memory. An agent restart loses its running
   leases, which are then retried.
 - pcapng files stay on the agent's `--evidence-dir`. Packet evidence indexes
-  are streamed, but the capture files are not uploaded. Central artifact
-  storage is tracked in #99.
+  are streamed, but the capture files are not sent over gRPC. A controller
+  started with `--central` registers them as pending artifacts, and
+  `nyxr central upload-dir` on the agent host uploads them to object storage.
+  See [Central storage](central.md).
 - Hostname targets are resolved on the controller, and units carry addresses.
   TLS SNI names from hostnames are not forwarded yet.
 - Link-local IPv6 targets with a zone are not distributed with their zone.

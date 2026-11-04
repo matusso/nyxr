@@ -54,6 +54,8 @@ func run(args []string, out io.Writer) error {
 		return runCompletion(args[1:], out)
 	case "serve":
 		return runServe(args[1:], out)
+	case "central":
+		return runCentral(args[1:], out)
 	case "agent":
 		return runAgent(args[1:], out)
 	case "history":
@@ -113,6 +115,7 @@ Usage:
   nyxr calibration evaluate --dataset file        evaluate labeled ordinary claims offline
   nyxr serve [--db file] [flags]         serve the REST API and web UI (unprivileged)
   nyxr agent --controller addr --allow-targets CIDRs  run a fleet agent for a controller
+  nyxr central <command> [flags]         consolidate databases, artifacts and identities centrally
   nyxr completion <shell>                print a bash, zsh, fish or powershell completion script
   nyxr version                           print the version
   nyxr help                              show this help

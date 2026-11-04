@@ -286,6 +286,8 @@ var migrations = []string{
 			ORDER BY observed_at DESC, id DESC LIMIT 1;
 	END;`,
 	fleetMigration,
+	// Lineage export joins every observation to the attempt that delivered it.
+	`CREATE INDEX fleet_attempts_scan ON fleet_attempts(scan_id) WHERE scan_id <> '';`,
 }
 
 // Store is safe for concurrent use.

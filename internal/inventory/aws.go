@@ -256,6 +256,14 @@ func hmacSHA256(key []byte, data string) []byte {
 // signAWS adds a Signature Version 4 Authorization header. The canonical
 // request covers every header already set plus host and x-amz-date.
 func signAWS(req *http.Request, body []byte, creds AWSCredentials, region, service string, now time.Time) {
+	payload := sha256.Sum256(body)
+	SignAWS(req, hex.EncodeToString(payload[:]), creds, region, service, now)
+}
+
+// SignAWS signs req for a payload whose SHA-256 is payloadHash (lowercase
+// hex), so a streamed body need not be held in memory. S3 also requires the
+// same hash in an X-Amz-Content-Sha256 header, which the caller sets first.
+func SignAWS(req *http.Request, payloadHash string, creds AWSCredentials, region, service string, now time.Time) {
 	amzDate := now.Format("20060102T150405Z")
 	day := now.Format("20060102")
 	req.Header.Set("X-Amz-Date", amzDate)
@@ -276,7 +284,6 @@ func signAWS(req *http.Request, body []byte, creds AWSCredentials, region, servi
 		fmt.Fprintf(&canonicalHeaders, "%s:%s\n", name, strings.TrimSpace(headers[name]))
 	}
 	signed := strings.Join(names, ";")
-	payload := sha256.Sum256(body)
 	path := req.URL.EscapedPath()
 	if path == "" {
 		path = "/"
@@ -296,7 +303,7 @@ func signAWS(req *http.Request, body []byte, creds AWSCredentials, region, servi
 		}
 	}
 	canonical := strings.Join([]string{req.Method, path, strings.Join(canonicalQuery, "&"),
-		canonicalHeaders.String(), signed, hex.EncodeToString(payload[:])}, "\n")
+		canonicalHeaders.String(), signed, payloadHash}, "\n")
 	digest := sha256.Sum256([]byte(canonical))
 	scope := day + "/" + region + "/" + service + "/aws4_request"
 	toSign := "AWS4-HMAC-SHA256\n" + amzDate + "\n" + scope + "\n" + hex.EncodeToString(digest[:])
