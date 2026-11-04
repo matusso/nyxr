@@ -45,6 +45,7 @@ nyxr history --topology --json                     # LLDP neighbors from importe
 nyxr history --import-pcap capture.pcapng --capture-interface en0
 nyxr history --import-identifiers inventory.json  # scoped Kubernetes/cloud IDs
 nyxr history --kube-api https://api.example:6443 --kube-token-file ./token --kube-cluster-scope cluster-a # Kubernetes nodes
+nyxr history --cloud-provider gcp --cloud-scope my-project --cloud-credentials-file ./gcp.token  # cloud VM inventory
 nyxr history --assets --open --scope 192.0.2.0/24  # current open ports in a subnet
 nyxr history --scan <scan-id> --address 192.0.2.10 # one host within a scan
 nyxr history --unknown --json                      # unrecognized responses, for signature work
@@ -60,6 +61,7 @@ nyxr history --unknown --json                      # unrecognized responses, for
 | `--import-pcap FILE` | Import passive IP and LLDP observations |
 | `--import-identifiers FILE` | Import scoped Kubernetes/cloud inventory IDs |
 | `--kube-api URL` | Collect Kubernetes node UIDs and IP addresses; requires `--kube-token-file` and `--kube-cluster-scope`, with optional `--kube-ca-file` |
+| `--cloud-provider aws\|azure\|gcp` | Collect read-only VM addresses for one account/subscription/project; requires `--cloud-scope` and `--cloud-credentials-file` (and `--cloud-region` for AWS). See [asset identity](asset-identity.md#cloud-inventory) |
 | `--open` | Only ports whose latest state is open |
 | `--scope LIST` | With `--assets`, restrict addresses; with `--identities`, select identities having a matching address |
 | `--address IP` | With `--scan`, `--unknown`, or `--identity-events`, restrict to one address |

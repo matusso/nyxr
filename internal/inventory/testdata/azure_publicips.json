@@ -1,0 +1,3 @@
+{"value":[
+ {"id":"/subscriptions/00000000-0000-0000-0000-0000000000aa/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/web-1-ip","properties":{"ipAddress":"203.0.113.40"}}
+]}

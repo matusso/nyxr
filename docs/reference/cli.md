@@ -227,6 +227,12 @@ Query and maintain the scan database.
 | `--kube-token-file FILE` | Bearer token file with permission to list nodes |
 | `--kube-ca-file FILE` | Optional PEM CA for the Kubernetes API |
 | `--kube-cluster-scope ID` | Stable, unique cluster scope for node UIDs |
+| `--cloud-provider aws\|azure\|gcp` | Collect read-only VM inventory from a cloud provider API |
+| `--cloud-scope ID` | AWS account ID, Azure subscription ID, or GCP project ID; AWS credentials must belong to it |
+| `--cloud-region REGION` | AWS region to collect (AWS only, required) |
+| `--cloud-credentials-file FILE` | AWS credential-process JSON, or an Azure/GCP access token |
+| `--cloud-ca-file FILE` | Optional extra PEM CA, for a TLS-inspecting proxy |
+| `--cloud-allow-partial` | Import a snapshot even when pages or locations failed; it is never used to infer absence |
 | `--open` | Only open ports |
 | `--scope LIST` | Restrict addresses with `--assets`, or select identities by address with `--identities` |
 | `--unknown` | Unknown fingerprints |

@@ -1,0 +1,10 @@
+{"value":[
+ {"id":"/subscriptions/00000000-0000-0000-0000-0000000000aa/resourceGroups/rg/providers/Microsoft.Network/networkInterfaces/web-1-nic","properties":{
+   "virtualMachine":{"id":"/subscriptions/00000000-0000-0000-0000-0000000000aa/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/web-1"},
+   "ipConfigurations":[{"properties":{"privateIPAddress":"10.1.0.4","publicIPAddress":{"id":"/subscriptions/00000000-0000-0000-0000-0000000000aa/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/web-1-ip"}}}]}},
+ {"id":"/subscriptions/00000000-0000-0000-0000-0000000000aa/resourceGroups/rg/providers/Microsoft.Network/networkInterfaces/db-1-nic","properties":{
+   "virtualMachine":{"id":"/subscriptions/00000000-0000-0000-0000-0000000000aa/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/DB-1"},
+   "ipConfigurations":[{"properties":{"privateIPAddress":"10.1.0.5"}}]}},
+ {"id":"/subscriptions/00000000-0000-0000-0000-0000000000aa/resourceGroups/rg/providers/Microsoft.Network/networkInterfaces/unattached","properties":{
+   "ipConfigurations":[{"properties":{"privateIPAddress":"10.1.0.99"}}]}}
+]}

@@ -128,13 +128,13 @@ _nyxr() {
             ;;
         history)
             case "$prev" in
-                --db|-db|--import-pcap|--import-identifiers|--topology-review|--kube-token-file|--kube-ca-file)
+                --db|-db|--import-pcap|--import-identifiers|--topology-review|--kube-token-file|--kube-ca-file|--cloud-credentials-file|--cloud-ca-file)
                     COMPREPLY=($(compgen -f -- "$cur"))
                     return 0 ;;
-                --scan|-scan|--address|-address|--at|-at|--limit|-limit|--prune-older-than|-prune-older-than|--keep|-keep|--kube-api|--kube-cluster-scope)
+                --scan|-scan|--address|-address|--at|-at|--limit|-limit|--prune-older-than|-prune-older-than|--keep|-keep|--kube-api|--kube-cluster-scope|--cloud-scope|--cloud-region)
                     return 0 ;;
             esac
-			COMPREPLY=($(compgen -W "--db --scan --assets --identities --identity-events --topology --topology-timeline --topology-review --at --import-pcap --import-identifiers --kube-api --kube-token-file --kube-ca-file --kube-cluster-scope --capture-interface --open --scope --unknown --address --limit --prune-older-than --keep --json --help" -- "$cur"))
+			COMPREPLY=($(compgen -W "--db --scan --assets --identities --identity-events --topology --topology-timeline --topology-review --at --import-pcap --import-identifiers --kube-api --kube-token-file --kube-ca-file --kube-cluster-scope --cloud-provider --cloud-scope --cloud-region --cloud-credentials-file --cloud-ca-file --cloud-allow-partial --capture-interface --open --scope --unknown --address --limit --prune-older-than --keep --json --help" -- "$cur"))
             ;;
         serve)
             case "$prev" in

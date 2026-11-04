@@ -1,0 +1,8 @@
+{"items":{
+ "zones/europe-west1-b":{"instances":[
+  {"id":"1000000000000000001","selfLink":"https://compute.googleapis.com/compute/v1/projects/nyxr-lab-01/zones/europe-west1-b/instances/vm-a","zone":"https://compute.googleapis.com/compute/v1/projects/nyxr-lab-01/zones/europe-west1-b",
+   "networkInterfaces":[{"networkIP":"10.2.0.2","ipv6Address":"2001:db8:2::2","accessConfigs":[{"natIP":"192.0.2.50"}]}]},
+  {"id":"1000000000000000009","selfLink":"https://compute.googleapis.com/compute/v1/projects/other-project/zones/europe-west1-b/instances/foreign","zone":"zones/europe-west1-b",
+   "networkInterfaces":[{"networkIP":"10.2.0.99"}]}]},
+ "zones/europe-west1-c":{"warning":{"code":"NO_RESULTS_ON_PAGE","message":"There are no results for scope 'zones/europe-west1-c' on this page."}}
+},"nextPageToken":"gcp-page-2"}

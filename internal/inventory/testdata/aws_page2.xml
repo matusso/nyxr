@@ -1,0 +1,11 @@
+<DescribeInstancesResponse xmlns="http://ec2.amazonaws.com/doc/2016-11-15/">
+  <reservationSet>
+    <item>
+      <ownerId>111122223333</ownerId>
+      <instancesSet>
+        <item><instanceId>i-0bbb0000000000002</instanceId><placement><availabilityZone>eu-central-1b</availabilityZone></placement><privateIpAddress>10.0.1.20</privateIpAddress></item>
+        <item><instanceId>i-0ddd0000000000004</instanceId><placement><availabilityZone>eu-central-1b</availabilityZone></placement><privateIpAddress>10.0.9.9</privateIpAddress></item>
+      </instancesSet>
+    </item>
+  </reservationSet>
+</DescribeInstancesResponse>

@@ -1,0 +1,4 @@
+{"value":[
+ {"id":"/subscriptions/00000000-0000-0000-0000-0000000000aa/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/web-1","location":"westeurope","properties":{"vmId":"11111111-1111-1111-1111-111111111111"}},
+ {"id":"/subscriptions/99999999-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/foreign","location":"westeurope","properties":{"vmId":"99999999-9999-9999-9999-999999999999"}}
+],"nextLink":"NEXT/subscriptions/00000000-0000-0000-0000-0000000000aa/providers/Microsoft.Compute/virtualMachines?api-version=2024-07-01&$skiptoken=p2"}

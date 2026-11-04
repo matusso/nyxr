@@ -80,6 +80,8 @@ nyxr history --topology-review reviewed-assignment.json --json
 nyxr history --import-identifiers inventory.json
 nyxr history --kube-api https://api.example:6443 --kube-token-file ./token \
   --kube-ca-file ./cluster-ca.pem --kube-cluster-scope cluster-a
+nyxr history --cloud-provider aws --cloud-scope 111122223333 --cloud-region eu-central-1 \
+  --cloud-credentials-file ./aws-creds.json --json
 ```
 
 The pcap/pcapng import stores passive IP source sightings and LLDP chassis,
@@ -171,6 +173,54 @@ The graph synthesizes a device class from device or Nmap observations, a
 model from validated Modbus/EtherNet/IP identity, and OS from SMB or Nmap
 evidence. Every claim keeps its address, scan, probe, timestamp, and confidence.
 If current claims disagree, the summary field stays empty and the claims
-remain visible. Direct cloud collection and live passive ingestion remain
-future work. The topology timeline does not infer continuous address ownership
-from isolated packets.
+remain visible. Live passive ingestion remains future work. The topology
+timeline does not infer continuous address ownership from isolated packets.
+
+## Cloud inventory
+
+`--cloud-provider` reads VM inventory from one provider scope and records it
+as a `cloud-inventory` scan. Each address becomes a scoped
+`cloud.aws.instance_id`, `cloud.azure.vm_id`, or `cloud.gcp.instance_id`
+signal, so the private and public addresses of one instance join through the
+same resolver as `--import-identifiers`. Collection is read-only.
+
+| Provider | Scope | Credentials file | Least privilege | API read |
+| --- | --- | --- | --- | --- |
+| `aws` | 12-digit account ID; `--cloud-region` required | `aws configure export-credentials --format process` JSON | `ec2:DescribeInstances` | STS `GetCallerIdentity`, EC2 `DescribeInstances` |
+| `azure` | Subscription ID | `az account get-access-token --query accessToken -o tsv` | Reader, or `virtualMachines/read`, `networkInterfaces/read`, `publicIPAddresses/read` | ARM VMs, NICs, public IPs |
+| `gcp` | Project ID | `gcloud auth print-access-token` | `compute.instances.list` (`roles/compute.viewer`) | Compute `aggregated/instances` |
+
+Prefer short-lived role credentials. Nyxr reads them only from the file, never
+from arguments. It never stores, prints, or puts them in errors, and it
+refuses expired AWS credentials. AWS collection first checks that the
+credentials belong to `--cloud-scope` and refuses a mismatch. Resources whose
+owner account, subscription, or project differs from the scope are skipped.
+Azure `nextLink` pages must stay on the Resource Manager origin. TLS is always
+verified, and redirects are refused.
+
+Every call is bounded: 16 MiB per response, 1000 pages, 100000 addresses,
+and 30 s per request. Throttling (HTTP 429, AWS `RequestLimitExceeded`) and
+transient 5xx responses are retried up to three times. Retries honour
+`Retry-After`, capped at 30 s. When a later page, a resource type, or a GCP
+location cannot be read, the snapshot is **partial**. Nyxr refuses to import a
+partial snapshot unless you pass `--cloud-allow-partial`.
+
+Each record keeps its provider resource ID, ARN/ARM ID/selfLink, zone or
+location, owning account, address role (`private`/`public`), collector
+version, and completeness flag. If one snapshot attaches an address to two
+resources, for example overlapping private ranges in separate VPCs, the
+address is a **conflict**. It is reported and not imported. The output
+(`nyxr/cloud-inventory/v1alpha1`) compares the snapshot with the previous
+**complete** snapshot of the same provider/scope/region:
+
+- `reassigned` (observed): the address now belongs to another resource. The
+  resolver separates the address from the old identity.
+- `absent` (inferred): a resource seen before is missing now. Its identity
+  evidence is kept; Nyxr never treats absence as deletion.
+- A partial snapshot reports `partial_not_compared` and proves nothing about
+  absence. Ownership between collections is unknown.
+
+Collected addresses are evidence, **not scan authorization**: they never
+enter scan targets or widen HORIZON scope (`authorizes_scanning` is always
+`false`). Cloud metadata alone does not imply shared network state.
+Reconciling IDs across controllers belongs to central storage.
