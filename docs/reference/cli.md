@@ -93,6 +93,7 @@ fields. Guide: [Scanning](../guide/scanning.md).
 
 | Flag | Meaning |
 | --- | --- |
+| `--name TEXT` | Network this scan belongs to (`office-lan`); at most 64 bytes. Each name has its own database file next to the default one, see [Networks](../guide/storage-and-history.md#networks). When omitted, a two-word label such as `quiet-heron` is generated and the default database is used |
 | `--profile NAME` | Scan profile (default `tcp-basic`); see `nyxr profiles` |
 | `--ports LIST` | Ports, ranges (`80,443,8000-8100`) or a set: `all`, `top100`, `top1000`, `top2000`, `top5000`, `top8387`, `database` |
 | `--protocols LIST` | `tcp`, `udp`, `icmp`, `arp`, `ndp`; `research` also accepts `sctp`, `ip` |
@@ -217,6 +218,10 @@ Query and maintain the scan database.
 | `--assets` | Asset inventory: latest state and service per port |
 | `--identities` | Correlated asset IDs, addresses and identity evidence |
 | `--identity-events` | Durable membership changes; accepts `--address IP` |
+| `--networks` | Named networks, their database files and file state (`unchanged`, `changed`, `missing`) |
+| `--network NAME` | Read the database of this named network; not with `--db` |
+| `--diff NAME` | Coverage-aware changes between the last two finished scans named `NAME` |
+| `--diff BEFORE,AFTER` | Coverage-aware changes between two scan IDs, older first; see [Compare two scans](../guide/storage-and-history.md#compare-two-scans) |
 | `--topology` | LLDP neighbors imported from captures |
 | `--topology-timeline` | Versioned address/interface/VLAN sightings and TTL-bounded LLDP adjacency; `--limit` bounds results |
 | `--topology-review FILE` | Record one reviewed interface assignment or separation from JSON |
@@ -290,6 +295,7 @@ Serve the REST API, live scan events and the web UI, unprivileged.
 | --- | --- | --- |
 | `--listen ADDR` | `127.0.0.1:8484` | Listen address; non-loopback requires a token |
 | `--db FILE` | `~/.nyxr/nyxr.db` | SQLite database |
+| `--network NAME` | | Open the web UI on this named network; other networks stay selectable. Not with `--db` |
 | `--packetd SOCKET` | | nyxr-packetd socket for raw packet I/O |
 | `--evidence-dir DIR` | | Directory for pcapng captures requested through the API |
 | `--protocol-registry FILES` | | Comma-separated operator-owned protocol files, atomically reloadable through the API |

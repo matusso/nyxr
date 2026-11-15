@@ -135,6 +135,8 @@ func scanUsage(out io.Writer) {
 	fmt.Fprint(out, `Usage: nyxr scan [flags] target [target...]
 
 Flags:
+  --name string         network this scan belongs to; each name gets its own database next to the
+                        default one (default: a generated two-word label, stored in the default database)
   --profile string      scan profile (default "tcp-basic"; see: nyxr profiles)
   --ports string        ports, ranges (80,443,8000-8100), or a set (all, top100, top1000, top2000,
                         top5000, top8387, web, udp, database)
@@ -339,6 +341,7 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	configFlag := fs.String("config", "", "YAML configuration file")
 	udpRetriesFlag := fs.Int("udp-retries", -1, "extra retries for each UDP probe")
 	tcpModeFlag := fs.String("tcp-mode", "", "connect or syn")
+	nameFlag := fs.String("name", "", "scan label")
 	interfaceFlag := fs.String("interface", "", "Ethernet interface for SYN mode")
 	xdpPinDirFlag := fs.String("xdp-pin-dir", "", "pinned Nyxr AF_XDP maps for SYN mode")
 	sourceIPFlag := fs.String("source-ip", "", "interface IPv4 or IPv6 address for SYN mode")
@@ -387,6 +390,7 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	if *allowTargetsFlag != "" {
 		req.AllowTargets = []string{*allowTargetsFlag}
 	}
+	req.Name = first(*nameFlag, req.Name)
 	req.Profile = first(*profileFlag, req.Profile)
 	req.Ports = first(*portsFlag, req.Ports)
 	req.Protocols = first(*protoFlag, req.Protocols)
@@ -435,6 +439,15 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	if err != nil {
 		return err
 	}
+	// A named scan goes to its network's own database, registered in the
+	// default one, so networks that reuse an address range stay apart.
+	registry, network := "", strings.TrimSpace(req.Name)
+	if network != "" && db != "" && *stages.db.path == "" {
+		registry = db
+		if db, err = networkDB(context.Background(), registry, network); err != nil {
+			return err
+		}
+	}
 	opts := config.ResolveOptions{BaseDir: baseDir}
 	if *knownOpenFlag {
 		req.KnownOpen = true
@@ -476,6 +489,11 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 	bar.Done()
 	last.finish()
 	summary.print(err != nil)
+	if registry != "" {
+		if rerr := recordNetwork(context.Background(), registry, network, db); err == nil {
+			err = rerr
+		}
+	}
 	return err
 }
 

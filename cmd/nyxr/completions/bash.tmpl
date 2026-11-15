@@ -68,7 +68,7 @@ _nyxr() {
                     return 0 ;;
             esac
             if [[ "$cur" == -* ]]; then
-                COMPREPLY=($(compgen -W "--profile --ports --protocols --timeout --rate --workers --udp-retries --tcp-mode --interface --source-ip --source-mac --next-hop-mac --allow-targets --payload --send-hex --send-base64 --payload-file --nmap-udp-probes --config --service --service-probes --service-fallback --service-timeout --service-workers --service-rate --nmap-service-probes --protocol-definitions --nse-scripts --nse-timeout --pcapng --pcapng-max-mb --no-last-pcapng --db --no-db --fingerprint --packetd --known-open --json --dry-run --help" -- "$cur"))
+                COMPREPLY=($(compgen -W "--name --profile --ports --protocols --timeout --rate --workers --udp-retries --tcp-mode --interface --source-ip --source-mac --next-hop-mac --allow-targets --payload --send-hex --send-base64 --payload-file --nmap-udp-probes --config --service --service-probes --service-fallback --service-timeout --service-workers --service-rate --nmap-service-probes --protocol-definitions --nse-scripts --nse-timeout --pcapng --pcapng-max-mb --no-last-pcapng --db --no-db --fingerprint --packetd --known-open --json --dry-run --help" -- "$cur"))
             fi
             ;;
         horizon)
@@ -134,7 +134,7 @@ _nyxr() {
                 --scan|-scan|--address|-address|--at|-at|--limit|-limit|--prune-older-than|-prune-older-than|--keep|-keep|--kube-api|--kube-cluster-scope|--cloud-scope|--cloud-region)
                     return 0 ;;
             esac
-			COMPREPLY=($(compgen -W "--db --scan --assets --identities --identity-events --topology --topology-timeline --topology-review --at --import-pcap --import-identifiers --kube-api --kube-token-file --kube-ca-file --kube-cluster-scope --cloud-provider --cloud-scope --cloud-region --cloud-credentials-file --cloud-ca-file --cloud-allow-partial --capture-interface --open --scope --unknown --address --limit --prune-older-than --keep --json --help" -- "$cur"))
+			COMPREPLY=($(compgen -W "--db --network --networks --scan --diff --assets --identities --identity-events --topology --topology-timeline --topology-review --at --import-pcap --import-identifiers --kube-api --kube-token-file --kube-ca-file --kube-cluster-scope --cloud-provider --cloud-scope --cloud-region --cloud-credentials-file --cloud-ca-file --cloud-allow-partial --capture-interface --open --scope --unknown --address --limit --prune-older-than --keep --json --help" -- "$cur"))
             ;;
         serve)
             case "$prev" in
@@ -144,7 +144,7 @@ _nyxr() {
                 --listen|-listen|--max-scans|-max-scans)
                     return 0 ;;
             esac
-            COMPREPLY=($(compgen -W "--listen --db --packetd --evidence-dir --token-file --max-scans --horizon-simulate --horizon-policy --horizon-allow-targets --horizon-allow-ports --horizon-permit --allow-privileged --fleet-listen --fleet-tls-cert --fleet-tls-key --fleet-client-ca --fleet-enroll-token-file --fleet-lease-ttl --fleet-insecure --help" -- "$cur"))
+            COMPREPLY=($(compgen -W "--listen --db --network --packetd --evidence-dir --token-file --max-scans --horizon-simulate --horizon-policy --horizon-allow-targets --horizon-allow-ports --horizon-permit --allow-privileged --fleet-listen --fleet-tls-cert --fleet-tls-key --fleet-client-ca --fleet-enroll-token-file --fleet-lease-ttl --fleet-insecure --help" -- "$cur"))
             ;;
         agent)
             case "$prev" in

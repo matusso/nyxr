@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net/netip"
+	"slices"
 	"strings"
 )
 
@@ -127,4 +128,54 @@ func (s Scope) Covers(first, last netip.Addr) bool {
 		}
 	}
 	return false
+}
+
+// ScopeTargets returns the scan's targets as sorted addresses and inclusive
+// first-last ranges, a form ParseScope reads back.
+func (c Config) ScopeTargets() []string {
+	var ranges []addrRange
+	if c.TargetStream != nil {
+		for _, r := range c.TargetStream.ranges {
+			ranges = append(ranges, addrRange{ipv4Address(r.first), ipv4Address(r.last)})
+		}
+	} else {
+		addrs := append([]netip.Addr(nil), c.Targets...)
+		slices.SortFunc(addrs, netip.Addr.Compare)
+		for _, a := range addrs {
+			if n := len(ranges); n > 0 && (ranges[n-1].last == a || ranges[n-1].last.Next() == a) {
+				ranges[n-1].last = a
+				continue
+			}
+			ranges = append(ranges, addrRange{a, a})
+		}
+	}
+	out := make([]string, len(ranges))
+	for i, r := range ranges {
+		if out[i] = r.first.String(); r.first != r.last {
+			out[i] += "-" + r.last.String()
+		}
+	}
+	return out
+}
+
+// FormatPorts renders ports as a sorted list with ranges, a form ParsePorts
+// reads back.
+func FormatPorts(ports []uint16) string {
+	ports = slices.Clone(ports)
+	slices.Sort(ports)
+	var b strings.Builder
+	for i := 0; i < len(ports); {
+		j := i
+		for j+1 < len(ports) && ports[j+1] <= ports[j]+1 {
+			j++
+		}
+		if b.Len() > 0 {
+			b.WriteByte(',')
+		}
+		if fmt.Fprint(&b, ports[i]); ports[j] != ports[i] {
+			fmt.Fprint(&b, "-", ports[j])
+		}
+		i = j + 1
+	}
+	return b.String()
 }

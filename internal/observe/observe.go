@@ -248,9 +248,12 @@ type Packet struct {
 
 // Scan summarizes one run and is emitted after every other record.
 type Scan struct {
-	Schema       string        `json:"schema"`
-	Kind         string        `json:"kind"`
-	ID           string        `json:"scan_id"`
+	Schema string `json:"schema"`
+	Kind   string `json:"kind"`
+	ID     string `json:"scan_id"`
+	// Name labels the scan, typically with the network it ran in: address
+	// ranges repeat across sites, names tell them apart. Not unique.
+	Name         string        `json:"name,omitempty"`
 	Profile      string        `json:"profile"`
 	Started      time.Time     `json:"started"`
 	Finished     time.Time     `json:"finished,omitempty"`
@@ -260,6 +263,21 @@ type Scan struct {
 	Observations int           `json:"observations"`
 	Services     int           `json:"services"`
 	Capture      *CaptureStats `json:"capture,omitempty"`
+	// Scope is what the scan planned to probe. Nil for imports and for scans
+	// stored before scope was recorded.
+	Scope *ScanScope `json:"scope,omitempty"`
+}
+
+// ScanScope is the planned coverage of one scan, in the forms the target and
+// port flags accept. A consumer uses it to tell "probed, no answer" from
+// "never probed".
+type ScanScope struct {
+	Targets []string `json:"targets"` // addresses and inclusive first-last ranges
+	// Ports maps a transport (tcp, udp) to its port list, e.g. "22,80,8000-8100".
+	Ports map[string]string `json:"ports,omitempty"`
+	// PerTargetPorts marks a known-open rescan: each target had its own
+	// subset of Ports, so Ports alone does not prove a port was probed.
+	PerTargetPorts bool `json:"per_target_ports,omitempty"`
 }
 
 // CaptureStats reports how complete the packet evidence is. Dropped frames are
@@ -275,6 +293,19 @@ type CaptureStats struct {
 	BackendDrops  uint64 `json:"backend_drops,omitempty"`
 	FlowsIndexed  int    `json:"flows_indexed"`
 	FlowsTruncate uint64 `json:"flows_truncated,omitempty"`
+}
+
+var nameAdjectives = [...]string{"amber", "bold", "brisk", "calm", "clever", "crisp", "dusty", "eager", "faint", "gentle",
+	"hazy", "keen", "lively", "mellow", "nimble", "patient", "quiet", "rapid", "silent", "steady", "sunny", "swift", "vivid", "wary"}
+var nameNouns = [...]string{"badger", "beacon", "canyon", "cedar", "comet", "delta", "falcon", "fjord", "glacier", "harbor",
+	"heron", "lantern", "lynx", "meadow", "otter", "pebble", "quartz", "raven", "reef", "summit", "tundra", "willow", "wren", "zephyr"}
+
+// NewScanName returns a readable two-word name such as "quiet-heron" for a
+// scan the operator did not name. Names are labels, not identifiers.
+func NewScanName() string {
+	var r [2]byte
+	_, _ = rand.Read(r[:])
+	return nameAdjectives[int(r[0])%len(nameAdjectives)] + "-" + nameNouns[int(r[1])%len(nameNouns)]
 }
 
 // NewScanID returns a sortable, collision-resistant identifier: a UTC

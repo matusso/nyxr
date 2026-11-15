@@ -534,3 +534,37 @@ func TestIdentityGraphPortsFilter(t *testing.T) {
 		t.Fatalf("invalid ports mode: %d", res.StatusCode)
 	}
 }
+
+func TestScanDiffEndpoint(t *testing.T) {
+	e := newEnv(t, ManagerConfig{}, "")
+	addr := netip.MustParseAddr("192.0.2.5")
+	now := time.Now().UTC().Add(-time.Hour)
+	for i, state := range []string{"open", "closed"} {
+		at := now.Add(time.Duration(i) * time.Minute)
+		sc := observe.Scan{ID: []string{"diff-0", "diff-1"}[i], Profile: "test", Started: at, Status: "running"}
+		if err := e.store.BeginScan(context.Background(), sc); err != nil {
+			t.Fatal(err)
+		}
+		o := observe.Observation{Timestamp: at, Target: addr, Transport: "tcp", Port: 22, State: state, Probe: "tcp-connect"}
+		o.Stamp(sc.ID)
+		if err := e.store.AddObservations(context.Background(), []observe.Observation{o}); err != nil {
+			t.Fatal(err)
+		}
+		sc.Status, sc.Finished = "completed", at.Add(time.Second)
+		if err := e.store.FinishScan(context.Background(), sc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res, body := e.do(t, "GET", "/api/v1/scans/diff?before=diff-0&after=diff-1", "")
+	var diff storage.ScanDiff
+	if res.StatusCode != http.StatusOK || json.Unmarshal(body, &diff) != nil || diff.Version != storage.DiffVersion ||
+		len(diff.Changes) != 1 || diff.Changes[0].Change != "removed" {
+		t.Fatalf("diff: %d %s", res.StatusCode, body)
+	}
+	if res, _ = e.do(t, "GET", "/api/v1/scans/diff?before=diff-0&after=missing", ""); res.StatusCode != http.StatusNotFound {
+		t.Fatalf("missing scan: %d", res.StatusCode)
+	}
+	if res, _ = e.do(t, "GET", "/api/v1/scans/diff?before=diff-1&after=diff-0", ""); res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("reversed scans: %d", res.StatusCode)
+	}
+}

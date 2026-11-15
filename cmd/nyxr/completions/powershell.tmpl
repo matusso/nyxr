@@ -57,7 +57,7 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
                 '^--?(payload|payload-file|config|timeout|rate|workers|udp-retries|send-hex|send-base64|interface|source-ip|source-mac|next-hop-mac|allow-targets|service-timeout|service-workers|service-rate|nmap-udp-probes|nmap-service-probes|protocol-definitions|nse-scripts|nse-timeout|pcapng|pcapng-max-mb|db|packetd)$' { return }
             }
             if ($wordToComplete.StartsWith('-')) {
-                & $emit @('--profile', '--ports', '--protocols', '--timeout', '--rate', '--workers', '--udp-retries', '--tcp-mode', '--interface', '--source-ip', '--source-mac', '--next-hop-mac',
+                & $emit @('--name', '--profile', '--ports', '--protocols', '--timeout', '--rate', '--workers', '--udp-retries', '--tcp-mode', '--interface', '--source-ip', '--source-mac', '--next-hop-mac',
                     '--payload', '--send-hex', '--send-base64', '--payload-file', '--nmap-udp-probes', '--config',
                     '--service', '--service-probes', '--service-fallback', '--service-timeout', '--service-workers', '--service-rate', '--nmap-service-probes', '--protocol-definitions', '--nse-scripts', '--nse-timeout', '--pcapng', '--pcapng-max-mb', '--no-last-pcapng', '--db', '--no-db', '--allow-targets',
                     '--fingerprint', '--packetd', '--known-open', '--json', '--dry-run', '--help') 'ParameterName'
@@ -88,12 +88,12 @@ Register-ArgumentCompleter -Native -CommandName 'nyxr', 'nyxr.exe' -ScriptBlock 
         'history' {
             # Returning nothing lets PowerShell fall back to path completion.
             if ($prev -match '^--?(db|scan|address|at|limit|prune-older-than|keep|import-pcap|import-identifiers|topology-review|kube-api|kube-token-file|kube-ca-file|kube-cluster-scope|cloud-provider|cloud-scope|cloud-region|cloud-credentials-file|cloud-ca-file|capture-interface)$') { return }
-			& $emit @('--db', '--scan', '--assets', '--identities', '--identity-events', '--topology', '--topology-timeline', '--topology-review', '--at', '--import-pcap', '--import-identifiers', '--kube-api', '--kube-token-file', '--kube-ca-file', '--kube-cluster-scope', '--cloud-provider', '--cloud-scope', '--cloud-region', '--cloud-credentials-file', '--cloud-ca-file', '--cloud-allow-partial', '--capture-interface', '--open', '--scope', '--unknown', '--address', '--limit', '--prune-older-than', '--keep', '--json', '--help') 'ParameterName'
+			& $emit @('--db', '--network', '--networks', '--scan', '--diff', '--assets', '--identities', '--identity-events', '--topology', '--topology-timeline', '--topology-review', '--at', '--import-pcap', '--import-identifiers', '--kube-api', '--kube-token-file', '--kube-ca-file', '--kube-cluster-scope', '--cloud-provider', '--cloud-scope', '--cloud-region', '--cloud-credentials-file', '--cloud-ca-file', '--cloud-allow-partial', '--capture-interface', '--open', '--scope', '--unknown', '--address', '--limit', '--prune-older-than', '--keep', '--json', '--help') 'ParameterName'
         }
         'serve' {
             # Returning nothing lets PowerShell fall back to path completion.
             if ($prev -match '^--?(listen|db|packetd|evidence-dir|token-file|max-scans)$') { return }
-            & $emit @('--listen', '--db', '--packetd', '--evidence-dir', '--token-file', '--max-scans', '--horizon-simulate', '--horizon-policy', '--horizon-allow-targets', '--horizon-allow-ports', '--horizon-permit', '--allow-privileged', '--help') 'ParameterName'
+            & $emit @('--listen', '--db', '--network', '--packetd', '--evidence-dir', '--token-file', '--max-scans', '--horizon-simulate', '--horizon-policy', '--horizon-allow-targets', '--horizon-allow-ports', '--horizon-permit', '--allow-privileged', '--help') 'ParameterName'
         }
         'completion' {
             if ($words.Count -eq $cmdIndex + 1) { & $emit @('bash', 'zsh', 'fish', 'powershell') }

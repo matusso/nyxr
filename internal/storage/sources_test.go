@@ -80,7 +80,8 @@ func TestSourceMigrationPreservesLineageAndHistoricalBytes(t *testing.T) {
 		ALTER TABLE passive_links DROP COLUMN source_artifact_id; ALTER TABLE passive_links DROP COLUMN ttl_seconds;
 		ALTER TABLE passive_links DROP COLUMN frame_index; ALTER TABLE passive_links DROP COLUMN frame_hash;
 		ALTER TABLE passive_links DROP COLUMN valid_until; DROP TABLE observation_sources;
-		ALTER TABLE packet_flows DROP COLUMN capture_artifact_id; DELETE FROM schema_migrations WHERE version >= 7`); err != nil {
+		ALTER TABLE packet_flows DROP COLUMN capture_artifact_id; DROP TABLE networks; ALTER TABLE scans DROP COLUMN name; ALTER TABLE scans DROP COLUMN scope;
+		DELETE FROM schema_migrations WHERE version >= 7`); err != nil {
 		t.Fatal(err)
 	}
 	db.Close()

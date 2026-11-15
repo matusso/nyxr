@@ -36,6 +36,8 @@ type ManagerConfig struct {
 	// replace discovery.
 	Pipeline         func(*pipeline.Options)
 	ProtocolRegistry *service.Registry
+	// OnFinish runs after a scan ended and its results were stored.
+	OnFinish func(observe.Scan)
 }
 
 // Manager runs scans through the same Request.Resolve and pipeline mapping
@@ -183,6 +185,8 @@ func (m *Manager) Start(req config.Request) (observe.Scan, error) {
 		close(rn.done)
 		if sc.ID == "" {
 			failed <- err
+		} else if m.cfg.OnFinish != nil {
+			m.cfg.OnFinish(sc)
 		}
 	}()
 	select {

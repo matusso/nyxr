@@ -51,6 +51,7 @@ _nyxr() {
             case $line[1] in
                 scan)
                     _arguments \
+                        '--name=[label for this scan, e.g. its network]:name:' \
                         '--profile=[scan profile]:profile:_nyxr_profiles' \
                         '--ports=[ports, ranges, or a named set]:ports:_nyxr_ports' \
                         '--protocols=[comma list of protocols]:protocols:_values -s , protocol tcp udp icmp' \
@@ -118,6 +119,9 @@ _nyxr() {
                         '--assets[print every address with the latest state of each port]' \
 						'--identities[group addresses by strong device identity signals]' \
 						'--identity-events[show identity membership audit]' \
+						'--diff[explain changes on a network or between two scan IDs]:name or before,after:' \
+						'--networks[list named networks and their databases]' \
+						'--network=[read the database of this named network]:name:' \
 						'--topology[show imported LLDP neighbors]' \
 						'--topology-timeline[show temporal interface and LLDP evidence]' \
 						'--topology-review=[record reviewed interface assignment]:JSON file:_files' \
@@ -148,6 +152,7 @@ _nyxr() {
                 serve)
                     _arguments \
                         '--listen=[listen address]:address (host\:port):' \
+                        '--network=[serve the database of this named network]:name:' \
                         '--db=[SQLite database for scans and results]:database file:_files' \
                         '--packetd=[nyxr-packetd Unix socket]:socket:_files' \
                         '--evidence-dir=[directory for API pcapng captures]:directory:_directories' \

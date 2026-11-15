@@ -288,6 +288,11 @@ var migrations = []string{
 	fleetMigration,
 	// Lineage export joins every observation to the attempt that delivered it.
 	`CREATE INDEX fleet_attempts_scan ON fleet_attempts(scan_id) WHERE scan_id <> '';`,
+	// name labels a scan (address ranges repeat across networks); scope is
+	// the planned coverage as JSON, empty for imports and older scans.
+	`ALTER TABLE scans ADD COLUMN name TEXT NOT NULL DEFAULT '';
+	ALTER TABLE scans ADD COLUMN scope TEXT NOT NULL DEFAULT '';`,
+	networksMigration,
 }
 
 // Store is safe for concurrent use.
@@ -400,8 +405,19 @@ type execer interface {
 }
 
 func beginScan(ctx context.Context, db execer, scan observe.Scan) error {
-	_, err := db.ExecContext(ctx, `INSERT INTO scans(id, schema, profile, started_at, status, targets) VALUES (?, ?, ?, ?, ?, ?)`,
-		scan.ID, observe.SchemaVersion, scan.Profile, ts(scan.Started), scan.Status, scan.Targets)
+	if scan.Name == "" { // imports and replays are named too
+		scan.Name = observe.NewScanName()
+	}
+	var scope string
+	if scan.Scope != nil {
+		b, err := json.Marshal(scan.Scope)
+		if err != nil {
+			return err
+		}
+		scope = string(b)
+	}
+	_, err := db.ExecContext(ctx, `INSERT INTO scans(id, schema, profile, started_at, status, targets, name, scope) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		scan.ID, observe.SchemaVersion, scan.Profile, ts(scan.Started), scan.Status, scan.Targets, scan.Name, scope)
 	return err
 }
 
@@ -586,7 +602,7 @@ func addPacketEvidenceTx(ctx context.Context, tx *sql.Tx, batch []observe.Packet
 	return nil
 }
 
-const scanColumns = `id, schema, profile, started_at, finished_at, status, error, targets, observations, services, capture`
+const scanColumns = `id, schema, profile, started_at, finished_at, status, error, targets, observations, services, capture, name, scope`
 
 // ScanCount returns the full history size without loading scan records.
 func (s *Store) ScanCount(ctx context.Context) (int, error) {
@@ -611,6 +627,7 @@ func (s *Store) Scans(ctx context.Context, limit int) ([]observe.Scan, error) {
 		if err != nil {
 			return nil, err
 		}
+		sc.Scope = nil // a port list per row would bloat listings; Scan returns it
 		out = append(out, sc)
 	}
 	return out, rows.Err()
@@ -627,9 +644,15 @@ func (s *Store) Scan(ctx context.Context, id string) (sc observe.Scan, ok bool, 
 
 func scanRow(row interface{ Scan(...any) error }) (observe.Scan, error) {
 	var sc observe.Scan
-	var started, finished, capture string
-	if err := row.Scan(&sc.ID, &sc.Schema, &sc.Profile, &started, &finished, &sc.Status, &sc.Error, &sc.Targets, &sc.Observations, &sc.Services, &capture); err != nil {
+	var started, finished, capture, scope string
+	if err := row.Scan(&sc.ID, &sc.Schema, &sc.Profile, &started, &finished, &sc.Status, &sc.Error, &sc.Targets, &sc.Observations, &sc.Services, &capture, &sc.Name, &scope); err != nil {
 		return sc, err
+	}
+	if scope != "" {
+		sc.Scope = new(observe.ScanScope)
+		if err := json.Unmarshal([]byte(scope), sc.Scope); err != nil {
+			return sc, err
+		}
 	}
 	sc.Kind, sc.Started, sc.Finished = observe.KindScan, parseTS(started), parseTS(finished)
 	if capture != "" {

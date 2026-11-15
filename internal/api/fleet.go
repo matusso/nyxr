@@ -83,7 +83,7 @@ func (s *server) fleetListScans(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	jobs, err := s.cfg.Fleet.Jobs(r.Context(), limit)
+	jobs, err := s.cfg.Fleet.JobsIn(r.Context(), s.cfg.Store, limit)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -106,7 +106,7 @@ func (s *server) fleetCreateScan(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid fleet scan request: trailing data")
 		return
 	}
-	job, err := s.cfg.Fleet.Submit(r.Context(), req.Request, req.JobOptions)
+	job, err := s.cfg.Fleet.SubmitTo(r.Context(), s.cfg.Store, req.Request, req.JobOptions)
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return

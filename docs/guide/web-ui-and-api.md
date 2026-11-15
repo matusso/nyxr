@@ -123,18 +123,53 @@ The send API accepts one 14 to 9216 byte frame per request and returns
 `submitted` once packetd accepts it; packetd's interface and source-MAC policy
 can still reject the frame before transmission.
 
+## Networks
+
+`nyxr serve` without `--db` serves every [named network](storage-and-history.md#networks).
+The header has a **Network** dropdown: *default database* (unnamed scans)
+and one entry per registered network, plus **＋ New network…**, which opens
+the scan form with an empty name. Every time the server is started, each
+browser is asked once: the same dropdown is shown in the middle of the page
+with **Open** and **Create new scan**, whatever page it was on. **Create new
+scan** opens the form for the network picked in the dropdown.
+
+- The choice is kept in a `nyxr_network` cookie, so every API call, event
+  stream and download of that browser goes to the chosen database. The cookie
+  only selects a database; the API token is still required.
+- The name field of the scan form is prefilled with the current network. A
+  new name registers a network, switches to it and stores the scan there.
+- `nyxr serve --network NAME` opens on that network instead of the default
+  database. `nyxr serve --db FILE` serves that one file and hides the
+  dropdown.
+- An API client selects a network the same way: send
+  `Cookie: nyxr_network=NAME` (URL-encoded). Without it, requests use the
+  default database, as before.
+- One fleet controller serves every network. Agents are enrolled once, in
+  the database the server starts with. A fleet scan is stored in the network
+  it was submitted on: its job, units and results stay in that database and
+  keep running whatever network any browser shows afterwards, including
+  across a server restart. `GET /fleet/scans` lists the jobs of the selected
+  network; a job ID resolves from any network.
+- Central sync pushes the server's own database and every registered
+  network; each database is its own lineage in the central store.
+- `--max-scans` applies per network.
+
 ## REST API
 
 All paths are under `/api/v1`.
 
 | Method and path | Purpose |
 | --- | --- |
+| `GET /networks` | `{enabled, default, networks}`: the network registry; `enabled` is false under `--db` |
+| `POST /networks` | Register `{name}` and its database file; returns the row (`201`), also when it already exists |
 | `GET /stats` | Live dashboard counts for scans, running scans, hosts, open ports and identified services |
 | `GET /profiles` | Profile catalog, as `nyxr profiles --json` |
 | `POST /plan` | Resolve a request and return the dry-run plan |
-| `POST /scans` | Start a scan; returns `201` with the running `scan` summary |
+| `POST /scans` | Start a scan; returns `201` with the running `scan` summary. Optional `name` labels it |
 | `GET /scans` | Stored scans, newest first, with live counters for running ones |
-| `GET /scans/{id}` | One scan summary |
+| `GET /scans/{id}` | One scan summary, including its stored `scope` |
+| `GET /scans/diff?name=NAME` | The same diff for the last two finished scans named `NAME`; `400` when only one exists |
+| `GET /scans/diff?before=ID&after=ID` | Coverage-aware [scan diff](storage-and-history.md#compare-two-scans); `400` when the scans are reversed or identical, `404` when one is unknown |
 | `POST /scans/{id}/cancel` | Stop a running scan; partial results are kept |
 | `GET /scans/{id}/observations` | Stored records. Filters: `address`, `kind`, `transport`, `port`, `service`, `unknown`, `limit` |
 | `GET /scans/{id}/evidence` | `packet-evidence` records |
