@@ -193,4 +193,4 @@ scan of a Siemens PXC22.1-E.D building controller returned its Device
 identifier, name, vendor, application software, firmware, model, description
 and one FDT entry. Broader live testing on representative OT equipment, a
 vendor OUI database and more industrial protocols are on the
-[Roadmap](../roadmap.md#phase-4--iot-and-ot-safety--partial).
+[Roadmap](../roadmap.md#open-work).
