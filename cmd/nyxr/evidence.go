@@ -191,6 +191,39 @@ func runPipeline(out io.Writer, r config.Resolved, db string, open packetio.Open
 	return err
 }
 
+// printDiff writes one line per change: + added, - removed, ~ changed,
+// ? not observed. Unverified changes say why they prove nothing.
+func printDiff(out io.Writer, diff storage.ScanDiff) error {
+	side := func(s observe.Scan) string {
+		return fmt.Sprintf("%s (%s)", s.ID, strings.Join(strings.Fields(s.Name+" "+s.Profile+" "+s.Status), ", "))
+	}
+	fmt.Fprintf(out, "%s  %s -> %s\n", diff.Version, side(diff.Before), side(diff.After))
+	marks := map[string]string{"added": "+", "removed": "-", "changed": "~", "not_observed": "?"}
+	for _, c := range diff.Changes {
+		where := c.Address.String()
+		if c.Port != 0 {
+			where += fmt.Sprintf(" %s/%d", c.Transport, c.Port)
+		}
+		line := fmt.Sprintf("%s %-22s %-20s %s", marks[c.Change], where, c.Kind, c.Change)
+		if c.Before != "" || c.After != "" {
+			line += fmt.Sprintf("  %q -> %q", c.Before, c.After)
+		}
+		if c.Status == storage.DiffUnverified {
+			line += "  [unverified: " + c.Reason + "]"
+		} else if c.Reason != "" {
+			line += "  [" + c.Reason + "]"
+		}
+		fmt.Fprintln(out, line)
+	}
+	if len(diff.Changes) == 0 {
+		fmt.Fprintln(out, "no changes")
+	}
+	for _, l := range diff.Limitations {
+		fmt.Fprintln(out, "limitation:", l)
+	}
+	return nil
+}
+
 func historyUsage(out io.Writer) {
 	fmt.Fprint(out, `Usage: nyxr history [--db file] [flags]
 
@@ -223,6 +256,10 @@ Flags:
   --scope list         with --assets or --identities, select matching addresses
   --unknown            print service observations with an unknown fingerprint
   --address ip         restrict --scan or --unknown to one address
+  --networks           list named networks, their database files and whether a file changed since its last scan
+  --network name       read the database of this named network instead of the default
+  --diff name          explain what changed on a network: its last two scans with this name
+  --diff before,after  explain what changed between two scan IDs
   --limit int          maximum scans or observations (default 50)
   --prune-older-than   delete scans older than this duration (e.g. 720h)
   --keep int           delete all but the newest N scans
@@ -236,6 +273,9 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 	fs.Usage = func() { historyUsage(out) }
 	dbFlag := dbFlags{path: fs.String("db", "", "SQLite database")}
 	scanFlag := fs.String("scan", "", "scan ID")
+	diffFlag := fs.String("diff", "", "scan name, or two scan IDs: before,after")
+	networkFlag := fs.String("network", "", "read the database of this named network")
+	networksFlag := fs.Bool("networks", false, "list named networks and their databases")
 	assetsFlag := fs.Bool("assets", false, "list assets")
 	identitiesFlag := fs.Bool("identities", false, "list correlated asset identities")
 	eventsFlag := fs.Bool("identity-events", false, "list identity membership events")
@@ -296,6 +336,26 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 	if err != nil {
 		return err
 	}
+	ctx := context.Background()
+	if *networkFlag != "" && *dbFlag.path != "" {
+		return errors.New("--network and --db are mutually exclusive")
+	}
+	// --diff NAME reads that network's own database when it has one.
+	network, required := *networkFlag, true
+	if network == "" && *diffFlag != "" && !strings.Contains(*diffFlag, ",") {
+		network, required = *diffFlag, false
+	}
+	if network != "" && *dbFlag.path == "" {
+		path, ok, err := networkPath(ctx, dbPath, network)
+		if err != nil {
+			return err
+		}
+		if ok {
+			dbPath = path
+		} else if required {
+			return fmt.Errorf("no network named %q; see nyxr history --networks", network)
+		}
+	}
 	var addr netip.Addr
 	if *addressFlag != "" {
 		var err error
@@ -303,7 +363,6 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 			return fmt.Errorf("address: %w", err)
 		}
 	}
-	ctx := context.Background()
 	store, err := openStore(ctx, dbPath)
 	if err != nil {
 		return err
@@ -312,6 +371,50 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 	enc := json.NewEncoder(out)
 
 	switch {
+	case *networksFlag:
+		networks, err := store.Networks(ctx)
+		if err != nil {
+			return err
+		}
+		rows := [][]string{header(style, "NETWORK", "SCANS", "LAST SCAN", "FILE", "DATABASE")}
+		for i := range networks {
+			n := &networks[i]
+			// The digest was taken after the last scan; any later write shows as changed.
+			switch sum, err := fileSHA256(n.Path); {
+			case err != nil:
+				n.Integrity = "missing"
+			case sum == n.SHA256:
+				n.Integrity = "unchanged"
+			default:
+				n.Integrity = "changed"
+			}
+			if *jsonFlag {
+				if err := enc.Encode(n); err != nil {
+					return err
+				}
+			}
+			rows = append(rows, []string{style.Bold(n.Name), fmt.Sprint(n.Scans), style.Dim(n.LastScan.Format(time.RFC3339)), n.Integrity, n.Path})
+		}
+		if *jsonFlag {
+			return nil
+		}
+		return style.Table(out, rows)
+	case *diffFlag != "":
+		// One value is a scan name: the last two scans of that network.
+		diff, found, err := store.DiffNetwork(ctx, *diffFlag)
+		if before, after, ok := strings.Cut(*diffFlag, ","); ok {
+			diff, found, err = store.DiffScans(ctx, strings.TrimSpace(before), strings.TrimSpace(after))
+		}
+		if err != nil {
+			return err
+		}
+		if !found {
+			return errors.New("no such scan or scan name")
+		}
+		if *jsonFlag {
+			return enc.Encode(diff)
+		}
+		return printDiff(out, diff)
 	case *topologyReviewFlag != "":
 		file, err := os.Open(*topologyReviewFlag)
 		if err != nil {
@@ -613,10 +716,11 @@ func runHistory(args []string, out io.Writer, style *ui.Styler) error {
 			}
 			return nil
 		}
-		rows := [][]string{header(style, "SCAN", "PROFILE", "STARTED", "STATUS", "TARGETS", "OBSERVATIONS", "SERVICES")}
+		rows := [][]string{header(style, "SCAN", "NAME", "PROFILE", "STARTED", "STATUS", "TARGETS", "OBSERVATIONS", "SERVICES")}
 		for _, s := range scans {
 			rows = append(rows, []string{
 				style.Bold(s.ID),
+				s.Name,
 				s.Profile,
 				style.Dim(s.Started.Format(time.RFC3339)),
 				statusText(style, s.Status),

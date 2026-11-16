@@ -266,9 +266,40 @@ reply. Runs never modify the source observation.
 
 | Field | Meaning |
 | --- | --- |
+| `name` | Scan label, given with `--name` or generated |
 | `profile` | Profile used |
+| `scope` | Planned coverage: `targets` (addresses and inclusive `first-last` ranges), `ports` per transport (`"tcp": "22,80,8000-8100"`) and `per_target_ports` for a known-open rescan. Omitted for imports and in scan listings |
 | `started`, `finished` | Timing |
 | `status` | `running`, `completed` or `failed` |
 | `error` | Failure reason |
 | `targets`, `observations`, `services` | Counters |
 | `capture` | With `--pcapng`: `path`, `artifact_id`, `interface`, `written`, `bytes`, `dropped_queue`, `dropped_limit`, `backend_drops`, `flows_indexed`, `flows_truncated` |
+
+## Scan diff
+
+`version: nyxr-scan-diff/v1` is the result of `nyxr history --diff --json` and
+`GET /api/v1/scans/diff`. The version covers the change vocabulary and the
+coverage rules; either changing gets a new version.
+
+| Field | Meaning |
+| --- | --- |
+| `before`, `after` | The two scan summaries |
+| `changes` | Changes ordered by address, transport and port |
+| `summary` | Change count per `kind` |
+| `limitations` | What the comparison could not establish |
+
+Each change:
+
+| Field | Meaning |
+| --- | --- |
+| `kind` | `asset_presence`, `service`, `tls_certificate`, `tls_configuration`, `ssh_host_key`, `ssh_configuration`, `http_title`, `snmp_identity`, `os`, `firmware`, `device_class`, `address_membership`, `address_reassignment`, `identity_manual`, `identity_correlation` |
+| `change` | `added`, `removed`, `changed` or `not_observed` |
+| `status` | `observed`, or `unverified` when the scans cannot prove the change |
+| `reason` | For `unverified`: `not_tested`, `scan_incomplete`, `silent`, `truncated_evidence`. For identity kinds: the recorded membership cause |
+| `asset` | Persistent asset ID, when known |
+| `address`, `transport`, `port` | The endpoint, at its address in the later scan |
+| `field` | Compared attribute or fingerprint method |
+| `before`, `after` | The two values |
+| `before_observation`, `after_observation` | Observation IDs holding the evidence |
+
+Rules and examples: [Compare two scans](../guide/storage-and-history.md#compare-two-scans).

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"gopkg.in/yaml.v3"
 )
@@ -16,6 +17,8 @@ import (
 // typos are reported rather than ignored. Resolve turns a Request into the
 // validated discovery Config and the stage settings around it.
 type Request struct {
+	// Name labels the scan, e.g. with its network; generated when empty.
+	Name            string   `yaml:"name" json:"name,omitempty"`
 	Targets         []string `yaml:"targets" json:"targets"`
 	AllowTargets    []string `yaml:"allow_targets" json:"allow_targets,omitempty"`
 	Ports           string   `yaml:"ports" json:"ports,omitempty"`
@@ -106,6 +109,7 @@ const DefaultPCAPNGMaxMB = 1024
 
 // Resolved is a fully validated scan: discovery configuration plus stages.
 type Resolved struct {
+	Name        string
 	Config      Config
 	Service     Service
 	NSE         NSE
@@ -168,6 +172,10 @@ func (r Request) Resolve(o ResolveOptions) (Resolved, error) {
 			return Resolved{}, errors.New("remote pcapng must be a plain file name ending in .pcapng")
 		}
 	}
+	name := strings.TrimSpace(r.Name)
+	if len(name) > 64 || strings.ContainsFunc(name, unicode.IsControl) {
+		return Resolved{}, errors.New("scan name must be at most 64 bytes without control characters")
+	}
 	var restrict TargetPorts
 	if r.KnownOpen {
 		var err error
@@ -204,7 +212,7 @@ func (r Request) Resolve(o ResolveOptions) (Resolved, error) {
 	if err != nil {
 		return Resolved{}, err
 	}
-	res := Resolved{Config: cfg, Service: svc, NSE: nse, PCAPNG: r.PCAPNG,
+	res := Resolved{Name: name, Config: cfg, Service: svc, NSE: nse, PCAPNG: r.PCAPNG,
 		Fingerprint: r.Fingerprint || cfg.Profile == "iot" || cfg.Profile == "ot-safe"}
 	if r.PCAPNG != "" {
 		mb := valueOr(r.PCAPNGMaxMB, DefaultPCAPNGMaxMB)

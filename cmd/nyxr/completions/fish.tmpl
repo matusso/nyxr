@@ -56,6 +56,7 @@ end
 complete -c nyxr -n '__fish_seen_subcommand_from horizon; and __fish_seen_subcommand_from resolve' -l policy -x -a 'lab enterprise fragile ot-restricted'
 
 # scan
+complete -c nyxr -n '__fish_seen_subcommand_from scan' -l name -x -d 'Label for this scan, e.g. its network'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l profile -x -a '(__nyxr_profiles)' -d 'Scan profile'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l ports -x -a {{fish (join .PortSets " ")}} -d 'Ports, ranges, or a named set'
 complete -c nyxr -n '__fish_seen_subcommand_from scan' -l protocols -x -a 'tcp udp icmp tcp,udp tcp,icmp udp,icmp tcp,udp,icmp' -d 'Comma list of protocols'
@@ -140,6 +141,9 @@ complete -c nyxr -n '__fish_seen_subcommand_from history' -l scan -x -d 'Print t
 complete -c nyxr -n '__fish_seen_subcommand_from history' -l assets -d 'Print every address with the latest state of each port'
 complete -c nyxr -n '__fish_seen_subcommand_from history' -l identities -d 'Group addresses by strong device identity signals'
 complete -c nyxr -n '__fish_seen_subcommand_from history' -l identity-events -d 'Show identity membership audit'
+complete -c nyxr -n '__fish_seen_subcommand_from history' -l networks -d 'List named networks and their databases'
+complete -c nyxr -n '__fish_seen_subcommand_from history serve' -l network -x -d 'Use the database of this named network'
+complete -c nyxr -n '__fish_seen_subcommand_from history' -l diff -r -d 'Explain changes on a network (scan name) or between two scan IDs: before,after'
 complete -c nyxr -n '__fish_seen_subcommand_from history' -l topology -d 'Show imported LLDP neighbors'
 complete -c nyxr -n '__fish_seen_subcommand_from history' -l topology-timeline -d 'Show temporal interface and LLDP evidence'
 complete -c nyxr -n '__fish_seen_subcommand_from history' -l topology-review -r -F -d 'Record reviewed interface assignment'

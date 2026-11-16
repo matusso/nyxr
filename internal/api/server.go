@@ -9,6 +9,7 @@ package api
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/subtle"
 	"embed"
 	"encoding/json"
@@ -25,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/matusso/nyxr/internal/capture"
 	"github.com/matusso/nyxr/internal/config"
@@ -60,6 +62,19 @@ type ServerConfig struct {
 	PacketSendEnabled bool
 	// Fleet is the distributed scan controller; nil disables the fleet API.
 	Fleet *fleet.Controller
+	// Networks enables the network registry API on the handler whose Store
+	// is the registry database; nil reports it as disabled.
+	Networks *Networks
+}
+
+// Networks lets the web UI list named networks and register a new one. The
+// caller routes each request to the selected network's handler.
+type Networks struct {
+	// Default is the network served when a browser selected none; empty
+	// means the default database.
+	Default string
+	// Create registers name and its database file, or returns the existing row.
+	Create func(ctx context.Context, name string) (storage.Network, error)
 }
 
 type server struct {
@@ -93,12 +108,15 @@ func Handler(cfg ServerConfig) http.Handler {
 	api.HandleFunc("GET /api/v1/fleet/scans/{id}", s.fleetGetScan)
 	api.HandleFunc("POST /api/v1/fleet/scans/{id}/cancel", s.fleetCancelScan)
 	api.HandleFunc("GET /api/v1/version", s.version)
+	api.HandleFunc("GET /api/v1/networks", s.listNetworks)
+	api.HandleFunc("POST /api/v1/networks", s.createNetwork)
 	api.HandleFunc("GET /api/v1/stats", s.stats)
 	api.HandleFunc("GET /api/v1/profiles", s.profiles)
 	api.HandleFunc("POST /api/v1/plan", s.plan)
 	api.HandleFunc("POST /api/v1/protocol-definitions/reload", s.reloadProtocolDefinitions)
 	api.HandleFunc("GET /api/v1/scans", s.listScans)
 	api.HandleFunc("POST /api/v1/scans", s.createScan)
+	api.HandleFunc("GET /api/v1/scans/diff", s.diffScans)
 	api.HandleFunc("GET /api/v1/scans/{id}", s.getScan)
 	api.HandleFunc("POST /api/v1/scans/{id}/cancel", s.cancelScan)
 	api.HandleFunc("GET /api/v1/scans/{id}/observations", s.scanObservations)
@@ -212,6 +230,54 @@ func decodeRequest(r *http.Request) (config.Request, error) {
 
 func (s *server) version(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"version": s.cfg.Version, "schema": observe.SchemaVersion})
+}
+
+var bootID = observe.NewScanID(time.Now())
+
+func (s *server) listNetworks(w http.ResponseWriter, r *http.Request) {
+	out := struct {
+		Enabled bool `json:"enabled"`
+		// Boot changes with every server start, so the UI can ask which
+		// network to open once per start.
+		Boot     string            `json:"boot"`
+		Default  string            `json:"default"`
+		Networks []storage.Network `json:"networks"`
+	}{Boot: bootID, Networks: []storage.Network{}}
+	if n := s.cfg.Networks; n != nil {
+		var err error
+		if out.Networks, err = s.cfg.Store.Networks(r.Context()); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		out.Enabled, out.Default = true, n.Default
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *server) createNetwork(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.Networks == nil {
+		writeError(w, http.StatusNotFound, "this server serves one fixed database")
+		return
+	}
+	var in struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	// The same rule as a scan name, which this becomes.
+	in.Name = strings.TrimSpace(in.Name)
+	if in.Name == "" || len(in.Name) > 64 || strings.ContainsFunc(in.Name, unicode.IsControl) {
+		writeError(w, http.StatusBadRequest, "network name must be 1 to 64 bytes without control characters")
+		return
+	}
+	network, err := s.cfg.Networks.Create(r.Context(), in.Name)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, network)
 }
 
 func (s *server) stats(w http.ResponseWriter, r *http.Request) {
@@ -339,6 +405,23 @@ func (s *server) getScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, publicScan(sc))
+}
+
+func (s *server) diffScans(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	diff, ok, err := s.cfg.Store.DiffScans(r.Context(), q.Get("before"), q.Get("after"))
+	if name := q.Get("name"); name != "" {
+		diff, ok, err = s.cfg.Store.DiffNetwork(r.Context(), name)
+	}
+	switch {
+	case err != nil:
+		writeError(w, http.StatusBadRequest, err.Error())
+	case !ok:
+		writeError(w, http.StatusNotFound, "no such scan")
+	default:
+		diff.Before, diff.After = publicScan(diff.Before), publicScan(diff.After)
+		writeJSON(w, http.StatusOK, diff)
+	}
 }
 
 func (s *server) cancelScan(w http.ResponseWriter, r *http.Request) {

@@ -73,7 +73,7 @@ func TestCancelledFullBatchRetainsEquivalentStreamAndHistory(t *testing.T) {
 		}
 	}
 	var final observe.Scan
-	if err := d.Decode(&final); err != nil || final != sc {
+	if err := d.Decode(&final); err != nil || !reflect.DeepEqual(final, sc) {
 		t.Fatalf("final summary: %+v %v", final, err)
 	}
 	var trailing any

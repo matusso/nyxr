@@ -119,6 +119,43 @@ func TestHistoryImportsScopedIdentifiers(t *testing.T) {
 	}
 }
 
+func TestHistoryDiff(t *testing.T) {
+	dir := t.TempDir()
+	db, input := filepath.Join(dir, "diff.db"), filepath.Join(dir, "ids.json")
+	if err := os.WriteFile(input, []byte(`[{"address":"192.0.2.5","kind":"cloud.aws.instance_id","scope":"a/b","value":"i-1"}]`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for range 2 {
+		var out bytes.Buffer
+		var scan struct {
+			ID string `json:"scan_id"`
+		}
+		if err := run([]string{"history", "--db", db, "--import-identifiers", input, "--json"}, &out); err != nil || json.Unmarshal(out.Bytes(), &scan) != nil {
+			t.Fatalf("import: %v %s", err, out.String())
+		}
+		ids = append(ids, scan.ID)
+	}
+	var list bytes.Buffer
+	if err := run([]string{"history", "--db", db, "--json"}, &list); err != nil || strings.Count(list.String(), `"name":"`) != 2 {
+		t.Fatalf("scans are not named: %v %s", err, list.String())
+	}
+	var out bytes.Buffer
+	if err := run([]string{"history", "--db", db, "--diff", ids[0] + "," + ids[1]}, &out); err != nil ||
+		!strings.Contains(out.String(), "nyxr-scan-diff/v1") || !strings.Contains(out.String(), "no changes") {
+		t.Fatalf("diff: %v %s", err, out.String())
+	}
+	out.Reset()
+	if err := run([]string{"history", "--db", db, "--diff", ids[0] + "," + ids[1], "--json"}, &out); err != nil || !strings.Contains(out.String(), `"changes":[]`) {
+		t.Fatalf("json diff: %v %s", err, out.String())
+	}
+	for _, bad := range []string{ids[0], ids[0] + ",missing"} {
+		if err := run([]string{"history", "--db", db, "--diff", bad}, &out); err == nil {
+			t.Fatalf("accepted --diff %s", bad)
+		}
+	}
+}
+
 func TestServiceFlagErrors(t *testing.T) {
 	for args, want := range map[string]string{
 		"--profile ot-safe --allow-targets 192.0.2.1 --service-probes http": "does not allow service probe",

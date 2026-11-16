@@ -2,12 +2,17 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"unicode"
 
 	"github.com/matusso/nyxr/internal/storage"
 )
@@ -93,4 +98,106 @@ func openStore(ctx context.Context, path string) (*storage.Store, error) {
 func sudoID(env string) (int, bool) {
 	n, err := strconv.Atoi(os.Getenv(env))
 	return n, err == nil && n > 0
+}
+
+// networkPath returns the database file registered for a named network in
+// the registry database.
+func networkPath(ctx context.Context, registry, name string) (string, bool, error) {
+	store, err := openStore(ctx, registry)
+	if err != nil {
+		return "", false, err
+	}
+	defer store.Close()
+	n, ok, err := store.Network(ctx, name)
+	return n.Path, ok, err
+}
+
+// networkDB returns where a named network's scans are stored: its registered
+// file, or for a new name a file next to the registry. A name that maps to a
+// taken file name gets a digest suffix.
+func networkDB(ctx context.Context, registry, name string) (string, error) {
+	store, err := openStore(ctx, registry)
+	if err != nil {
+		return "", err
+	}
+	defer store.Close()
+	if n, ok, err := store.Network(ctx, name); err != nil || ok {
+		return n.Path, err
+	}
+	slug := strings.Map(func(r rune) rune {
+		if r == '-' || r == '_' || r == '.' || unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return r
+		}
+		return '-'
+	}, name)
+	path := filepath.Join(filepath.Dir(registry), slug+".db")
+	networks, err := store.Networks(ctx)
+	if err != nil {
+		return "", err
+	}
+	taken := path == registry || strings.HasPrefix(slug, ".")
+	for _, n := range networks {
+		taken = taken || n.Path == path
+	}
+	if _, err := os.Stat(path); err == nil {
+		taken = true // an unregistered file is not ours to adopt
+	}
+	if taken {
+		sum := sha256.Sum256([]byte(name))
+		path = filepath.Join(filepath.Dir(registry), fmt.Sprintf("net-%s-%x.db", strings.Trim(slug, "."), sum[:4]))
+	}
+	return path, nil
+}
+
+// recordNetwork updates the registry after a scan of a named network: the
+// newest scan, the scan count and the SHA-256 of the closed database file.
+func recordNetwork(ctx context.Context, registry, name, path string) error {
+	store, err := openStore(ctx, path)
+	if err != nil {
+		return err
+	}
+	network, err := networkState(ctx, store, name, path)
+	// Closing checkpoints the WAL, so the main file holds everything hashed.
+	if cerr := store.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return err
+	}
+	if network.SHA256, err = fileSHA256(path); err != nil {
+		return err
+	}
+	reg, err := openStore(ctx, registry)
+	if err != nil {
+		return err
+	}
+	defer reg.Close()
+	return reg.SaveNetwork(ctx, network)
+}
+
+// networkState reads a network's newest scan and scan count from its store.
+func networkState(ctx context.Context, store *storage.Store, name, path string) (storage.Network, error) {
+	network := storage.Network{Name: name, Path: path}
+	scans, err := store.Scans(ctx, 1)
+	if err != nil {
+		return network, err
+	}
+	if len(scans) > 0 {
+		network.LastScanID, network.LastScan = scans[0].ID, scans[0].Started
+	}
+	network.Scans, err = store.ScanCount(ctx)
+	return network, err
+}
+
+func fileSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

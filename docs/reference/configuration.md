@@ -35,6 +35,7 @@ profile default.
 | --- | --- | --- | --- |
 | `targets` | positional | list | IPs, hostnames, CIDRs or ranges |
 | `allow_targets` | `--allow-targets` | list | Approved IPs or CIDRs; required by `ot-safe` and `research` |
+| `name` | `--name` | string | [Network](../guide/storage-and-history.md#networks) this scan belongs to; a label is generated when empty |
 | `profile` | `--profile` | string | [Scan profile](../guide/profiles.md) |
 | `ports` | `--ports` | string | Ports, ranges or a named set |
 | `protocols` | `--protocols` | string | Comma list of `tcp`, `udp`, `icmp`, `arp`, `ndp` (plus `sctp`, `ip` for `research`) |

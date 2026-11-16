@@ -55,6 +55,8 @@ type ControllerConfig struct {
 	Tick time.Duration
 	Now  func() time.Time
 	Log  *log.Logger
+	// OnJobFinished runs after a job in the given store stopped running.
+	OnJobFinished func(*storage.Store)
 }
 
 // Controller implements the Fleet gRPC service and schedules work. It is
@@ -63,11 +65,16 @@ type Controller struct {
 	fleetpb.UnimplementedFleetServer
 	cfg ControllerConfig
 
-	mu       sync.Mutex
-	conns    map[string]*agentConn
-	plans    map[string]*jobPlan
-	rejected map[string]map[string]string // unit key -> agent -> reason
-	waiting  map[string]string            // unit key -> why no agent can run it
+	mu sync.Mutex
+	// stores holds job state: cfg.Store first, then every attached network
+	// database. Agents live in cfg.Store only. A job, its units, attempts
+	// and results stay in the store it was submitted to.
+	stores    []*storage.Store
+	jobStores map[string]*storage.Store // running job -> its store
+	conns     map[string]*agentConn
+	plans     map[string]*jobPlan
+	rejected  map[string]map[string]string // unit key -> agent -> reason
+	waiting   map[string]string            // unit key -> why no agent can run it
 
 	wake   chan struct{}
 	ctx    context.Context
@@ -139,7 +146,7 @@ func NewController(cfg ControllerConfig) (*Controller, error) {
 		cfg.Log = log.New(log.Writer(), "fleet: ", log.LstdFlags)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	c := &Controller{cfg: cfg, conns: map[string]*agentConn{}, plans: map[string]*jobPlan{}, rejected: map[string]map[string]string{},
+	c := &Controller{cfg: cfg, stores: []*storage.Store{cfg.Store}, jobStores: map[string]*storage.Store{}, conns: map[string]*agentConn{}, plans: map[string]*jobPlan{}, rejected: map[string]map[string]string{},
 		waiting: map[string]string{}, wake: make(chan struct{}, 1), ctx: ctx, cancel: cancel}
 	if err := cfg.Store.ExtendAllFleetLeases(ctx, cfg.Now().Add(cfg.LeaseTTL)); err != nil {
 		cancel()
@@ -148,6 +155,51 @@ func NewController(cfg ControllerConfig) (*Controller, error) {
 	c.wg.Add(1)
 	go c.loop()
 	return c, nil
+}
+
+// Attach adds a database whose jobs this controller schedules, such as a
+// named network's. Its open leases get the same restart grace as cfg.Store's.
+func (c *Controller) Attach(st *storage.Store) error {
+	c.mu.Lock()
+	for _, have := range c.stores {
+		if have == st {
+			c.mu.Unlock()
+			return nil
+		}
+	}
+	c.stores = append(c.stores, st)
+	c.mu.Unlock()
+	err := st.ExtendAllFleetLeases(c.ctx, c.cfg.Now().Add(c.cfg.LeaseTTL))
+	c.poke()
+	return err
+}
+
+func (c *Controller) allStores() []*storage.Store {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]*storage.Store(nil), c.stores...)
+}
+
+// jobStore finds the store holding a job; an unknown job maps to cfg.Store,
+// where the lookup that follows reports it missing.
+func (c *Controller) jobStore(ctx context.Context, jobID string) *storage.Store {
+	c.mu.Lock()
+	st := c.jobStores[jobID]
+	c.mu.Unlock()
+	if st != nil {
+		return st
+	}
+	for _, st := range c.allStores() {
+		if j, ok, err := st.FleetJob(ctx, jobID); err == nil && ok {
+			if j.Status == storage.FleetRunning {
+				c.mu.Lock()
+				c.jobStores[jobID] = st
+				c.mu.Unlock()
+			}
+			return st
+		}
+	}
+	return c.cfg.Store
 }
 
 // Close stops scheduling and disconnects agents. Open leases stay stored and
@@ -310,13 +362,16 @@ func (c *Controller) Connect(stream grpc.BidiStreamingServer[fleetpb.AgentMessag
 	for _, l := range hello.GetLeases() {
 		reported[l.GetLeaseId()] = true
 	}
-	open, err := c.cfg.Store.ActiveFleetLeases(ctx, id)
-	if err != nil {
-		return status.Error(codes.Internal, err.Error())
-	}
 	stored := map[string]storage.FleetAttempt{}
-	for _, l := range open {
-		stored[l.LeaseID] = l
+	leaseStores := map[string]*storage.Store{}
+	for _, st := range c.allStores() {
+		open, err := st.ActiveFleetLeases(ctx, id)
+		if err != nil {
+			return status.Error(codes.Internal, err.Error())
+		}
+		for _, l := range open {
+			stored[l.LeaseID], leaseStores[l.LeaseID] = l, st
+		}
 	}
 	for leaseID := range reported {
 		l, ok := stored[leaseID]
@@ -334,7 +389,7 @@ func (c *Controller) Connect(stream grpc.BidiStreamingServer[fleetpb.AgentMessag
 	for leaseID := range stored {
 		if !reported[leaseID] {
 			// The agent restarted and lost this work.
-			if _, fin, err := c.cfg.Store.EndFleetLease(ctx, leaseID, storage.FleetExpired, "agent reconnected without the lease", c.cfg.Now()); err == nil && fin {
+			if _, fin, err := leaseStores[leaseID].EndFleetLease(ctx, leaseID, storage.FleetExpired, "agent reconnected without the lease", c.cfg.Now()); err == nil && fin {
 				c.forgetFinishedJobs()
 			}
 		}
@@ -434,7 +489,7 @@ func cancelMsg(leaseID, reason string) *fleetpb.ControllerMessage {
 }
 
 func (c *Controller) leaseState(ctx context.Context, jobID string, idx int) (*leaseState, error) {
-	u, err := c.cfg.Store.FleetUnit(ctx, jobID, idx)
+	u, err := c.jobStore(ctx, jobID).FleetUnit(ctx, jobID, idx)
 	if err != nil {
 		return nil, err
 	}
@@ -459,13 +514,26 @@ func (c *Controller) handle(ctx context.Context, a *agentConn, m *fleetpb.AgentM
 		if err := c.cfg.Store.TouchFleetAgent(ctx, a.id, now, offset, nil); err != nil {
 			return status.Error(codes.Internal, err.Error())
 		}
-		var ids []string
+		// Renew each lease in its job's store; a lease this connection does
+		// not know is checked in cfg.Store and comes back as gone.
+		byStore := map[*storage.Store][]string{}
 		for _, l := range msg.Heartbeat.GetLeases() {
-			ids = append(ids, l.GetLeaseId())
+			c.mu.Lock()
+			ls := a.leases[l.GetLeaseId()]
+			c.mu.Unlock()
+			st := c.cfg.Store
+			if ls != nil {
+				st = c.jobStore(ctx, ls.jobID)
+			}
+			byStore[st] = append(byStore[st], l.GetLeaseId())
 		}
-		gone, err := c.cfg.Store.RenewFleetLeases(ctx, a.id, ids, now.Add(c.cfg.LeaseTTL))
-		if err != nil {
-			return status.Error(codes.Internal, err.Error())
+		var gone []string
+		for st, ids := range byStore {
+			lost, err := st.RenewFleetLeases(ctx, a.id, ids, now.Add(c.cfg.LeaseTTL))
+			if err != nil {
+				return status.Error(codes.Internal, err.Error())
+			}
+			gone = append(gone, lost...)
 		}
 		for _, id := range gone {
 			c.dropLease(a, id)
@@ -491,7 +559,7 @@ func (c *Controller) handle(ctx context.Context, a *agentConn, m *fleetpb.AgentM
 			return nil
 		}
 		c.dropLease(a, r.GetLeaseId())
-		if _, fin, err := c.cfg.Store.EndFleetLease(ctx, r.GetLeaseId(), storage.FleetRejected, "agent: "+r.GetReason(), c.cfg.Now()); err != nil {
+		if _, fin, err := c.jobStore(ctx, ls.jobID).EndFleetLease(ctx, r.GetLeaseId(), storage.FleetRejected, "agent: "+r.GetReason(), c.cfg.Now()); err != nil {
 			return status.Error(codes.Internal, err.Error())
 		} else if fin {
 			c.forgetFinishedJobs()
@@ -574,19 +642,22 @@ func (c *Controller) applyResult(ctx context.Context, a *agentConn, b *fleetpb.R
 	if ls == nil {
 		// A resend of an already finished lease is acknowledged again so the
 		// agent can forget it; anything else is stale.
-		if at, ok, err := c.cfg.Store.FleetAttempt(ctx, leaseID); err == nil && ok && at.AgentID == a.id && b.GetSeq() <= at.LastSeq {
-			a.send(ackMsg(leaseID, at.LastSeq, at.Status != storage.FleetLeased))
-			return nil
+		for _, st := range c.allStores() {
+			if at, ok, err := st.FleetAttempt(ctx, leaseID); err == nil && ok && at.AgentID == a.id && b.GetSeq() <= at.LastSeq {
+				a.send(ackMsg(leaseID, at.LastSeq, at.Status != storage.FleetLeased))
+				return nil
+			}
 		}
 		a.send(cancelMsg(leaseID, "lease is no longer active"))
 		return nil
 	}
+	store := c.jobStore(ctx, ls.jobID)
 	recs, err := decodeRecords(b.GetRecords(), ls.runs)
 	if err != nil {
 		err = fmt.Errorf("%w: %w", storage.ErrInvalidBatch, err)
 	} else {
 		var applied storage.FleetApplied
-		applied, err = c.cfg.Store.ApplyFleetBatch(ctx, leaseID, b.GetSeq(), recs, c.cfg.Now())
+		applied, err = store.ApplyFleetBatch(ctx, leaseID, b.GetSeq(), recs, c.cfg.Now())
 		if err == nil {
 			// Queue the Ack before waking the scheduler, so the agent frees
 			// its lease slot before any new Lease arrives on the stream.
@@ -614,7 +685,7 @@ func (c *Controller) applyResult(ctx context.Context, a *agentConn, b *fleetpb.R
 		reason = "lease is no longer active"
 	} else {
 		c.cfg.Log.Printf("agent %s lease %s: rejecting results: %v", a.id, leaseID, err)
-		if _, fin, endErr := c.cfg.Store.EndFleetLease(ctx, leaseID, storage.FleetFailed, "invalid results: "+reason, c.cfg.Now()); endErr != nil {
+		if _, fin, endErr := store.EndFleetLease(ctx, leaseID, storage.FleetFailed, "invalid results: "+reason, c.cfg.Now()); endErr != nil {
 			return status.Error(codes.Internal, endErr.Error())
 		} else if fin {
 			c.forgetFinishedJobs()
@@ -628,8 +699,14 @@ func (c *Controller) applyResult(ctx context.Context, a *agentConn, b *fleetpb.R
 
 // expire ends leases whose agents stopped renewing them.
 func (c *Controller) expire() {
+	for _, st := range c.allStores() {
+		c.expireIn(st)
+	}
+}
+
+func (c *Controller) expireIn(st *storage.Store) {
 	now := c.cfg.Now()
-	ids, err := c.cfg.Store.ExpiredFleetLeases(c.ctx, now)
+	ids, err := st.ExpiredFleetLeases(c.ctx, now)
 	if err != nil {
 		if c.ctx.Err() == nil {
 			c.cfg.Log.Printf("expire leases: %v", err)
@@ -637,7 +714,7 @@ func (c *Controller) expire() {
 		return
 	}
 	for _, id := range ids {
-		ok, fin, err := c.cfg.Store.ExpireFleetLease(c.ctx, id, "no heartbeat before the lease expired", now)
+		ok, fin, err := st.ExpireFleetLease(c.ctx, id, "no heartbeat before the lease expired", now)
 		if err != nil {
 			c.cfg.Log.Printf("expire lease %s: %v", id, err)
 			continue
@@ -671,7 +748,7 @@ func (c *Controller) plan(ctx context.Context, jobID string) (*jobPlan, error) {
 	if p != nil {
 		return p, nil
 	}
-	j, ok, err := c.cfg.Store.FleetJob(ctx, jobID)
+	j, ok, err := c.jobStore(ctx, jobID).FleetJob(ctx, jobID)
 	if err != nil {
 		return nil, err
 	}
@@ -729,16 +806,25 @@ func (c *Controller) forgetFinishedJobs() {
 	}
 	c.mu.Unlock()
 	var done []string
+	finished := map[*storage.Store]bool{}
 	for _, id := range ids {
-		j, ok, err := c.cfg.Store.FleetJob(c.ctx, id)
+		st := c.jobStore(c.ctx, id)
+		j, ok, err := st.FleetJob(c.ctx, id)
 		if err == nil && (!ok || j.Status != storage.FleetRunning) {
 			done = append(done, id)
+			finished[st] = true
+		}
+	}
+	if c.cfg.OnJobFinished != nil {
+		for st := range finished {
+			c.cfg.OnJobFinished(st)
 		}
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, id := range done {
 		delete(c.plans, id)
+		delete(c.jobStores, id)
 		for k := range c.rejected {
 			if strings.HasPrefix(k, id+"/") {
 				delete(c.rejected, k)
@@ -762,23 +848,32 @@ func (c *Controller) schedule() {
 	}
 	c.mu.Unlock()
 	now := c.cfg.Now()
-	units, err := c.cfg.Store.PendingFleetUnits(c.ctx, now, 512)
-	if err != nil {
-		if c.ctx.Err() == nil {
-			c.cfg.Log.Printf("pending units: %v", err)
-		}
-		return
-	}
-	// Count every open lease, including those of disconnected agents that
-	// have not expired yet: they may still be scanning.
-	open, err := c.cfg.Store.ActiveFleetLeases(c.ctx, "")
-	if err != nil {
-		c.cfg.Log.Printf("active leases: %v", err)
-		return
-	}
+	var units []storage.FleetUnit
 	active := map[string]int{}
-	for _, l := range open {
-		active[l.JobID]++
+	for _, st := range c.allStores() {
+		pending, err := st.PendingFleetUnits(c.ctx, now, 512)
+		if err != nil {
+			if c.ctx.Err() == nil {
+				c.cfg.Log.Printf("pending units: %v", err)
+			}
+			return
+		}
+		// Count every open lease, including those of disconnected agents that
+		// have not expired yet: they may still be scanning.
+		open, err := st.ActiveFleetLeases(c.ctx, "")
+		if err != nil {
+			c.cfg.Log.Printf("active leases: %v", err)
+			return
+		}
+		for _, l := range open {
+			active[l.JobID]++
+		}
+		c.mu.Lock()
+		for _, u := range pending {
+			c.jobStores[u.JobID] = st
+		}
+		c.mu.Unlock()
+		units = append(units, pending...)
 	}
 	for _, u := range units {
 		p, err := c.plan(c.ctx, u.JobID)
@@ -836,7 +931,7 @@ func (c *Controller) schedule() {
 		offset := a.offset
 		c.mu.Unlock()
 		leaseID := randomID("lease-", 12)
-		attempt, ok, err := c.cfg.Store.LeaseFleetUnit(c.ctx, u.JobID, u.Index, leaseID, a.id, now, now.Add(c.cfg.LeaseTTL), offset)
+		attempt, ok, err := c.jobStore(c.ctx, u.JobID).LeaseFleetUnit(c.ctx, u.JobID, u.Index, leaseID, a.id, now, now.Add(c.cfg.LeaseTTL), offset)
 		if err != nil || !ok {
 			if err != nil {
 				c.cfg.Log.Printf("lease job %s unit %d: %v", u.JobID, u.Index, err)
@@ -862,8 +957,17 @@ func (c *Controller) schedule() {
 	}
 }
 
-// Submit validates, partitions and stores a distributed scan.
+// Submit stores a distributed scan in the controller's own database.
 func (c *Controller) Submit(ctx context.Context, req config.Request, opts JobOptions) (storage.FleetJob, error) {
+	return c.SubmitTo(ctx, c.cfg.Store, req, opts)
+}
+
+// SubmitTo validates, partitions and stores a distributed scan in st, which
+// then receives the job's results. st is attached if it was not already.
+func (c *Controller) SubmitTo(ctx context.Context, st *storage.Store, req config.Request, opts JobOptions) (storage.FleetJob, error) {
+	if err := c.Attach(st); err != nil {
+		return storage.FleetJob{}, err
+	}
 	if err := opts.normalize(); err != nil {
 		return storage.FleetJob{}, err
 	}
@@ -893,23 +997,27 @@ func (c *Controller) Submit(ctx context.Context, req config.Request, opts JobOpt
 	for i, u := range units {
 		stored[i] = storage.FleetUnit{Targets: u.Targets, TargetCount: u.Count, SubnetShare: u.SubnetShare}
 	}
-	if err := c.cfg.Store.CreateFleetJob(ctx, job, stored); err != nil {
+	if err := st.CreateFleetJob(ctx, job, stored); err != nil {
 		return storage.FleetJob{}, err
 	}
+	c.mu.Lock()
+	c.jobStores[job.ID] = st
+	c.mu.Unlock()
 	c.poke()
-	j, _, err := c.cfg.Store.FleetJob(ctx, job.ID)
+	j, _, err := st.FleetJob(ctx, job.ID)
 	return j, err
 }
 
 // Cancel stops a running job and its leases. ok is false when the job is not
 // running.
 func (c *Controller) Cancel(ctx context.Context, jobID string) (bool, error) {
-	leases, ok, err := c.cfg.Store.CancelFleetJob(ctx, jobID, c.cfg.Now())
+	st := c.jobStore(ctx, jobID)
+	leases, ok, err := st.CancelFleetJob(ctx, jobID, c.cfg.Now())
 	if err != nil || !ok {
 		return ok, err
 	}
 	for _, l := range leases {
-		if _, _, err := c.cfg.Store.EndFleetLease(ctx, l.LeaseID, storage.FleetCanceled, "job canceled", c.cfg.Now()); err != nil {
+		if _, _, err := st.EndFleetLease(ctx, l.LeaseID, storage.FleetCanceled, "job canceled", c.cfg.Now()); err != nil {
 			return true, err
 		}
 		c.mu.Lock()
@@ -992,15 +1100,16 @@ type UnitDetail struct {
 
 // Job returns a job's full state; ok is false when it does not exist.
 func (c *Controller) Job(ctx context.Context, jobID string) (JobDetail, bool, error) {
-	j, ok, err := c.cfg.Store.FleetJob(ctx, jobID)
+	st := c.jobStore(ctx, jobID)
+	j, ok, err := st.FleetJob(ctx, jobID)
 	if err != nil || !ok {
 		return JobDetail{}, ok, err
 	}
-	units, err := c.cfg.Store.FleetUnits(ctx, jobID)
+	units, err := st.FleetUnits(ctx, jobID)
 	if err != nil {
 		return JobDetail{}, false, err
 	}
-	attempts, err := c.cfg.Store.FleetAttempts(ctx, jobID)
+	attempts, err := st.FleetAttempts(ctx, jobID)
 	if err != nil {
 		return JobDetail{}, false, err
 	}
@@ -1017,6 +1126,11 @@ func (c *Controller) Job(ctx context.Context, jobID string) (JobDetail, bool, er
 	}
 	c.mu.Unlock()
 	return d, true, nil
+}
+
+// JobsIn lists recent jobs stored in st.
+func (c *Controller) JobsIn(ctx context.Context, st *storage.Store, limit int) ([]storage.FleetJob, error) {
+	return st.FleetJobs(ctx, limit)
 }
 
 // Jobs lists recent jobs.

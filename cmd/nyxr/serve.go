@@ -29,6 +29,7 @@ import (
 	"github.com/matusso/nyxr/internal/horizon"
 	"github.com/matusso/nyxr/internal/horizon/dsl"
 	"github.com/matusso/nyxr/internal/horizon/model"
+	"github.com/matusso/nyxr/internal/observe"
 	"github.com/matusso/nyxr/internal/packetd"
 	"github.com/matusso/nyxr/internal/packetio"
 	"github.com/matusso/nyxr/internal/service"
@@ -44,6 +45,7 @@ unprivileged; raw SYN, ARP/NDP and pcapng capture go through nyxr-packetd.
 Flags:
   --listen addr        listen address (default 127.0.0.1:8484)
   --db file            SQLite database for scans and results (default ~/.nyxr/nyxr.db)
+  --network name       serve the database of this named network (see nyxr history --networks)
   --packetd socket     nyxr-packetd Unix socket for raw packet I/O
   --evidence-dir dir   directory for pcapng captures requested through the API
   --protocol-registry files  comma-separated operator-owned protocol YAML files
@@ -85,6 +87,7 @@ func runServe(args []string, out io.Writer) error {
 	fs.Usage = func() { serveUsage(out) }
 	listen := fs.String("listen", "127.0.0.1:8484", "listen address")
 	dbFlag := dbFlags{path: fs.String("db", "", "SQLite database")}
+	networkFlag := fs.String("network", "", "serve the database of this named network")
 	packetdSocket := fs.String("packetd", "", "packetd socket")
 	evidenceDir := fs.String("evidence-dir", "", "pcapng directory")
 	protocolRegistry := fs.String("protocol-registry", "", "operator-owned protocol YAML files")
@@ -178,6 +181,25 @@ func runServe(args []string, out io.Writer) error {
 	db, err := dbFlag.resolve()
 	if err != nil {
 		return err
+	}
+	// Without --db the default database is also the registry of named
+	// networks, and the web UI can switch between them.
+	registryPath := ""
+	if *dbFlag.path == "" {
+		registryPath = db
+	}
+	if *networkFlag != "" {
+		if *dbFlag.path != "" {
+			return errors.New("--network and --db are mutually exclusive")
+		}
+		path, ok, err := networkPath(context.Background(), db, *networkFlag)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("no network named %q; see nyxr history --networks", *networkFlag)
+		}
+		db = path
 	}
 	if *maxScans < 1 {
 		return errors.New("--max-scans must be at least 1")
@@ -282,7 +304,12 @@ func runServe(args []string, out io.Writer) error {
 	if *packetdSocket != "" {
 		mcfg.OpenLive = packetd.Opener(*packetdSocket)
 	}
-	manager, err := api.NewManager(mcfg)
+	var router *networkRouter // set below, before any scan can finish
+	served := mcfg
+	if *networkFlag != "" {
+		served.OnFinish = func(observe.Scan) { router.finished(store, *networkFlag) }
+	}
+	manager, err := api.NewManager(served)
 	if err != nil {
 		return err
 	}
@@ -296,7 +323,12 @@ func runServe(args []string, out io.Writer) error {
 	var fleetSrv *grpc.Server
 	if *fleetListen != "" {
 		fleetCtrl, err = fleet.NewController(fleet.ControllerConfig{Store: store, EnrollToken: enrollToken, LeaseTTL: *fleetTTL,
-			Log: log.New(os.Stderr, "nyxr fleet: ", log.LstdFlags)})
+			Log: log.New(os.Stderr, "nyxr fleet: ", log.LstdFlags),
+			OnJobFinished: func(st *storage.Store) {
+				if router != nil {
+					router.finishedStore(st)
+				}
+			}})
 		if err != nil {
 			return err
 		}
@@ -336,11 +368,75 @@ func runServe(args []string, out io.Writer) error {
 			kind = central.LineageController
 		}
 		fmt.Fprintf(os.Stderr, "nyxr central sync (%s, %s lineage) every %s\n", cdb.Dialect(), kind, *centralSync)
-		go centralSyncLoop(ctx, store, cdb, central.PushOptions{Kind: kind, UploadCaptures: *centralObjects != "" || os.Getenv("NYXR_CENTRAL_OBJECTS") != "",
+		go centralSyncLoop(ctx, func() []*storage.Store {
+			if router == nil {
+				return []*storage.Store{store}
+			}
+			return append([]*storage.Store{store}, router.stores()...)
+		}, cdb, central.PushOptions{Kind: kind, UploadCaptures: *centralObjects != "" || os.Getenv("NYXR_CENTRAL_OBJECTS") != "",
 			CaptureRetention: *centralRetention}, *centralSync, log.New(os.Stderr, "nyxr central: ", log.LstdFlags))
 	}
-	handler := api.Handler(api.ServerConfig{Horizon: horizonRuns, Manager: manager, Store: store, Token: token, AllowedHosts: hosts,
-		Version: version, EvidenceDir: *evidenceDir, PacketSendEnabled: *allowPacketSend, Fleet: fleetCtrl})
+	serverConfig := func(st *storage.Store, m *api.Manager) api.ServerConfig {
+		// One fleet controller serves every network: a job and its results
+		// stay in the database it was submitted to.
+		return api.ServerConfig{Horizon: horizonRuns, Manager: m, Store: st, Token: token, AllowedHosts: hosts,
+			Version: version, EvidenceDir: *evidenceDir, PacketSendEnabled: *allowPacketSend, Fleet: fleetCtrl}
+	}
+	fallback := serverConfig(store, manager)
+	handler := api.Handler(fallback)
+	if registryPath != "" {
+		router = &networkRouter{ctx: ctx, registryPath: registryPath, registry: store, fallbackName: *networkFlag, fallbackStore: store, open: map[string]*servedNetwork{}}
+		router.build = func(st *storage.Store, network string) (http.Handler, *api.Manager, error) {
+			mc := mcfg
+			mc.Store = st
+			if network != "" {
+				mc.OnFinish = func(observe.Scan) { router.finished(st, network) }
+			}
+			if fleetCtrl != nil {
+				if err := fleetCtrl.Attach(st); err != nil {
+					return nil, nil, err
+				}
+			}
+			m, err := api.NewManager(mc)
+			if err != nil {
+				return nil, nil, err
+			}
+			return api.Handler(serverConfig(st, m)), m, nil
+		}
+		defer func() {
+			if fleetCtrl != nil {
+				fleetCtrl.Close() // before its network stores close
+			}
+			router.close()
+		}()
+		networks := &api.Networks{Default: *networkFlag, Create: router.create}
+		if *networkFlag == "" {
+			fallback.Networks = networks
+			router.fallback = api.Handler(fallback)
+			router.registryAPI = router.fallback
+		} else {
+			// --network serves that database by default; the registry
+			// lives in the default one.
+			if router.registry, err = openStore(ctx, registryPath); err != nil {
+				return err
+			}
+			defer router.registry.Close()
+			mc := mcfg
+			mc.Store = router.registry
+			m, err := api.NewManager(mc)
+			if err != nil {
+				return err
+			}
+			defer m.Close()
+			rc := serverConfig(router.registry, m)
+			rc.Networks = networks
+			router.fallback, router.registryAPI = handler, api.Handler(rc)
+		}
+		handler = router
+		if fleetCtrl != nil {
+			router.stores() // attach every network so its fleet jobs resume now
+		}
+	}
 	l, err := net.Listen("tcp", *listen)
 	if err != nil {
 		return err
@@ -376,17 +472,20 @@ func isLoopbackHost(host string) bool {
 // centralSyncLoop pushes the serve database to the central store until ctx
 // ends. Pushes are idempotent and resume from the lineage cursor, so a failed
 // round is simply retried on the next tick.
-func centralSyncLoop(ctx context.Context, src *storage.Store, dst central.Store, opts central.PushOptions, every time.Duration, logger *log.Logger) {
+func centralSyncLoop(ctx context.Context, sources func() []*storage.Store, dst central.Store, opts central.PushOptions, every time.Duration, logger *log.Logger) {
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
-		res, err := central.Push(ctx, src, dst, opts)
-		switch {
-		case err != nil && ctx.Err() == nil:
-			logger.Printf("push failed: %v", err)
-		case err == nil && (res.Ingested.Observations > 0 || res.Ingested.Conflicts > 0 || res.Uploaded > 0):
-			logger.Printf("pushed %d observation(s), %d conflict(s), %d capture(s) uploaded, %d pending",
-				res.Ingested.Observations, res.Ingested.Conflicts, res.Uploaded, res.Pending)
+		// Every network database is its own lineage in the central store.
+		for _, src := range sources() {
+			res, err := central.Push(ctx, src, dst, opts)
+			switch {
+			case err != nil && ctx.Err() == nil:
+				logger.Printf("push failed: %v", err)
+			case err == nil && (res.Ingested.Observations > 0 || res.Ingested.Conflicts > 0 || res.Uploaded > 0):
+				logger.Printf("pushed %d observation(s), %d conflict(s), %d capture(s) uploaded, %d pending",
+					res.Ingested.Observations, res.Ingested.Conflicts, res.Uploaded, res.Pending)
+			}
 		}
 		select {
 		case <-ctx.Done():

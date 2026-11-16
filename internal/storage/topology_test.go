@@ -168,7 +168,8 @@ func TestTopologyMigrationBackfillsOnlyRetainedObservations(t *testing.T) {
 		DROP TABLE probe_runs; DROP TABLE topology_reviews; DROP TABLE topology_claims; DROP TABLE passive_link_sources;
 		ALTER TABLE passive_links DROP COLUMN source_artifact_id; ALTER TABLE passive_links DROP COLUMN ttl_seconds;
 		ALTER TABLE passive_links DROP COLUMN frame_index; ALTER TABLE passive_links DROP COLUMN frame_hash;
-		ALTER TABLE passive_links DROP COLUMN valid_until; DELETE FROM schema_migrations WHERE version >= 8`); err != nil {
+		ALTER TABLE passive_links DROP COLUMN valid_until; DROP TABLE networks; ALTER TABLE scans DROP COLUMN name;
+		ALTER TABLE scans DROP COLUMN scope; DELETE FROM schema_migrations WHERE version >= 8`); err != nil {
 		t.Fatal(err)
 	}
 	_ = db.Close()

@@ -106,11 +106,12 @@ const obsHeaders = ["target", "port", "state", "evidence score", "rtt", "detail"
 function scanRow(s) {
   return h("tr", {},
     h("td", {}, h("a", { class: "mono", href: "#/scans/" + encodeURIComponent(s.scan_id) }, s.scan_id)),
+    h("td", {}, s.name ? h("a", { href: "#/diff/" + encodeURIComponent(s.name), title: "What changed on this network: its last two scans" }, s.name) : ""),
     h("td", {}, s.profile), h("td", {}, state(s.status)), h("td", {}, fmtTime(s.started)),
     h("td", { class: "num" }, s.targets), h("td", { class: "num" }, s.observations), h("td", { class: "num" }, s.services),
     h("td", { class: "wrap error" }, s.error || ""));
 }
-const scanHeaders = ["scan", "profile", "status", "started", "targets", "observations", "services", ""];
+const scanHeaders = ["scan", "name", "profile", "status", "started", "targets", "observations", "services", ""];
 
 // hostGroup renders one collapsible target: a summary row that opens to its
 // ports. Used by the assets page and the scan page.
@@ -135,6 +136,60 @@ function hostGroup({ address, sub, chips = [], preview = "", when = "", actions 
 }
 
 function chip(text, cls = "") { return h("span", { class: "chip " + cls }, text); }
+
+// Networks: each named network has its own database on the server, and a
+// cookie tells the server which one this browser is looking at.
+let networks = null; // { enabled, default, networks }
+let chosenBoot = pref("network-chosen"); // server start for which this browser picked a network
+function selectedNetwork() {
+  const m = document.cookie.match(/(?:^|; )nyxr_network=([^;]*)/);
+  const name = m ? decodeURIComponent(m[1]) : "";
+  return networks && networks.networks.some(n => n.name === name) ? name : (networks && networks.default) || "";
+}
+function selectNetwork(name) {
+  document.cookie = `nyxr_network=${encodeURIComponent(name)}; path=/; max-age=31536000; samesite=strict`;
+  pref("network-chosen", networks.boot);
+  chosenBoot = networks.boot;
+  agentCache = null;
+  invalidateSearch();
+  renderNetworkPicker();
+}
+function networkSelect() {
+  const current = selectedNetwork();
+  return h("select", { "aria-label": "Network" },
+    networks.default ? null : h("option", { value: "", selected: !current }, "default database"),
+    networks.networks.map(n => h("option", { value: n.name, selected: n.name === current }, `${n.name} · ${n.scans} scan${n.scans === 1 ? "" : "s"}`)));
+}
+const NEW_NETWORK = "\u0000new"; // not a valid network name
+function renderNetworkPicker() {
+  const slot = document.getElementById("network-slot");
+  slot.parentElement.hidden = !networks.enabled;
+  if (!networks.enabled) return;
+  const sel = networkSelect();
+  sel.append(h("option", { value: NEW_NETWORK }, "＋ New network…"));
+  sel.addEventListener("change", () => {
+    if (sel.value !== NEW_NETWORK) { selectNetwork(sel.value); return route(); }
+    renderNetworkPicker(); // the current network stays selected until the scan is submitted
+    chosenBoot = networks.boot;
+    if (location.hash === "#/new?network=new") route(); else location.hash = "#/new?network=new";
+  });
+  slot.replaceChildren(sel);
+}
+async function loadNetworks() {
+  networks = await api("/networks", { signal: null });
+  renderNetworkPicker();
+}
+// chooserPage is the first thing a new browser sees: pick a network or start a scan.
+function chooserPage() {
+  const sel = networkSelect();
+  return h("section", { class: "chooser" },
+    h("h1", {}, "Choose a network"),
+    h("p", { class: "muted" }, "Each named network keeps its own scans, assets and history."),
+    h("div", { class: "chooser-row" }, sel, h("button", { type: "button", onclick: () => { selectNetwork(sel.value); route(); } }, "Open")),
+    h("p", { class: "muted" }, "or"),
+    // Scan the network picked above; the form's name field can still name a new one.
+    h("button", { type: "button", onclick: () => { selectNetwork(sel.value); location.hash = "#/new"; } }, "＋ Create new scan"));
+}
 
 function pageHead(title, intro, tools) {
   return h("div", { class: "page-head" }, h("div", {}, h("h1", {}, title), intro ? h("p", {}, intro) : null), tools ? h("div", { class: "page-tools" }, tools) : null);
@@ -248,11 +303,41 @@ async function scansPage() {
   await refresh();
   const interval = setInterval(() => refresh().catch(() => {}), 5000);
   signal.addEventListener("abort", () => clearInterval(interval), { once: true });
+  // Newest first: compare the previous scan with the latest by default.
+  const scans = await api("/scans?limit=200", { signal });
+  const pick = (label, index) => h("label", {}, label + " ", h("select", { "aria-label": label + " scan" },
+    scans.map((s, i) => h("option", { value: s.scan_id, selected: i === index }, `${s.name || s.scan_id} · ${fmtTime(s.started)} · ${s.profile} · ${s.status}`))));
+  const before = pick("Before", 1), after = pick("After", 0);
+  const compare = scans.length < 2 ? null : panel("COMPARE", h("div", { class: "pad" }, before, " ", after, " ",
+    h("button", { type: "button", onclick: () => {
+      location.hash = `#/diff/${encodeURIComponent(before.lastChild.value)}/${encodeURIComponent(after.lastChild.value)}`;
+    } }, "Diff scans")));
   return [pageHead("Scans", "Scan history and live activity update automatically.", h("a", { class: "button-link", href: "#/new" }, "＋ New scan")),
-    panel("HISTORY", list, { flush: true })];
+    compare, panel("HISTORY", list, { flush: true })];
 }
 
-async function newScan(knownScope = null) {
+async function diffPage(before, after) {
+  // One segment is a scan name: the last two scans of that network.
+  const d = await api(after === undefined ? `/scans/diff?name=${encodeURIComponent(before)}`
+    : `/scans/diff?before=${encodeURIComponent(before)}&after=${encodeURIComponent(after)}`);
+  const marks = { added: "+", removed: "−", changed: "~", not_observed: "?" };
+  const trace = (id, label) => id ? h("a", { href: "#/evidence/" + encodeURIComponent(id) }, label) : "";
+  const scanLink = s => h("a", { class: "mono", href: "#/scans/" + encodeURIComponent(s.scan_id) }, s.scan_id);
+  return [pageHead("Scan diff", "Silence, failed scans and untested endpoints are reported as unverified, never as removed.",
+      h("a", { class: "button-link secondary", href: "#/scans" }, "← Scans")),
+    panel("COMPARED", kv([["version", d.version], ["before", h("span", {}, scanLink(d.before), ` · ${d.before.name || "unnamed"} · ${d.before.profile} · ${d.before.status}`)],
+      ["after", h("span", {}, scanLink(d.after), ` · ${d.after.name || "unnamed"} · ${d.after.profile} · ${d.after.status}`)],
+      ["changes", Object.entries(d.summary).map(([k, n]) => `${k} ${n}`).join(" · ") || "none"]])),
+    d.limitations.length ? panel("LIMITATIONS", h("ul", { class: "pad" }, d.limitations.map(l => h("li", {}, l)))) : null,
+    panel("CHANGES", d.changes.length ? table(["", "address", "port", "kind", "before", "after", "certainty", "asset", "evidence"], d.changes.map(c => h("tr", {},
+      h("td", { title: c.change }, marks[c.change] || ""), h("td", { class: "mono" }, c.address), h("td", {}, c.port ? `${c.transport}/${c.port}` : ""),
+      h("td", {}, c.kind, c.field ? h("small", {}, " " + c.field) : null), h("td", { class: "wrap mono" }, c.before || ""), h("td", { class: "wrap mono" }, c.after || ""),
+      h("td", {}, c.status === "unverified" ? `unverified: ${c.reason}` : c.reason ? `observed (${c.reason})` : "observed"),
+      h("td", { class: "mono" }, c.asset || ""), h("td", {}, trace(c.before_observation, "before"), " ", trace(c.after_observation, "after"))))) :
+      h("p", { class: "muted pad" }, "No changes between these scans."), { flush: true })];
+}
+
+async function newScan(knownScope = null, newNetwork = false) {
   const profiles = (await api("/profiles")).filter(p => p.Availability === "available" && p.Name !== "research");
   const f = {};
   const input = (name, attrs = {}) => (f[name] = h("input", Object.assign({ type: "text", name }, attrs)));
@@ -295,7 +380,7 @@ async function newScan(knownScope = null) {
     const chosen = protos.filter(x => x.el.checked).map(x => x.p);
     if (!f.knownOpen.checked && chosen.length) r.protocols = chosen.join(",");
     if (f.knownOpen.checked) r.known_open = true;
-    for (const k of ["timeout", "interface", "source_ip", "source_mac", "next_hop_mac", "service_probes", "service_timeout", "send_hex", "pcapng"]) {
+    for (const k of ["name", "timeout", "interface", "source_ip", "source_mac", "next_hop_mac", "service_probes", "service_timeout", "send_hex", "pcapng"]) {
       const v = f[k].value.trim();
       if (v) r[k] = v;
     }
@@ -321,11 +406,19 @@ async function newScan(knownScope = null) {
   const form = h("form", { class: "grid", onsubmit: async ev => {
     ev.preventDefault();
     try {
-      const sc = await api("/scans", { body: request() });
+      const body = request();
+      // A named scan belongs to that network's database: register it, then look at it.
+      if (networks.enabled && body.name && body.name !== selectedNetwork()) {
+        await api("/networks", { body: { name: body.name } });
+        await loadNetworks();
+      }
+      selectNetwork(networks.enabled && body.name ? body.name : selectedNetwork());
+      const sc = await api("/scans", { body });
       invalidateSearch();
       location.hash = "#/scans/" + encodeURIComponent(sc.scan_id);
     } catch (e) { fail(e); }
   } },
+  h("label", {}, "name"), input("name", { maxlength: 64, value: newNetwork ? "" : selectedNetwork(), autofocus: newNetwork, placeholder: "network name, e.g. office-lan (a new name starts a new network)" }),
   h("label", {}, "scan source"), h("label", { class: "choice" }, f.knownOpen, " Service scan on stored open ports"),
   h("label", {}, "targets / scope"), h("div", {}, f.targets, targetHelp),
   h("label", {}, "profile"), f.profile,
@@ -460,7 +553,7 @@ async function scanPage(id) {
     observationValue.textContent = Math.max(s.observations, seen.size).toLocaleString();
     serviceValue.textContent = Math.max(s.services, servicesSeen).toLocaleString();
     updateElapsed();
-    summary.replaceChildren(kv([["profile", s.profile], ["status", state(s.status)], ["started", fmtTime(s.started)],
+    summary.replaceChildren(kv([["name", s.name], ["profile", s.profile], ["status", state(s.status)], ["started", fmtTime(s.started)],
       ["finished", fmtTime(s.finished)], ["targets", s.targets], ["observations", s.observations], ["services", s.services],
       ["error", s.error], ["capture", s.capture ? `${s.capture.written} packets, ${s.capture.bytes} bytes in ${s.capture.path}` +
         (s.capture.dropped_queue || s.capture.dropped_limit || s.capture.backend_drops ? " (drops recorded)" : "") : undefined]]));
@@ -1077,7 +1170,7 @@ function login(retry) {
 // ---- shell ----
 
 const SECTIONS = { "/": "Overview", "/scans": "Scans", "/new": "New scan", "/assets": "Assets", "/identities": "Identities",
-  "/services": "Services", "/packets": "Packets", "/profiles": "Profiles", "/horizon": "HORIZON", "/evidence": "Evidence" };
+  "/services": "Services", "/packets": "Packets", "/profiles": "Profiles", "/horizon": "HORIZON", "/evidence": "Evidence", "/diff": "Scan diff" };
 
 async function route() {
   if (page.abort) page.abort.abort();
@@ -1094,13 +1187,22 @@ async function route() {
   const section = SECTIONS[top] || "Workspace";
   document.getElementById("current-page").textContent = section;
   document.title = section === "Overview" ? "nyxr" : `${section} · nyxr`;
+  // Reloaded on every navigation: scan counts stay fresh, and a restarted
+  // server is noticed by tabs that were already open.
+  try { await loadNetworks(); } catch (e) {
+    if (e instanceof AuthError) return login(route);
+    networks = networks || { enabled: false, boot: "", default: "", networks: [] };
+  }
   let pageP;
-  if (hash === "/") pageP = dashboard();
+  // Asked once per server start, whatever page the browser opens on; the scan form is the other way in.
+  if (networks.enabled && chosenBoot !== networks.boot && !hash.startsWith("/new")) pageP = Promise.resolve(chooserPage());
+  else if (hash === "/") pageP = dashboard();
   else if (hash === "/scans") pageP = scansPage();
-  else if (hash === "/new") pageP = newScan();
+  else if (hash === "/new") pageP = newScan(null, params.get("network") === "new");
   else if (hash === "/new/known-open") pageP = newScan("");
   else if (hash.startsWith("/new/known-open/")) pageP = newScan(decodeURIComponent(hash.slice(16)));
   else if (hash.startsWith("/scans/")) pageP = scanPage(decodeURIComponent(hash.slice(7)));
+  else if (hash.startsWith("/diff/")) pageP = diffPage(...hash.slice(6).split("/").map(decodeURIComponent));
   else if (hash === "/assets") pageP = assetsPage(params);
   else if (hash === "/identities") pageP = identitiesPage();
   else if (hash === "/services") pageP = servicesPage();

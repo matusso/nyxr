@@ -43,6 +43,8 @@ type CaptureOptions struct {
 
 // Options configure the stages around discovery.
 type Options struct {
+	// Name labels the scan; empty generates a two-word name.
+	Name        string
 	Service     config.Service
 	Fingerprint bool
 	Capture     *CaptureOptions
@@ -71,7 +73,7 @@ type Options struct {
 // uses it, so equivalent requests run equivalent pipelines. Callers add sinks
 // and the packet opener.
 func FromResolved(r config.Resolved) Options {
-	o := Options{Service: r.Service, NSE: r.NSE, Fingerprint: r.Fingerprint}
+	o := Options{Name: r.Name, Service: r.Service, NSE: r.NSE, Fingerprint: r.Fingerprint}
 	if r.PCAPNG != "" {
 		o.Capture = &CaptureOptions{Path: r.PCAPNG, Interface: r.Config.Interface, MaxBytes: r.PCAPNGMaxBytes}
 	}
@@ -116,7 +118,19 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 	now := time.Now()
 	summary := observe.Scan{
 		Schema: observe.SchemaVersion, Kind: observe.KindScan, ID: observe.NewScanID(now), Profile: cfg.Profile,
-		Started: now.UTC(), Status: "running", Targets: cfg.TargetCount(),
+		Started: now.UTC(), Status: "running", Targets: cfg.TargetCount(), Name: opts.Name,
+		Scope: &observe.ScanScope{Targets: cfg.ScopeTargets(), Ports: map[string]string{}, PerTargetPorts: cfg.TargetPorts != nil},
+	}
+	if summary.Name == "" {
+		summary.Name = observe.NewScanName()
+	}
+	if cfg.Research == nil { // research packets do not follow the ordinary port plan
+		if cfg.TCP {
+			summary.Scope.Ports["tcp"] = config.FormatPorts(cfg.PortsFor("tcp"))
+		}
+		if cfg.UDP {
+			summary.Scope.Ports["udp"] = config.FormatPorts(cfg.PortsFor("udp"))
+		}
 	}
 	for _, s := range opts.Sinks {
 		if err := s.Begin(summary); err != nil {

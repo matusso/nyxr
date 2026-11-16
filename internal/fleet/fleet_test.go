@@ -576,3 +576,50 @@ func TestRateBelowParallelismRefused(t *testing.T) {
 		t.Fatal("accepted a global rate the leases cannot honor")
 	}
 }
+
+// A job submitted to an attached network database keeps its state and its
+// results there, survives a controller restart, and never touches the
+// controller's own database. Two networks may reuse one address range.
+func TestJobsStayInTheStoreTheyWereSubmittedTo(t *testing.T) {
+	h := newHarness(t, 3*time.Second)
+	network, err := storage.Open(context.Background(), filepath.Join(h.dir, "office-lan.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { network.Close() })
+	h.agent("eu-1", fakeDiscover(0, nil), nil)
+	h.waitConnected(1)
+	inNetwork, err := h.ctrl.SubmitTo(context.Background(), network, connectRequest("10.0.0.0/24"), JobOptions{UnitSize: 128})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inMain, err := h.ctrl.Submit(context.Background(), connectRequest("10.0.0.0/25"), JobOptions{UnitSize: 128})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]int{inNetwork.ID: 256, inMain.ID: 128} {
+		if d := h.waitJob(id); d.Status != storage.FleetCompleted || d.Observations != want {
+			t.Fatalf("job %s: %+v", id, d.FleetJob)
+		}
+	}
+	if n, m := countObservations(t, network), countObservations(t, h.store); n != 256 || m != 128 {
+		t.Fatalf("network holds %d observations, controller %d; want 256 and 128", n, m)
+	}
+	if jobs, _ := h.ctrl.JobsIn(context.Background(), network, 10); len(jobs) != 1 || jobs[0].ID != inNetwork.ID {
+		t.Fatalf("network jobs: %+v", jobs)
+	}
+	if jobs, _ := h.ctrl.Jobs(context.Background(), 10); len(jobs) != 1 || jobs[0].ID != inMain.ID {
+		t.Fatalf("controller jobs: %+v", jobs)
+	}
+	// After a restart the job is found again once its store is attached.
+	h.restart()
+	if _, ok, _ := h.ctrl.Job(context.Background(), inNetwork.ID); ok {
+		t.Fatal("job visible before its store was attached")
+	}
+	if err := h.ctrl.Attach(network); err != nil {
+		t.Fatal(err)
+	}
+	if d, ok, err := h.ctrl.Job(context.Background(), inNetwork.ID); err != nil || !ok || d.Observations != 256 {
+		t.Fatalf("job after restart: %+v %v %v", d.FleetJob, ok, err)
+	}
+}
