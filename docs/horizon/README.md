@@ -9,6 +9,7 @@ The guide below describes HZ-001. [Phase 2 correlation and evidence](correlation
 [Phase 5 evidence graph](evidence-graph.md) projects replayed runs into a versioned provenance graph of hypotheses with contradictions and confidence decay.
 [Phase 7 operations](operations.md) covers recognize/resolve/reconstruct modes, the run API, audit trail, metrics, UI, platform privileges and capture limits; see also the [security review](security-review.md).
 [Phase 6 adaptive planning and profiles](adaptive-profiles.md) chooses study roles under a budget, curtails decided roles exactly and reuses expiring behavior profiles with tested/profile-inferred/not-tested coverage.
+The [evidence index](evidence.md) lists every corpus, ablation and negative result.
 
 HORIZON is an opt-in experiment runner. Both SYN arms offer MSS 1460;
 **only treatment adds SACK permission**. It retains TCP replies, ICMP errors and ambiguous path candidates and

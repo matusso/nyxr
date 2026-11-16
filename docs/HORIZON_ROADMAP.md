@@ -1,9 +1,9 @@
 # NYXR HORIZON — Implementation Plan
 
 **Project:** NYXR HORIZON  
-**Working invention name:** Counterfactual Transport-State Tomography (CTST)  
+**Working name:** Counterfactual Transport-State Tomography (CTST)  
 **Primary language:** Go  
-**Status:** Research and implementation proposal — not a demonstrated invention or a patentability opinion  
+**Status:** Research and implementation proposal  
 **Scope:** Authorized TCP/IP network measurement, active service characterization, and inference of shared network state
 
 **Integration contract:** [NEXT GEN / HORIZON ownership and adapters](architecture/next-gen-horizon-contracts.md).
@@ -29,7 +29,7 @@ HORIZON must **not** present an inference as a directly observed fact. The syste
 5. A versioned **transport-state evidence graph**, exposed through CLI and API/UI.
 6. An adaptive experiment scheduler that minimizes additional traffic under an explicit uncertainty budget.
 7. A laboratory validation corpus with ground truth and baseline comparisons.
-8. A documented prior-art and invention-disclosure package for patent counsel.
+8. A public evidence index with ablations, dated results and negative results.
 
 ## 2. Non-Goals and Hard Constraints
 
@@ -37,7 +37,7 @@ HORIZON must **not** present an inference as a directly observed fact. The syste
 - **Not** a guarantee of better throughput than Masscan, ZMap, or Nmap in every workload. Measure information gained per packet and accuracy as well as raw scan rate.
 - **Not** permission to perform disruptive experiments on third-party networks. All active testing requires an explicit scope and budgets.
 - **Not** a general-purpose fuzzing/exploitation framework. Exclude malformed-packet campaigns and application exploits from the default workflow.
-- **Not** a claim of patent novelty. Adaptive probing, TCP fingerprinting, automata learning, and differential network measurement all have prior art.
+- **Not** a novelty claim. Adaptive probing, TCP fingerprinting, automata learning, and differential network measurement all have prior work.
 - **Not** a replacement for Nyxr's current SYN/TCP/UDP/ICMP discovery, service detection, or fast scan engine.
 
 ## 3. Product Model
@@ -394,21 +394,17 @@ See [operations](horizon/operations.md) and the
 
 **Exit gate:** Stable CI, reproducible integration tests, bounded resource use, operable rollback/feature flag.
 
-### Phase 8 — Patent Research and Invention Disclosure
+### Phase 8 — Evidence and Ablation Record
 
-**Goal:** Decide whether a **specific implementation** supports defensible patent claims.
+**Goal:** Keep one public record of what the lab evidence supports.
 
-1. Conduct a documented prior-art search across EPO Espacenet, WIPO PATENTSCOPE, Google Patents, USPTO, and academic literature.
-2. Compare claims/mechanisms involving adaptive network probes, remote OS fingerprinting, protocol automata learning, differential DPI fingerprinting, active network tomography, and cross-flow state correlation.
-3. Describe the precise technical mechanism distinguishing HORIZON from each closest reference.
-4. Demonstrate a measurable technical effect in controlled experiments, with ablations for each allegedly novel mechanism.
-5. Preserve dated design notes, source commits, test results, inventor contributions, and failure cases.
-6. Coordinate filing and public disclosure timing with qualified patent counsel; do not assume that publishing implementation details is harmless.
-7. Draft candidate claims only after actual prior-art and experimental analysis.
+1. Index every corpus with its result, status and retained failures.
+2. Report each §9 ablation, or state that it was not run.
+3. List negative results and the claims the evidence does not support.
 
-**Deliverables:** Claim chart, novelty/risk matrix, reproducible results, invention disclosure.
+**Deliverable:** [Evidence index](horizon/evidence.md).
 
-**Exit gate:** Counsel-supported file/no-file decision; no marketing claim of being patented unless factually true.
+**Exit gate:** Every corpus and ablation is indexed; no claim exceeds the evidence.
 
 ## 7. Experiment Catalog (Initial Safe Set)
 
@@ -562,7 +558,7 @@ hypotheses:
 | P2 | Adaptive scheduler | Calibrated inference | Cost-aware next experiment |
 | P2 | Behavior profile registry | Baseline corpus | Fast recognition with honest coverage |
 | P2 | Web/API integration | Stable graph schema | Operator-facing workflow |
-| P2 | Patent disclosure package | Ground-truth evidence and prior-art search | Counsel-ready materials |
+| P2 | Evidence and ablation index | Ground-truth corpora | [Evidence index](horizon/evidence.md) |
 
 ## 13. Definition of Done
 
@@ -585,20 +581,11 @@ A milestone is complete only when it includes:
 | Stateful probes affect fragile targets | Conservative policies, no default reconstruct mode, kill switch |
 | Packet/capture timing skew creates false effects | Stable clocks, calibrated timing, uncertainty flags |
 | Profiles overgeneralize after upgrades | Drift detection, expiry, mandatory revalidation |
-| Existing patents/publications cover the proposed technique | Detailed claim-chart review; redesign or publish as research if not novel |
 | Port inference is mistaken for full coverage | Separate tested and inferred coverage in all outputs |
 
 **Go/no-go after Phase 4:** If cross-flow experiments do not reliably outperform matched isolated-probe controls on a known, reproducible discrimination task, stop extending the inference stack and publish the negative result internally. Avoid building sophisticated AI on an unvalidated signal.
 
-## 15. Patent and Publication Position
-
-The **candidate invention** is not "AI chooses the next port." The narrower investigation is a particular combination of: (1) compile-time controlled counterfactual transport sequences, (2) randomized cross-port/cross-flow precondition-and-measure experiments, (3) separable endpoint-versus-path hypotheses, and (4) evidence-gated adaptive continuation. Each element and their combination require prior-art examination; **no patentability conclusion is made here**.
-
-Potential title: *Method and System for Causal Reconstruction of Distributed Transport-Layer States Using Controlled Counterfactual Network Probe Sequences*.
-
-Before any external technical disclosure, coordinate with counsel on priority and filing strategy. Record inventor contributions and dated experimental proof. A patent attorney should evaluate novelty, inventive step/non-obviousness, claim scope, and relevant European computer-implemented invention standards.
-
-## 16. Immediate Engineering Sprint
+## 15. Immediate Engineering Sprint
 
 Start with a thin vertical slice, **not** the adaptive planner:
 

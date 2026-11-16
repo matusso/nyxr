@@ -26,7 +26,7 @@ This page is the single status tracker: what the repository implements today, wh
 | Evidence and storage | Partial | `nyxr/v1` records for every scan; pcapng capture and import; SQLite store; claim → exchange → packet traces and probe replay; coverage-aware scan diffs; central PostgreSQL and object storage | Live capture runtime gates |
 | Asset identity | Partial | Persistent IDs, strong-key joins, review audit, temporal topology, Kubernetes and AWS/Azure/GCP inventory, cross-controller reconciliation, imported passive sightings | Live passive ingestion ([#98](https://github.com/matusso/nyxr/issues/98)), learned-target verification ([#100](https://github.com/matusso/nyxr/issues/100)) |
 | API, web UI and fleet | Partial | REST API with bounded SSE; embedded UI served unprivileged; controller/agent fleet over mTLS gRPC with leases | Scheduling and alerts ([#94](https://github.com/matusso/nyxr/issues/94)), RBAC and audit |
-| HORIZON | Partial | Paired experiments, policy DSL, correlation, calibrated hypotheses, adaptive profiles, API/UI ([#61–#73](https://github.com/matusso/nyxr/issues?q=is%3Aissue+HORIZON+is%3Aclosed) closed) | Prior-art decision gate ([#74](https://github.com/matusso/nyxr/issues/74)) |
+| HORIZON | Partial | Paired experiments, policy DSL, correlation, calibrated hypotheses, adaptive profiles, API/UI ([#61–#74](https://github.com/matusso/nyxr/issues?q=is%3Aissue+HORIZON+is%3Aclosed) closed) | Randomization ablation and prospective adaptive runs ([evidence](horizon/evidence.md)) |
 | Build and release | Done | CI tests/vet, cgo-free builds for linux/windows/darwin on amd64/arm64, GHCR image, Homebrew formula | Runtime smoke tests on all six targets, signed provenance |
 
 Cross-compilation confirms that a binary builds; it does **not** prove that live packet capture, raw sockets or every scan mode works on that operating system. A macOS BPF open/bind/timeout smoke test passed on `en0`; no received or transmitted frames were verified. A privileged Linux namespace run of the IPv6 SYN gate passed on 2026-10-30; macOS BPF and Windows Npcap SYN are unverified live. See [Runtime gates](development/runtime-gates.md). No packet-rate claim is established yet.
@@ -76,7 +76,6 @@ Sixteen issues are open. They are ordered by what blocks them, not by their orig
 | [#97](https://github.com/matusso/nyxr/issues/97) More OT protocols | One sub-issue per protocol, DSL definition plus fixture each |
 | [#88](https://github.com/matusso/nyxr/issues/88) Unknown-protocol families | Start with exact-match normalized fingerprints |
 | [#96](https://github.com/matusso/nyxr/issues/96) Finding pipeline export (P3) | Export contract first, adapters after |
-| [#74](https://github.com/matusso/nyxr/issues/74) HORIZON prior-art gate | Waits on counsel; no repository work |
 
 ### Not tracked by an issue yet
 
