@@ -25,11 +25,11 @@ ordinary NEXT GEN delivery remains independent of HORIZON's research go/no-go re
 | [#71](https://github.com/matusso/nyxr/issues/71) | Phase 5: calibrated hypotheses and evidence graph | #70 |
 | [#72](https://github.com/matusso/nyxr/issues/72) | Phase 6: adaptive planning and behavior profiles | #71, #66 |
 | [#73](https://github.com/matusso/nyxr/issues/73) | Phase 7: API/UI, observability and production hardening | #71 |
-| [#74](https://github.com/matusso/nyxr/issues/74) | Phase 8: prior-art/invention-disclosure gate | #66, #70 |
+| [#74](https://github.com/matusso/nyxr/issues/74) | Phase 8: [evidence and ablation index](evidence.md) | #66, #70 |
 
 Each issue has concrete acceptance criteria and dependency links. #61–#65
 enter **In review** after local implementation and validation, remaining open
-for review. #68 has local Phase 2 implementation and offline verification documented in [correlation and evidence](correlation-evidence.md); #69 Phase 3 is documented in [environmental controls](environment-controls.md), #70 Phase 4 in [cross-port studies](cross-port.md), #71 Phase 5 in [evidence graph](evidence-graph.md) and #72 Phase 6 in [adaptive planning and profiles](adaptive-profiles.md) (a retrospective comparison; prospective live runs remain open), and #73 Phase 7 in [operations](operations.md) with its [security review](security-review.md); #74 retains its independent counsel gate. This status does not imply code publication
+for review. #68 has local Phase 2 implementation and offline verification documented in [correlation and evidence](correlation-evidence.md); #69 Phase 3 is documented in [environmental controls](environment-controls.md), #70 Phase 4 in [cross-port studies](cross-port.md), #71 Phase 5 in [evidence graph](evidence-graph.md) and #72 Phase 6 in [adaptive planning and profiles](adaptive-profiles.md) (a retrospective comparison; prospective live runs remain open), and #73 Phase 7 in [operations](operations.md) with its [security review](security-review.md) and #74 Phase 8 in the [evidence index](evidence.md). This status does not imply code publication
 or a validated live lab.
 
 PoC acceptance: fail-closed independent scope/budgets; simulated effect/null/
@@ -42,5 +42,5 @@ loss/jitter, accuracy/traffic/latency/resource baselines and repeated null trial
 against matched isolated controls; stop expansion if it cannot. #71 must keep
 confounded scenarios unresolved. #72 requires measured accuracy/traffic benefit
 and honest full port coverage. #73 requires a security review before any default
-active probes. #74 requires actual prior-art/experimental evidence and counsel,
-not a patentability claim. Synthetic tests do not fulfill these research gates.
+active probes. #74 indexes every corpus, ablation and negative result
+without claims beyond them. Synthetic tests do not fulfill these research gates.

@@ -94,8 +94,8 @@ their independent research/product gates.
 | 6 Phase 6; 8 Adaptive criterion | No experimental adaptive planner/profile compression | HORIZON-owned #72 after #71/#66; tested/profile-inferred/not-tested coverage stays distinct |
 | 6 Phase 7; 10 CLI/API; 13 Security | CLI/private evidence export, integrity/replay; opt-in synthetic plan/resolve/stop API #67 | HORIZON-owned live API/UI, access, retention, observability/hardening #73; other proposed endpoints remain unavailable |
 | 9 Evaluation; 12 Priorities | Synthetic tests and existing scanner benchmark foundations | Shared lab #66; HORIZON-owned false-positive/ablation/efficiency gates #69/#70/#72; provisional targets are not results |
-| 14 Risks; 15 Patent; 6 Phase 8 | Assumptions/confounders documented; no novelty claim | HORIZON-owned prior-art/disclosure #74, deferred to evidence/counsel gate |
-| 16 Immediate sprint | Thin HZ-001 local slice #61–#65 | Publication/review separate; signed-report ambition unimplemented: SHA-256 detects corruption, not forgery |
+| 14 Risks; 6 Phase 8 | Assumptions/confounders documented; no novelty claim | HORIZON-owned [evidence and ablation index](../horizon/evidence.md) #74 |
+| 15 Immediate sprint | Thin HZ-001 local slice #61–#65 | Publication/review separate; signed-report ambition unimplemented: SHA-256 detects corruption, not forgery |
 
 ## Versioning and wire compatibility
 
@@ -284,7 +284,7 @@ using those suites as a clean integration gate.
 4. #69 pre-registers controls. #70 must outperform matched isolated controls before
    inference expansion; a no-go leaves ordinary NEXT GEN delivery independent. #71
    keeps confounded cases unresolved. #72 requires measured benefit/honest coverage;
-   #73 retains hardening and #74 retains prior-art/counsel gates. Project status never
+   #73 retains hardening and #74 keeps every claim within the evidence index. Project status never
    waives these gates.
 
 For #75, publish the matrix/contract in the NEXT GEN project and keep repository
