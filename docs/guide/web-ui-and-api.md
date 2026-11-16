@@ -217,7 +217,7 @@ other's rate budgets.
 | Privileges | The server refuses to run as root or with raw-socket capabilities; see [Deployment](deployment.md) |
 
 One shared token is the only authentication. Users, RBAC, approvals and audit
-trails are planned; see the [Roadmap](../roadmap.md#phase-9--enterprise-hardening--planned).
+trails are planned; see the [Roadmap](../roadmap.md#not-tracked-by-an-issue-yet).
 
 ## Server flags
 
