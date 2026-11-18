@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -19,6 +20,40 @@ import (
 // lastCaptureGrace keeps the capture open after the last probe so late
 // replies are recorded, as the pipeline does for --pcapng.
 const lastCaptureGrace = 300 * time.Millisecond
+
+// warnCaptureRoute warns when socket probes to the first target leave through
+// another interface than --interface (a VPN's utun, say): the capture would
+// then record nothing. Raw SYN-only scans send on --interface itself.
+func warnCaptureRoute(cfg config.Config, warn io.Writer, route func(netip.Addr) string) {
+	if warn == nil || cfg.Interface == "" || len(cfg.Targets) == 0 || (cfg.TCPMode == "syn" && !cfg.UDP && !cfg.ICMP) {
+		return
+	}
+	target := cfg.Targets[0]
+	if via := route(target); via != "" && via != cfg.Interface {
+		fmt.Fprintf(warn, "nyxr: traffic to %s leaves via %s, not --interface %s; the capture will miss it (use --interface %s)\n", target, via, cfg.Interface, via)
+	}
+}
+
+// routeInterface names the interface the kernel routes target through, or ""
+// when unknown. Connecting a UDP socket picks the route without sending.
+func routeInterface(target netip.Addr) string {
+	conn, err := net.DialUDP("udp", nil, net.UDPAddrFromAddrPort(netip.AddrPortFrom(target, 9)))
+	if err != nil {
+		return ""
+	}
+	local := conn.LocalAddr().(*net.UDPAddr).AddrPort().Addr().Unmap()
+	_ = conn.Close()
+	ifaces, _ := net.Interfaces()
+	for _, iface := range ifaces {
+		addrs, _ := iface.Addrs()
+		for _, a := range addrs {
+			if p, err := netip.ParsePrefix(a.String()); err == nil && p.Addr().Unmap() == local {
+				return iface.Name
+			}
+		}
+	}
+	return ""
+}
 
 // lastCapturePath is ~/.nyxr/last.pcapng, the capture of the newest scan.
 func lastCapturePath() (string, error) {

@@ -197,3 +197,20 @@ func TestDecodeLastFlagAndLastFileDiffer(t *testing.T) {
 		t.Fatalf("decode last: %v", err)
 	}
 }
+
+func TestWarnCaptureRoute(t *testing.T) {
+	target := netip.MustParseAddr("192.0.2.7")
+	cfg := config.Config{Interface: "en0", UDP: true, Targets: []netip.Addr{target}}
+	var buf bytes.Buffer
+	warnCaptureRoute(cfg, &buf, func(netip.Addr) string { return "utun4" })
+	if !strings.Contains(buf.String(), "leaves via utun4, not --interface en0") {
+		t.Fatalf("missing warning: %q", buf.String())
+	}
+	buf.Reset()
+	warnCaptureRoute(cfg, &buf, func(netip.Addr) string { return "en0" })
+	cfg.UDP, cfg.TCP, cfg.TCPMode = false, true, "syn"
+	warnCaptureRoute(cfg, &buf, func(netip.Addr) string { return "utun4" })
+	if buf.Len() != 0 {
+		t.Fatalf("unexpected warning: %q", buf.String())
+	}
+}

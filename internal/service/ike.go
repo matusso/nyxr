@@ -1112,6 +1112,12 @@ func decodeIKE(msg []byte, natT bool, local, remote netip.AddrPort) ikeReply {
 		attrs["ike.vendor_ids"] = strings.Join(vendorHex, ",")
 		attrs["ike.vendors"] = strings.Join(vendorNames, ",")
 	}
+	// strongSwan is the one common stack announcing RFC 4739 multiple
+	// authentication by default, so it names gateways that send no vendor IDs.
+	if product == "" && slices.Contains(notifies, "MULTIPLE_AUTH_SUPPORTED") {
+		product = "strongSwan"
+		attrs["ike.product.basis"] = "MULTIPLE_AUTH_SUPPORTED notify"
+	}
 	if product != "" {
 		attrs["ike.product"] = strings.TrimSpace(product + " " + productVersion)
 	}
