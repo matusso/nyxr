@@ -474,6 +474,7 @@ func runScan(args []string, out io.Writer, style *ui.Styler, progress progressOp
 		open = packetd.Opener(*packetdFlag)
 	}
 	var last *lastCapture
+	warnCaptureRoute(resolved.Config, progress.w, routeInterface)
 	if !*noLastFlag {
 		last = startLastCapture(resolved, open, progress.w)
 	}

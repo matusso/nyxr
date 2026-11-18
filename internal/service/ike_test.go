@@ -587,3 +587,23 @@ func TestNATInternalIPv6(t *testing.T) {
 		}
 	}
 }
+
+// A gateway without vendor IDs whose IKE_SA_INIT response ends with
+// strongSwan's notify set, MULTIPLE_AUTH_SUPPORTED last.
+func TestIKEv2StrongSwanFromNotifySet(t *testing.T) {
+	request := ikeMainMode([]byte{1, 2, 3, 4, 5, 6, 7, 8})
+	body := payload(41, append([]byte{0, 14, 0, 0}, make([]byte, 256)...))
+	body = append(body, payload(41, ikeNotify(16388, make([]byte, 20)))...)
+	body = append(body, payload(41, ikeNotify(16389, make([]byte, 20)))...)
+	body = append(body, payload(41, ikeNotify(16430, nil))...)
+	body = append(body, payload(41, ikeNotify(16418, nil))...)
+	strongswan := append(append([]byte(nil), body...), payload(0, ikeNotify(16404, nil))...)
+	r := decodeIKE(ikeReplyTo(request, responderSPI, 34, 0x20, 34, 0x20, strongswan), false, netip.AddrPort{}, netip.AddrPort{})
+	if r.product != "strongSwan" || r.attrs["ike.product"] != "strongSwan" || r.attrs["ike.product.basis"] == "" {
+		t.Fatalf("product %q attrs %v", r.product, r.attrs)
+	}
+	other := append(append([]byte(nil), body...), payload(0, ikeNotify(16431, []byte{0, 2}))...)
+	if r := decodeIKE(ikeReplyTo(request, responderSPI, 34, 0x20, 34, 0x20, other), false, netip.AddrPort{}, netip.AddrPort{}); r.product != "" {
+		t.Fatalf("named %q without MULTIPLE_AUTH_SUPPORTED", r.product)
+	}
+}

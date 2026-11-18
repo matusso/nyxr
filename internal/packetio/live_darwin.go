@@ -18,6 +18,7 @@ import (
 // receive buffer, so callers must not call ReceiveBatch concurrently.
 type bpfLive struct {
 	fd       int
+	dlt      uint32 // dltEthernet, or a tunnel link (utun, lo0) seen as Ethernet
 	data     []byte
 	offset   int
 	received atomic.Uint64
@@ -65,8 +66,8 @@ func OpenLive(device string) (PacketIO, error) {
 	if err := bpfIoctl(fd, syscall.BIOCGDLT, unsafe.Pointer(&dlt)); err != nil {
 		return closeOnError(err)
 	}
-	if dlt != 1 {
-		return closeOnError(fmt.Errorf("interface %s has link type %d, expected Ethernet", device, dlt))
+	if dlt != dltEthernet && dlt != dltNull && dlt != dltRaw {
+		return closeOnError(fmt.Errorf("interface %s has link type %d, expected Ethernet or a tunnel", device, dlt))
 	}
 	one := uint32(1)
 	if err := bpfIoctl(fd, syscall.BIOCIMMEDIATE, unsafe.Pointer(&one)); err != nil {
@@ -82,7 +83,7 @@ func OpenLive(device string) (PacketIO, error) {
 	if size == 0 || size > 1<<20 {
 		return closeOnError(fmt.Errorf("invalid BPF buffer size %d", size))
 	}
-	return &bpfLive{fd: fd, data: make([]byte, size), offset: int(size)}, nil
+	return &bpfLive{fd: fd, dlt: dlt, data: make([]byte, size), offset: int(size)}, nil
 }
 
 func (b *bpfLive) ReceiveBatch(ctx context.Context, buffers [][]byte) (int, error) {
@@ -115,6 +116,16 @@ func (b *bpfLive) ReceiveBatch(ctx context.Context, buffers [][]byte) (int, erro
 			continue
 		}
 		b.offset += advance
+		if b.dlt != dltEthernet {
+			n, ok := tunnelToEthernet(b.dlt, frame, buffers[count])
+			if !ok {
+				continue
+			}
+			buffers[count] = buffers[count][:n]
+			count++
+			b.received.Add(1)
+			continue
+		}
 		if len(buffers[count]) < len(frame) {
 			return count, fmt.Errorf("receive buffer too small for %d-byte frame", len(frame))
 		}
@@ -139,7 +150,43 @@ func bpfRecord(h []byte) (frame []byte, advance int, ok bool) {
 	return h[hdrlen : hdrlen+caplen], (hdrlen + caplen + 3) &^ 3, true
 }
 
+const (
+	dltNull     = 0 // 4-byte address-family header: utun, lo0
+	dltEthernet = 1
+	dltRaw      = 12 // bare IP packet
+)
+
+// tunnelToEthernet copies a tunnel packet into dst behind a zero-MAC Ethernet
+// header, so captures and decoders handle every link as Ethernet. It reports
+// false for non-IP packets and packets that do not fit dst.
+func tunnelToEthernet(dlt uint32, frame, dst []byte) (int, bool) {
+	if dlt == dltNull {
+		if len(frame) < 4 {
+			return 0, false
+		}
+		frame = frame[4:]
+	}
+	if len(frame) == 0 || 14+len(frame) > len(dst) {
+		return 0, false
+	}
+	var ethType uint16
+	switch frame[0] >> 4 {
+	case 4:
+		ethType = 0x0800
+	case 6:
+		ethType = 0x86dd
+	default:
+		return 0, false
+	}
+	clear(dst[:12])
+	binary.BigEndian.PutUint16(dst[12:14], ethType)
+	return 14 + copy(dst[14:], frame), true
+}
+
 func (b *bpfLive) SendBatch(ctx context.Context, frames [][]byte) (int, error) {
+	if b.dlt != dltEthernet {
+		return 0, errors.New("raw Ethernet send is unsupported on a tunnel interface; use the physical interface")
+	}
 	for i, frame := range frames {
 		if err := ctx.Err(); err != nil {
 			return i, err
