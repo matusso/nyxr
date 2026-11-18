@@ -51,13 +51,21 @@ var ikeVendorPrefixes = []vendorPrefix{
 	{md5Of("draft-ietf-ipsra-isakmp-xauth-06.txt")[:8], ikeVendor{label: "XAUTH"}},
 	{mustHex("afcad71368a1f1c96b8696fc7757"), ikeVendor{label: "Dead Peer Detection"}},
 	{mustHex("1d6e178f6c2c0be284985465450fe9d4"), ikeVendor{label: "FortiGate", product: "Fortinet FortiGate"}},
-	{mustHex("1f07f70eaa6514d3b0fa96542a50"), ikeVendor{label: "Cisco VPN Concentrator", product: "Cisco VPN Concentrator"}},
 }
 
 // Windows sends MS NT5 ISAKMPOAKLEY followed by a 4-byte release number.
+// Releases from 6 on follow Nmap's ike-fingerprints.lua; later Windows
+// versions kept sending 9.
 var msWindowsReleases = map[uint32]string{
-	2: "2000", 3: "XP SP1", 4: "2003/XP SP2", 5: "Vista", 6: "7/Server 2008 R2",
-	7: "8/Server 2012", 8: "8.1/Server 2012 R2", 9: "10/Server 2016 or later",
+	2: "2000", 3: "XP SP1", 4: "2003/XP SP2", 5: "Vista", 6: "Server 2008",
+	7: "7", 8: "Server 2008 R2", 9: "8 or later", 16: "Server 2012",
+}
+
+// checkPointVersions names the version code in a Check Point Vendor ID
+// (from Nmap's ike-fingerprints.lua).
+var checkPointVersions = map[uint32]string{
+	2: "4.1 Base", 3: "4.1 SP1", 0xfa2: "4.1 SP2-SP6", 0x1388: "NG Base", 0x1389: "NG FP1",
+	0x138a: "NG FP2", 0x138b: "NG FP3", 0x138c: "NG AI R54", 0x138d: "NG AI R55 or NGX",
 }
 
 // strongSwan up to 5.x sends MD5("strongSwan <version>") unless configured
@@ -95,8 +103,6 @@ func identifyVendor(vid []byte) ikeVendor {
 		return v
 	}
 	if bytes.HasPrefix(vid, checkPointPrefix) {
-		// shortcut: product and version codes are reported raw; map the
-		// Check Point release table when a real gateway's codes are at hand.
 		v := ikeVendor{label: "Check Point", product: "Check Point"}
 		if len(vid) >= 28 {
 			switch binary.BigEndian.Uint32(vid[20:24]) {
@@ -105,14 +111,19 @@ func identifyVendor(vid []byte) ikeVendor {
 			case 2:
 				v.product = "Check Point SecureClient"
 			}
-			v.version = "version code " + strconv.Itoa(int(binary.BigEndian.Uint32(vid[24:28])))
+			code := binary.BigEndian.Uint32(vid[24:28])
+			if v.version = checkPointVersions[code]; v.version == "" {
+				v.version = "version code " + strconv.Itoa(int(code))
+			}
 			v.label = v.product + " " + v.version
 		}
 		return v
 	}
-	for _, known := range ikeVendorPrefixes {
-		if bytes.HasPrefix(vid, known.prefix) {
-			return known.vendor
+	for _, table := range [][]vendorPrefix{ikeVendorPrefixes, ikeVendorTable} {
+		for _, known := range table {
+			if bytes.HasPrefix(vid, known.prefix) {
+				return known.vendor
+			}
 		}
 	}
 	// Openswan and Libreswan send 12 bytes starting with "OE".
