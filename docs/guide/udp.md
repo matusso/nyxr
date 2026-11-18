@@ -169,7 +169,40 @@ IKEv2, plain then NAT-T framed (NAT-T first on 4500). When IKEv1 answers it
 also asks IKEv2 on the same framing, so `ike.versions` says which versions the
 gateway speaks. Both offers are broad (ike-scan style for IKEv1; AES-CBC,
 3DES, SHA1/SHA2 and MODP/ECP/Curve25519 groups for IKEv2), so a gateway
-either accepts one or says why not. The probe never completes a key exchange.
+either accepts one or says why not.
+
+When the gateway accepts an offer, the probe continues as far as it can
+without a credential:
+
+- **IKEv1** sends Main Mode message 3 (key exchange, nonce and, if the gateway
+  announced NAT-T, the RFC 3947 NAT-D payloads) and decodes message 4: the
+  gateway's NAT-D pair, a certificate request and the vendor IDs many
+  gateways only send there. Message 5 needs the pre-shared key or
+  certificate, so the probe stops.
+- **IKEv1 Aggressive Mode** is then requested as a separate negotiation, in
+  the group Main Mode settled on (MODP-1024 otherwise), offering AES/3DES
+  with SHA2-256/SHA1/MD5 for pre-shared key and XAUTH, with the identity
+  `KEY_ID vpn`. A gateway that accepts returns its identity and, with a
+  pre-shared key, `HASH_R`. That hash is computed from the key and values
+  visible on the wire, so anyone who can send this request can test key
+  guesses offline: report it as a finding. nyxr records the hash and does
+  not attempt to recover the key.
+- **IKEv2** completes the Diffie-Hellman exchange (MODP-1024/2048/3072,
+  ECP-256/384 or Curve25519), returning a `COOKIE` or switching to the group
+  named by `INVALID_KE_PAYLOAD` when asked. It then sends one encrypted
+  `IKE_AUTH` without an AUTH payload, which requests EAP (RFC 7296 2.16). No
+  credential is offered. The gateway answers with its identity, certificate
+  and EAP method, or with an encrypted error such as `AUTHENTICATION_FAILED`.
+  The probe announces `IKEV2_FRAGMENTATION_SUPPORTED` and reassembles a
+  reply sent as RFC 7383 encrypted fragments. When the reply carries a
+  certificate and an AUTH payload, the signature is checked against that
+  certificate (RSA, or ECDSA P-256/384/521). `verified` means the gateway
+  holds the certificate's private key; the chain is not validated. The probe
+  then sends a Delete so the gateway does not keep a half-open SA.
+
+Following RFC 7296 2.23, a gateway probed on UDP/500 that supports NAT
+detection is sent `IKE_AUTH` on UDP/4500 behind the non-ESP marker, and on 500
+again if 4500 stays silent.
 
 | Attribute | Example |
 | --- | --- |
@@ -189,24 +222,59 @@ either accepts one or says why not. The probe never completes a key exchange.
 | `ike.nat_t_support` | `RFC 3947 NAT-T` or a draft (IKEv1 vendor ID), or `RFC 7296 NAT detection` |
 | `ike.nat.scanner` | `direct` or `behind NAT`: whether the gateway saw nyxr's own address and port |
 | `ike.nat.gateway` | `direct` or `behind NAT`: whether the gateway's own address is the scanned one (a port-forwarded gateway reports `behind NAT`) |
+| `ike.nat.gateway_internal` | `10.20.0.5:500`: the address a NATed gateway hashed into its NAT detection payload |
+| `ike.main_mode_message` | `4` when the IKEv1 gateway answered message 3 |
+| `ike.ke.notify` | the IKEv1 gateway's error to message 3, e.g. `INVALID-KEY-INFORMATION` |
+| `ike.aggressive` | `accepted` or `refused`, when the gateway answered the Aggressive Mode request |
+| `ike.aggressive.transform`, `.id`, `.hash`, `.notify` | the accepted transform, the gateway's identity, `HASH_R` in hex, or its refusal |
+| `ike.key_exchange` | `completed` when the IKEv2 `IKE_AUTH` reply decrypted and verified |
+| `ike.fragments` | number of RFC 7383 fragments the `IKE_AUTH` reply arrived in |
+| `ike.auth.signature` | `verified`, `invalid` or `not checked` (RFC 7427 digital signatures) |
+| `ike.auth.port`, `ike.auth.notify` | port that answered `IKE_AUTH`, and its notifies, e.g. `AUTHENTICATION_FAILED` |
+| `ike.id` | the gateway's identity, e.g. `FQDN vpn.example.com` |
+| `ike.auth_method`, `ike.eap` | `RSA signature`; `Request Identity`, `Request MSCHAPv2` |
+| `ike.cert.subject`, `.issuer`, `.names`, `.not_after`, `.sha256` | the gateway's end-entity certificate |
+| `ike.certreq`, `ike.certreq.ca_key_hashes` | `X.509, 1 CA` and the SHA-1 of each CA key the gateway trusts (IKEv2), or the CA name (IKEv1) |
+| `ike.additional_addresses` | other addresses a MOBIKE gateway lists |
 | `ike.v2.*` | the IKEv2 answer when IKEv1 answered first |
 
 Vendor IDs are matched against MD5 digests of their defining strings (NAT-T
-RFC and drafts, strongSwan, Microsoft, Cisco Unity, XAUTH, fragmentation) and
-a few fixed vendor prefixes (Dead Peer Detection, Check Point, FortiGate,
-Cisco VPN Concentrator). Versions come from the ID itself: strongSwan
-`MD5("strongSwan X.Y.Z")`, the Windows release number after
-`MS NT5 ISAKMPOAKLEY`, and Check Point's product and version codes (reported
-raw). Plain-text IDs such as Cisco's `FLEXVPN-SUPPORTED` are shown as text.
-The product and version also fill the service's `product` and `version`.
+RFC and drafts, strongSwan, Microsoft, Cisco Unity, XAUTH, fragmentation),
+a few fixed vendor prefixes (Dead Peer Detection, Check Point, FortiGate), and
+about 115 further IDs taken from Nmap's `ike-fingerprints.lua` (Juniper and
+NetScreen, SonicWall, ZyXEL, Cisco VPN Concentrator, SSH Sentinel/QuickSec,
+FreeS/WAN, Openswan, StoneGate, SafeNet, Nortel, KAME/racoon and more).
+Versions come from the ID itself: strongSwan `MD5("strongSwan X.Y.Z")`, the
+Windows release number after `MS NT5 ISAKMPOAKLEY`, Check Point's version
+code, and versioned IDs in the table. Plain-text IDs such as Cisco's
+`FLEXVPN-SUPPORTED` are shown as text. The product and version also fill the
+service's `product` and `version`.
 
 The probe runs on UDP/500 and 4500, and on any other port where discovery
 already validated an IKE reply. Use `--service-fallback ike` to try it on every
 open UDP port.
 
-The probe stops after the first exchange. It does not follow the RFC 3947 /
-RFC 7296 switch from 500 to 4500, which happens on the encrypted ID/IKE_AUTH
-message and needs a completed key exchange.
+**Internal address recovery.** A NAT detection hash covers only the SPIs, an
+address and a port (SHA-1 in IKEv2, the negotiated hash in IKEv1), and the
+SPIs are on the wire. When a gateway turns out to be behind NAT, nyxr hashes
+every address in 192.168.0.0/16, 172.16.0.0/12, 100.64.0.0/10 and 10.0.0.0/8
+with the scanned port, 500 and 4500 until one matches, which costs a second
+or two of CPU per NATed gateway when nothing matches.
+
+For a gateway scanned over IPv6 it first tries IPv6 candidates, then the IPv4
+ranges above (the gateway may be an IPv4 host behind NAT64 or a dual-stack
+load balancer). IPv6 space cannot be searched: a proper unique local prefix
+has 40 random bits. So only hand-typed prefixes are tried, `fd00:0:0:S::/64`
+for S up to `ff`, `fc00::/64` and `fec0::/64`, each with the scanned
+address's interface ID (NPTv6 preserves it) and the interface IDs `::1` to
+`::ffff`. Expect IPv6 recovery to miss on well-run networks.
+
+Limits: nyxr does not try to recover a pre-shared key from an Aggressive Mode
+hash, does not parse RFC 7427 digital signatures (it does not request them),
+and does not validate certificate chains. IKEv1 leaves half-open SAs on the
+gateway until its timeout (one for Main Mode, one for Aggressive Mode), so
+scanning one gateway repeatedly in a short time can trip its per-peer limit
+(strongSwan blocks a peer at five).
 
 ## Custom payloads
 

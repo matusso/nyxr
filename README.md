@@ -245,7 +245,7 @@ See [Central storage](docs/guide/central.md).
 | [CLI reference](docs/reference/cli.md) | Every command and flag |
 | [REST API](docs/guide/web-ui-and-api.md#rest-api) | Endpoints and live events |
 | [Architecture](docs/architecture/overview.md) | How nyxr is built |
-| [Roadmap](docs/roadmap.md) | What is done and what is next |
+| [Roadmap](docs/roadmap.md) | What is done and what is next | TODO:  RFC 7427 digital signatures (method 14, reported as not checked), certificate chain validation, PSK cracking output, Aggressive Mode with other identities or groups.
 | [HORIZON PoC](docs/horizon/README.md) | Bounded TCP option A/B experiments and offline evidence replay |
 
 Full index: [docs/](docs/README.md).
