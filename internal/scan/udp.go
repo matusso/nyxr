@@ -153,13 +153,14 @@ func probeUDPCampaignWithICMPMode(ctx context.Context, t task, timeout time.Dura
 			conn, err = net.ListenUDP(network, listenAddr)
 		}
 	} else {
-		conn, err = net.DialUDP("udp", nil, addr)
+		conn, _, err = probe.DialUDP(ctx, addr, selected[0].SourcePort)
 	}
 	if err != nil {
 		o.State, o.Reason = "error", err.Error()
 		return o
 	}
-	defer conn.Close()
+	boundFor := selected[0].SourcePort // source port requested for conn
+	defer func() { _ = conn.Close() }()
 	local := conn.LocalAddr().(*net.UDPAddr)
 	localIP, _ := netip.AddrFromSlice(local.IP)
 	if unconnected {
@@ -173,9 +174,12 @@ func probeUDPCampaignWithICMPMode(ctx context.Context, t task, timeout time.Dura
 	}
 	flow := udpFlow{source: localIP.Unmap().WithZone(""), target: t.target.Unmap().WithZone(""), sourcePort: uint16(local.Port), targetPort: t.port}
 	icmp := observer.register(flow)
-	defer observer.unregister(flow)
-	stop := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Now()) })
-	defer stop()
+	defer func() { observer.unregister(flow) }()
+	watch := func(c *net.UDPConn) func() bool {
+		return context.AfterFunc(ctx, func() { _ = c.SetDeadline(time.Now()) })
+	}
+	stop := watch(conn)
+	defer func() { stop() }()
 	// A CLDAP root DSE response can carry many attributes in one datagram.
 	// Keep the entire legal UDP payload available to protocol extractors.
 	var buf [65507]byte
@@ -210,6 +214,23 @@ func probeUDPCampaignWithICMPMode(ctx context.Context, t task, timeout time.Dura
 	}
 probeLoop:
 	for _, p := range selected {
+		if !unconnected && p.SourcePort != boundFor {
+			// A probe with its own source port gets its own socket. Late replies
+			// to earlier probes on the previous socket are not read.
+			next, _, dialErr := probe.DialUDP(ctx, addr, p.SourcePort)
+			if dialErr != nil {
+				o.State, o.Reason = "error", dialErr.Error()
+				return o
+			}
+			stop()
+			_ = conn.Close()
+			observer.unregister(flow)
+			conn, boundFor = next, p.SourcePort
+			flow.sourcePort = uint16(conn.LocalAddr().(*net.UDPAddr).Port)
+			icmp = observer.register(flow)
+			stop = watch(conn)
+			recent = recent[:0]
+		}
 		probeTimeout := timeout
 		if p.Timeout > 0 && p.Timeout < probeTimeout {
 			probeTimeout = p.Timeout

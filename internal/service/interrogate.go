@@ -62,7 +62,7 @@ func (e *Engine) Interrogate(ctx context.Context, t Target) (o observe.Observati
 	if transport == "" {
 		transport = "tcp"
 	}
-	planner := newProbePlannerFor(e, t.Port, transport)
+	planner := newProbePlannerFor(e, t.Port, transport, t.Service)
 	defer func() {
 		o.ServiceHypotheses = planner.probabilities()
 		if ctx.Err() != nil {

@@ -19,7 +19,7 @@ func TestExpandedUDPCatalogAndReplies(t *testing.T) {
 	for _, name := range []string{
 		"dns-status", "dns-version-bind", "dhcp-discover", "ntp-v2", "ntp-v3",
 		"ntp-client", "nbns-node-status", "kerberos-as-req", "cldap-rootdse", "cldap-rfc-rootdse",
-		"radius-access", "radius-accounting", "ike-main-mode", "l2tp-sccrq",
+		"radius-access", "radius-accounting", "ike-main-mode", "ike-nat-t", "ike-v2-sa-init", "ike-v2-nat-t", "l2tp-sccrq",
 		"snmp-v1-public", "snmp-v1-private", "snmp-v2c-private", "slp-service-agent", "ipmi-asf-ping", "citrix-discovery",
 		"db2-discovery", "source-info", "quake3-status", "gamespy-status",
 		"teamspeak3-init", "udp-null",
@@ -54,6 +54,9 @@ func TestExpandedUDPCatalogAndReplies(t *testing.T) {
 		{"radius-access", func(q []byte) []byte { r := bytes.Clone(q); r[0] = 3; return r }},
 		{"radius-accounting", func(q []byte) []byte { r := bytes.Clone(q); r[0] = 5; return r }},
 		{"ike-main-mode", func(q []byte) []byte { r := bytes.Clone(q); r[8] = 1; return r }},
+		{"ike-nat-t", func(q []byte) []byte { r := bytes.Clone(q); r[12] = 1; return r }},
+		{"ike-v2-sa-init", func(q []byte) []byte { r := bytes.Clone(q); r[8], r[19] = 1, 0x20; return r }},
+		{"ike-v2-nat-t", func(q []byte) []byte { r := bytes.Clone(q); r[12], r[23] = 1, 0x20; return r }},
 		{"l2tp-sccrq", func([]byte) []byte {
 			return []byte{0xc8, 2, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0x80, 8, 0, 0, 0, 0, 0, 2}
 		}},
@@ -97,7 +100,7 @@ func TestExpandedUDPCatalogAndReplies(t *testing.T) {
 			t.Errorf("%s accepted an empty reply", tc.name)
 		}
 	}
-	for _, name := range []string{"dns-status", "dhcp-discover", "nbns-node-status", "radius-access", "ike-main-mode", "slp-service-agent", "ipmi-asf-ping"} {
+	for _, name := range []string{"dns-status", "dhcp-discover", "nbns-node-status", "radius-access", "ike-main-mode", "ike-nat-t", "ike-v2-sa-init", "ike-v2-nat-t", "slp-service-agent", "ipmi-asf-ping"} {
 		p := byName[name]
 		q := Prepare(p, 0x1234567890abcdef)
 		other := Prepare(p, 0xdeadbeef01020304)
@@ -121,6 +124,34 @@ func TestExpandedUDPCatalogAndReplies(t *testing.T) {
 	}
 	if binary.BigEndian.Uint32(byName["ike-main-mode"].Payload[24:28]) != uint32(len(byName["ike-main-mode"].Payload)) {
 		t.Fatal("IKE packet length disagrees with payload")
+	}
+	// The deep profile must find IKE on non-standard ports, both framings.
+	ikeAnywhere := map[string]bool{}
+	for _, p := range ForEveryPort(all, 40000) {
+		ikeAnywhere[p.Name] = true
+	}
+	if !ikeAnywhere["ike-main-mode"] || !ikeAnywhere["ike-nat-t"] {
+		t.Fatal("deep UDP campaign must try both IKE framings on any port")
+	}
+	if v1, v2 := byName["ike-main-mode"], byName["ike-v2-sa-init"]; Match(v2, Prepare(v2, 7), Prepare(v1, 7)) {
+		t.Fatal("an IKEv1 reply matched an IKEv2 request")
+	}
+	for _, name := range []string{"ike-main-mode", "ike-nat-t", "ike-v2-sa-init", "ike-v2-nat-t"} {
+		if q := Prepare(byName[name], 9); Match(byName[name], q, bytes.Clone(q)) {
+			t.Fatalf("%s accepted an echo of its own request", name)
+		}
+	}
+	if byName["ike-v2-sa-init"].SourcePort != 500 || byName["ike-v2-nat-t"].SourcePort != 4500 {
+		t.Fatal("IKEv2 probes must send from the IKE ports")
+	}
+	if byName["ike-main-mode"].SourcePort != 500 || byName["ike-nat-t"].SourcePort != 4500 {
+		t.Fatal("IKE probes must send from the IKE ports")
+	}
+	if got := ForPort(all, 4500); got[0].Name != "ike-nat-t" {
+		t.Fatalf("port 4500 must probe IKE NAT-T first: %+v", got)
+	}
+	if nat := byName["ike-nat-t"]; Match(nat, Prepare(nat, 1), Prepare(byName["ike-main-mode"], 1)) {
+		t.Fatal("ike-nat-t accepted a reply without the non-ESP marker")
 	}
 	version := byName["dns-version-bind"]
 	query := Prepare(version, 0x1234)

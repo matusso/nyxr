@@ -40,11 +40,15 @@ const (
 	ProbeNFS        = "nfs"        // RPC NULL to NFS and a portmapper dump of the RPC programs
 	ProbeQUIC       = "quic"       // QUIC handshake and HTTP/3 identity over UDP
 	ProbeDTLS       = "dtls"       // DTLS handshake and peer certificate over UDP
+	ProbeIKE        = "ike"        // IKEv1 Main Mode and IKEv2 IKE_SA_INIT, plain or NAT-T framed; decodes the reply
 )
+
+// UDPProbe reports whether a native probe runs over UDP instead of TCP.
+func UDPProbe(name string) bool { return name == ProbeQUIC || name == ProbeDTLS || name == ProbeIKE }
 
 // Names lists every probe in the order they are documented.
 func Names() []string {
-	return []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDNS, ProbeSOCKS, ProbeModbus, ProbeEtherNetIP, ProbeS7, ProbeOPCUA, ProbeNmap, ProbeDatabase, ProbeSMB, ProbeRDP, ProbeMSRPC, ProbeLDAP, ProbeKerberos, ProbeNFS, ProbeQUIC, ProbeDTLS}
+	return []string{ProbeBanner, ProbeSSH, ProbeTLS, ProbeHTTP, ProbeDNS, ProbeSOCKS, ProbeModbus, ProbeEtherNetIP, ProbeS7, ProbeOPCUA, ProbeNmap, ProbeDatabase, ProbeSMB, ProbeRDP, ProbeMSRPC, ProbeLDAP, ProbeKerberos, ProbeNFS, ProbeQUIC, ProbeDTLS, ProbeIKE}
 }
 
 // Per-probe time budgets. Config.Timeout caps each of them.
@@ -67,6 +71,7 @@ var probeTimeouts = map[string]time.Duration{
 	ProbeNFS:        4 * time.Second,
 	ProbeQUIC:       5 * time.Second,
 	ProbeDTLS:       5 * time.Second,
+	ProbeIKE:        5 * time.Second,
 }
 
 // Config controls the deep-probe stage.
@@ -162,6 +167,9 @@ type Target struct {
 	// Hostnames are the operator's names that resolved to Addr, at most
 	// MaxTargetHostnames. They are SNI only; Addr alone was authorized.
 	Hostnames []string
+	// Service is what UDP discovery validated on the port, e.g. "ike"; it
+	// makes the matching native probe a candidate on a non-standard port.
+	Service string
 }
 
 // Engine runs a fixed pool of interrogation workers.

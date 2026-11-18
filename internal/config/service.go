@@ -113,7 +113,7 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 	if profile.Service != nil {
 		d = *profile.Service
 	} else if cfg.UDP && !cfg.TCP {
-		d = ServiceDefaults{Probes: service.ProbeQUIC + "," + service.ProbeDTLS, Timeout: "5s", Workers: 16, Rate: 50}
+		d = ServiceDefaults{Probes: service.ProbeQUIC + "," + service.ProbeDTLS + "," + service.ProbeIKE, Timeout: "5s", Workers: 16, Rate: 50}
 	}
 	var probes []string
 	var err error
@@ -175,10 +175,10 @@ func BuildService(cfg Config, o ServiceOptions) (Service, error) {
 	if cfg.UDP && !cfg.TCP && len(definitions) == 0 {
 		nativeEnabled := false
 		for _, name := range probes {
-			nativeEnabled = nativeEnabled || name == service.ProbeQUIC || name == service.ProbeDTLS
+			nativeEnabled = nativeEnabled || service.UDPProbe(name)
 		}
 		if !nativeEnabled {
-			return Service{}, errors.New("UDP deep service probes require quic, dtls, or UDP protocol definitions")
+			return Service{}, errors.New("UDP deep service probes require quic, dtls, ike, or UDP protocol definitions")
 		}
 	}
 	// The nmap probe reads an nmap-service-probes file. Supplying the file
@@ -235,10 +235,10 @@ func (s Service) ValidateFor(cfg Config) error {
 		return err
 	}
 	for _, name := range append(append([]string(nil), s.Probes...), s.Fallback...) {
-		if (name == service.ProbeQUIC || name == service.ProbeDTLS) && !cfg.UDP {
+		if service.UDPProbe(name) && !cfg.UDP {
 			return fmt.Errorf("%s service probe requires UDP scanning", name)
 		}
-		if name != service.ProbeQUIC && name != service.ProbeDTLS && !cfg.TCP {
+		if !service.UDPProbe(name) && !cfg.TCP {
 			return fmt.Errorf("%s service probe requires TCP scanning", name)
 		}
 	}

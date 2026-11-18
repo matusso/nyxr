@@ -93,7 +93,7 @@ func TestServiceRejections(t *testing.T) {
 		want string
 	}{
 		"ot-safe":           {Options{Profile: "ot-safe", AllowTargets: []string{"192.0.2.1"}}, ServiceOptions{Probes: "http"}, "does not allow service probe"},
-		"udp without probe": {Options{Profile: "udp-common"}, ServiceOptions{Probes: "http"}, "require quic, dtls, or UDP protocol definitions"},
+		"udp without probe": {Options{Profile: "udp-common"}, ServiceOptions{Probes: "http"}, "require quic, dtls, ike, or UDP protocol definitions"},
 		"unknown probe":     {Options{Profile: "tcp-common"}, ServiceOptions{Probes: "telnet"}, "unknown service probe"},
 		"option w/o flag":   {Options{Profile: "tcp-basic"}, ServiceOptions{Probes: "http"}, "require --service"},
 		"bad timeout":       {Options{Profile: "tcp-common"}, ServiceOptions{Timeout: "soon"}, "service timeout"},
@@ -123,8 +123,8 @@ func TestServiceTLSProfiles(t *testing.T) {
 
 func TestUDPCommonEnablesNativeQUIC(t *testing.T) {
 	s, err := BuildService(build(t, Options{Profile: "udp-common"}), ServiceOptions{})
-	if err != nil || !s.Enabled || len(s.Probes) != 2 || s.Probes[0] != service.ProbeQUIC || s.Probes[1] != service.ProbeDTLS {
-		t.Fatalf("UDP profile should enable QUIC and DTLS: %+v %v", s, err)
+	if err != nil || !s.Enabled || strings.Join(s.Probes, ",") != service.ProbeQUIC+","+service.ProbeDTLS+","+service.ProbeIKE {
+		t.Fatalf("UDP profile should enable QUIC, DTLS and IKE: %+v %v", s, err)
 	}
 }
 

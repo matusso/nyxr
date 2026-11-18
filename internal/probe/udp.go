@@ -40,9 +40,12 @@ type Definition struct {
 		Encoding string `yaml:"encoding"`
 		Data     string `yaml:"data"`
 	} `yaml:"payload"`
-	Timeout string `yaml:"timeout"`
-	Retries int    `yaml:"retries"`
-	Match   []struct {
+	// SourcePort, when set, sends from this local port (e.g. 500/4500 for
+	// IKE gateways that only answer peers on the IKE ports); 0 is ephemeral.
+	SourcePort uint16 `yaml:"source_port"`
+	Timeout    string `yaml:"timeout"`
+	Retries    int    `yaml:"retries"`
+	Match      []struct {
 		Type string `yaml:"type"`
 	} `yaml:"match"`
 	Extract []string `yaml:"extract"`
@@ -58,6 +61,7 @@ type Probe struct {
 	Matcher       string
 	Timeout       time.Duration
 	Retries       int
+	SourcePort    uint16
 	ExtractFields []string
 }
 
@@ -216,7 +220,7 @@ func (d Definition) Compile(baseDir string) (Probe, error) {
 	}
 	return Probe{Name: d.Name, Ports: append([]uint16(nil), d.Ports...), Payload: payload,
 		Tags: append([]string(nil), d.Tags...), Matcher: matcher, Timeout: timeout, Retries: d.Retries,
-		ExtractFields: append([]string(nil), d.Extract...)}, nil
+		SourcePort: d.SourcePort, ExtractFields: append([]string(nil), d.Extract...)}, nil
 }
 
 func Builtins() ([]Probe, error) {
