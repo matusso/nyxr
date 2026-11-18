@@ -30,11 +30,11 @@ var portSets = map[string][]uint16{
 		9080, 9090, 9200, 9443, 10000, 10443, 18080,
 	},
 	// UDP ports with a built-in payload: DNS, DHCP, TFTP, Kerberos, RPC, NTP,
-	// NetBIOS, SNMP, CLDAP, SLP, IKE, DB2, IPMI, Citrix, L2TP, RADIUS, SSDP,
+	// NetBIOS, SNMP, CLDAP, SLP, IKE (+NAT-T), DB2, IPMI, Citrix, L2TP, RADIUS, SSDP,
 	// STUN, SIP, mDNS, LLMNR, CoAP, TeamSpeak, Memcached, games and BACnet.
 	"udp": {
 		53, 67, 69, 88, 111, 123, 137, 161, 389, 427, 500, 523, 623, 1604,
-		1701, 1812, 1813, 1900, 2049, 3478, 5060, 5353, 5355, 5683, 9987,
+		1701, 1812, 1813, 1900, 2049, 3478, 4500, 5060, 5353, 5355, 5683, 9987,
 		11211, 23000, 27015, 27900, 27960, 28900, 47808,
 	},
 	// TCP services a Windows host and an Active Directory domain propagate:

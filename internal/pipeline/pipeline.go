@@ -231,12 +231,13 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 			if o.Transport == "udp" && (o.State == "open" || o.State == "open|filtered") {
 				for _, name := range opts.Service.Probes {
 					if name == service.ProbeQUIC && service.QUICPort(o.Port) ||
-						name == service.ProbeDTLS && service.DTLSPort(o.Port) {
+						name == service.ProbeDTLS && service.DTLSPort(o.Port) ||
+						name == service.ProbeIKE && (service.IKEPort(o.Port) || o.Service == service.ProbeIKE) {
 						eligible = true
 					}
 				}
 				for _, name := range opts.Service.Fallback {
-					if name == service.ProbeQUIC || name == service.ProbeDTLS {
+					if service.UDPProbe(name) {
 						eligible = true
 					}
 				}
@@ -256,7 +257,7 @@ func Run(parent context.Context, cfg config.Config, opts Options) (observe.Scan,
 				}
 			}
 			if eligible && ctx.Err() == nil {
-				t := service.Target{Addr: o.Target, Port: o.Port, Transport: o.Transport, State: o.State, Hostnames: cfg.TargetNames[o.Target]}
+				t := service.Target{Addr: o.Target, Port: o.Port, Transport: o.Transport, State: o.State, Hostnames: cfg.TargetNames[o.Target], Service: o.Service}
 				if cfg.Profile == "ot-safe" && opts.Service.Enabled {
 					otOpen = append(otOpen, t)
 				} else if engine != nil {

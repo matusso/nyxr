@@ -63,7 +63,7 @@ func dnsTXT(packet []byte) (string, bool) {
 // assigns those responses lower confidence.
 func extraMatcher(name string) bool {
 	switch name {
-	case "dns-status", "dhcp", "nbns", "kerberos", "cldap", "radius", "ike", "l2tp",
+	case "dns-status", "dhcp", "nbns", "kerberos", "cldap", "radius", "ike", "ike-nat-t", "l2tp",
 		"snmpv1", "slp", "ipmi", "citrix", "db2", "source", "quake", "gamespy", "teamspeak":
 		return true
 	}
@@ -85,8 +85,13 @@ func validateExtra(name string, payload []byte) error {
 		_, valid = cldapIDOffset(payload)
 	case "radius":
 		valid = len(payload) == 20 && (payload[0] == 1 || payload[0] == 4) && binary.BigEndian.Uint16(payload[2:4]) == 20
+	case "ike-nat-t":
+		// RFC 3948: IKE on the NAT-T port carries a 4-byte zero non-ESP marker.
+		valid = len(payload) >= 4 && bytes.Equal(payload[:4], natT[:]) && validateExtra("ike", payload[4:]) == nil
 	case "ike":
-		valid = len(payload) >= 28 && payload[17] == 0x10 && int(binary.BigEndian.Uint32(payload[24:28])) == len(payload)
+		// IKEv1 (1.0) and IKEv2 (2.0) requests share the ISAKMP header layout.
+		valid = len(payload) >= 28 && (payload[17] == 0x10 || payload[17] == 0x20) &&
+			int(binary.BigEndian.Uint32(payload[24:28])) == len(payload)
 	case "l2tp":
 		valid = len(payload) >= 12 && payload[0] == 0xc8 && payload[1] == 2 && int(binary.BigEndian.Uint16(payload[2:4])) == len(payload)
 	case "snmpv1":
@@ -134,6 +139,8 @@ func prepareExtra(name string, payload []byte, token uint64) {
 		binary.BigEndian.PutUint64(payload[12:20], token^0xa5a5a5a5a5a5a5a5)
 	case "ike":
 		binary.BigEndian.PutUint64(payload[:8], token)
+	case "ike-nat-t":
+		binary.BigEndian.PutUint64(payload[4:12], token)
 	case "snmpv1":
 		if offset, _, ok := snmpRequestIDOffset(payload, 0); ok {
 			binary.BigEndian.PutUint32(payload[offset:offset+4], uint32(token)&0x7fffffff)
@@ -172,9 +179,15 @@ func matchExtra(name string, request, response []byte) bool {
 			(request[0] == 4 && response[0] == 5)
 		return validCode &&
 			response[1] == request[1] && int(binary.BigEndian.Uint16(response[2:4])) == len(response)
+	case "ike-nat-t":
+		return len(request) >= 4 && len(response) >= 4 && bytes.Equal(response[:4], natT[:]) &&
+			matchExtra("ike", request[4:], response[4:])
 	case "ike":
-		return len(response) >= 28 && bytes.Equal(response[:8], request[:8]) &&
-			response[17]>>4 == 1 && int(binary.BigEndian.Uint32(response[24:28])) == len(response)
+		// An echo of the request (UDP echo service, own socket) is not IKE, and
+		// an IKEv2 answer must carry the response flag.
+		return len(response) >= 28 && bytes.Equal(response[:8], request[:8]) && !bytes.Equal(response, request) &&
+			(response[17]>>4 != 2 || response[19]&0x20 != 0) &&
+			response[17]>>4 == request[17]>>4 && int(binary.BigEndian.Uint32(response[24:28])) == len(response)
 	case "l2tp":
 		return len(response) >= 20 && response[0]&0x80 != 0 && response[1]&15 == 2 &&
 			int(binary.BigEndian.Uint16(response[2:4])) == len(response) &&
@@ -204,3 +217,5 @@ func matchExtra(name string, request, response []byte) bool {
 	}
 	return false
 }
+
+var natT = [4]byte{}

@@ -44,6 +44,7 @@ var probeModel = map[string]struct {
 	ProbeNFS:           {0.95, 1.35},
 	ProbeQUIC:          {0.98, 1.50},
 	ProbeDTLS:          {0.96, 1.40},
+	ProbeIKE:           {0.95, 1.20},
 }
 
 const incidentalMatch = 0.001
@@ -63,10 +64,10 @@ func newProbePlanner(e *Engine, port uint16) *probePlanner {
 	return newProbePlannerFor(e, port, "tcp")
 }
 
-func newProbePlannerFor(e *Engine, port uint16, transport string) *probePlanner {
+func newProbePlannerFor(e *Engine, port uint16, transport string, hint ...string) *probePlanner {
 	families := append([]string(nil), serviceFamilies...)
 	if transport == "udp" {
-		families = []string{ProbeQUIC, ProbeDTLS, "unknown"}
+		families = []string{ProbeQUIC, ProbeDTLS, ProbeIKE, "unknown"}
 	}
 	p := &probePlanner{candidates: map[string]bool{}, attempted: map[string]bool{}, families: families, transport: transport}
 	for _, d := range e.cfg.Definitions {
@@ -148,6 +149,18 @@ func newProbePlannerFor(e *Engine, port uint16, transport string) *probePlanner 
 		for _, name := range e.cfg.Fallback {
 			if name == ProbeDTLS {
 				p.candidates[ProbeDTLS] = true
+			}
+		}
+	}
+	if transport == "udp" && e.enabled[ProbeIKE] {
+		hinted := len(hint) > 0 && hint[0] == ProbeIKE
+		if IKEPort(port) || hinted {
+			p.prob[2] *= 24
+			p.candidates[ProbeIKE] = true
+		}
+		for _, name := range e.cfg.Fallback {
+			if name == ProbeIKE {
+				p.candidates[ProbeIKE] = true
 			}
 		}
 	}

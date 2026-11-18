@@ -74,6 +74,8 @@ func (e *Engine) executeProbe(ctx context.Context, t Target, name string, redisH
 		machine = probeFunc(e.probeQUIC)
 	case ProbeDTLS:
 		machine = probeFunc(e.probeDTLS)
+	case ProbeIKE:
+		machine = probeFunc(e.probeIKE)
 	default:
 		for _, d := range e.cfg.Definitions {
 			if name == "dsl/"+d.Name {

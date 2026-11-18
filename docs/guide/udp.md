@@ -9,6 +9,7 @@ errors to individual probes, and states how confident each result is.
 - [Built-in probe catalog](#built-in-probe-catalog)
 - [QUIC and HTTP/3](#quic-and-http3)
 - [DTLS](#dtls)
+- [IKE and IPsec VPNs](#ike-and-ipsec-vpns)
 - [Custom payloads](#custom-payloads)
 - [Native probe definitions](#native-probe-definitions)
 - [Using Nmap UDP probes](#using-nmap-udp-probes)
@@ -141,6 +142,72 @@ application data. To try another port, use `--service-probes dtls
 DTLS library does not expose the negotiated DTLS version, so nyxr reports
 `DTLS` without a version number.
 
+## IKE and IPsec VPNs
+
+Discovery sends an IKEv1 Main Mode offer and an IKEv2 IKE_SA_INIT to UDP/500
+and, behind the RFC 3948 four-byte non-ESP marker, to UDP/4500. `udp-full`
+tries all four on every port. A reply counts only when it echoes the probe's
+random initiator SPI with the same IKE major version.
+
+The requests follow the NAT traversal RFCs (RFC 3715 states the problem):
+
+- IKEv1 Main Mode carries the RFC 3947 and draft NAT-T vendor IDs, which
+  RFC 3947 3.1 requires in the first two Phase 1 messages.
+- IKEv2 IKE_SA_INIT carries `NAT_DETECTION_SOURCE_IP` and
+  `NAT_DETECTION_DESTINATION_IP`, SHA-1 of SPIi, SPIr, IP and port
+  (RFC 7296 2.23).
+- RFC 3947 3 and RFC 7296 2.23 require responders to accept any source port
+  and reply to it, so probing through NAT works. Responders that support NAT
+  traversal must also accept negotiations that begin on 4500 (RFC 3947 4).
+
+The probes still send from UDP/500 (plain) and UDP/4500 (NAT-T) for gateways
+that ignore that rule. Binding them needs root; without it, or when a local
+IPsec daemon owns the port, nyxr falls back to an ephemeral port.
+
+With `--fingerprint` (or `--service`), the `ike` service probe tries IKEv1 then
+IKEv2, plain then NAT-T framed (NAT-T first on 4500). When IKEv1 answers it
+also asks IKEv2 on the same framing, so `ike.versions` says which versions the
+gateway speaks. Both offers are broad (ike-scan style for IKEv1; AES-CBC,
+3DES, SHA1/SHA2 and MODP/ECP/Curve25519 groups for IKEv2), so a gateway
+either accepts one or says why not. The probe never completes a key exchange.
+
+| Attribute | Example |
+| --- | --- |
+| `banner` | `VPN (IKE NAT-T)` |
+| `ike.versions` | `1,2` |
+| `ike.initiator_spi`, `ike.responder_spi` | `46fba3402687e27c`, `b969545c24a005ca` |
+| `ike.next_payload` | `Notification (N)` |
+| `ike.version` | `1.0` |
+| `ike.exchange_type` | `Informational`, `Identity Protection (Main Mode)`, `IKE_SA_INIT` |
+| `ike.flags.*` | IKEv1 `encryption`, `commit`, `authentication`; IKEv2 `initiator`, `version`, `response` |
+| `ike.message_id`, `ike.length` | `76b5df1e`, `40` |
+| `ike.transform` | the proposal the gateway accepted, e.g. `3DES/SHA1/PSK/MODP-1024` or `AES-CBC-256/HMAC-SHA2-256/HMAC-SHA2-256-128/MODP-2048` |
+| `ike.lifetime`, `ike.ke_group` | `28800s`, `MODP-2048` |
+| `ike.notify` | `NO-PROPOSAL-CHOSEN`, `INVALID_KE_PAYLOAD (wants ECP-256)`, `IKEV2_FRAGMENTATION_SUPPORTED` |
+| `ike.vendor_ids`, `ike.vendors` | raw Vendor ID payloads and their names |
+| `ike.product` | implementation named by a Vendor ID, with version when encoded |
+| `ike.nat_t_support` | `RFC 3947 NAT-T` or a draft (IKEv1 vendor ID), or `RFC 7296 NAT detection` |
+| `ike.nat.scanner` | `direct` or `behind NAT`: whether the gateway saw nyxr's own address and port |
+| `ike.nat.gateway` | `direct` or `behind NAT`: whether the gateway's own address is the scanned one (a port-forwarded gateway reports `behind NAT`) |
+| `ike.v2.*` | the IKEv2 answer when IKEv1 answered first |
+
+Vendor IDs are matched against MD5 digests of their defining strings (NAT-T
+RFC and drafts, strongSwan, Microsoft, Cisco Unity, XAUTH, fragmentation) and
+a few fixed vendor prefixes (Dead Peer Detection, Check Point, FortiGate,
+Cisco VPN Concentrator). Versions come from the ID itself: strongSwan
+`MD5("strongSwan X.Y.Z")`, the Windows release number after
+`MS NT5 ISAKMPOAKLEY`, and Check Point's product and version codes (reported
+raw). Plain-text IDs such as Cisco's `FLEXVPN-SUPPORTED` are shown as text.
+The product and version also fill the service's `product` and `version`.
+
+The probe runs on UDP/500 and 4500, and on any other port where discovery
+already validated an IKE reply. Use `--service-fallback ike` to try it on every
+open UDP port.
+
+The probe stops after the first exchange. It does not follow the RFC 3947 /
+RFC 7296 switch from 500 to 4500, which happens on the encrypted ID/IKE_AUTH
+message and needs a completed key exchange.
+
 ## Custom payloads
 
 Choose exactly one of the following. A custom payload replaces the built-in
@@ -185,7 +252,8 @@ match:
 | `ports` | Ports the probe applies to. A probe with no applicable port falls back to the empty datagram |
 | `safety` | Only `safe` is accepted |
 | `payload.encoding` | `ascii`, `hex`, `base64`, or `raw_file` (path relative to the YAML file) |
-| `match[].type` | `any`, `dns`, `dns-status`, `dhcp`, `nbns`, `kerberos`, `cldap`, `radius`, `ike`, `l2tp`, `snmpv1`, `ntp`, `snmp`, `snmpv3`, `stun`, `tftp`, `ssdp`, `sip`, `coap`, `bacnet`, `bacnet-read`, `bacnet-fdt`, `rpc`, `slp`, `ipmi`, `citrix`, `db2`, `source`, `quake`, `gamespy`, `teamspeak`, `memcached` |
+| `source_port` | Local port to send from, for services that only answer peers on a fixed port. Ports below 1024 need root; when the port cannot be bound nyxr sends from an ephemeral port |
+| `match[].type` | `any`, `dns`, `dns-status`, `dhcp`, `nbns`, `kerberos`, `cldap`, `radius`, `ike`, `ike-nat-t`, `l2tp`, `snmpv1`, `ntp`, `snmp`, `snmpv3`, `stun`, `tftp`, `ssdp`, `sip`, `coap`, `bacnet`, `bacnet-read`, `bacnet-fdt`, `rpc`, `slp`, `ipmi`, `citrix`, `db2`, `source`, `quake`, `gamespy`, `teamspeak`, `memcached` |
 | `extract` | Fields to copy into the observation's `fields` map (below) |
 
 Extractable fields:
